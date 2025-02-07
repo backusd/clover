@@ -13,8 +13,8 @@ namespace Log
 			std::cout << msg << '\n';
 		else
 		{
-			std::vprint_nonunicode(std::cout, msg, std::make_format_args(args...));
-			std::cout << '\n';
+			//std::vprint_nonunicode(std::cout, msg, std::make_format_args(args...));
+			std::cout << std::vformat(msg, std::make_format_args(args...)) << '\n';
 		}
 	}
 
