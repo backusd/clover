@@ -1,0 +1,82 @@
+<HTML>
+<HEAD>
+	<META NAME="GENERATOR" Content="Microsoft Visual Studio">
+	<TITLE></TITLE>
+	<link rel="stylesheet" href="style.css">
+</HEAD>
+<BODY>
+
+    Server URI: 
+    <input class="draw-border" id="uri" size="47" value="ws://localhost:8080" style="margin-bottom: 5px;">
+    <button class="echo-button" id="connect">Connect</button>
+    <button class="echo-button" id="disconnect">Disconnect</button><br>
+    Your Name: 
+    <input class="draw-border" id="userName" size=47 style="margin-bottom: 5px;"><br>
+    <pre id="messages" style="width: 600px; height: 400px; white-space: normal; overflow: auto; border: solid 1px #cccccc; margin-bottom: 5px;"></pre>
+    <div style="margin-bottom: 5px;">
+        Message<br>
+        <input class="draw-border" id="sendMessage" size="74" value="">
+        <button class="echo-button" id="send">Send</button>
+    </div>
+
+    <script>
+        var ws = null;
+        function showMessage(msg)
+        {
+            messages.innerText += msg + "\n";
+            messages.scrollTop = messages.scrollHeight - messages.clientHeight;
+        };
+        connect.onclick = function ()
+        {
+            ws = new WebSocket(uri.value);
+            ws.onopen = function (ev)
+            {
+                showMessage("[connection opened]");
+            };
+            ws.onclose = function (ev)
+            {
+                showMessage("[connection closed]");
+            };
+            ws.onmessage = function (ev)
+            {
+                showMessage(ev.data);
+            };
+            ws.onerror = function (ev)
+            {
+                showMessage("[error]");
+                console.log(ev);
+            };
+        };
+        disconnect.onclick = function ()
+        {
+            ws.close();
+        };
+        send.onclick = function ()
+        {
+			//const arrayBuffer = new Uint32Array([1, 2, 3, 4]).buffer;
+            //ws.send(arrayBuffer);
+
+            ws.send(userName.value + ": " + sendMessage.value);
+            sendMessage.value = "";
+        };
+        sendMessage.onkeyup = function (ev)
+        {
+            ev.preventDefault();
+            if (ev.keyCode === 13)
+            {
+                send.click();
+            }
+        }
+
+		window.addEventListener('beforeunload', () =>
+		{
+			// Close the WebSocket connection
+			if (ws.readyState === WebSocket.OPEN)
+			{
+				ws.close();
+			}
+        });
+
+    </script>
+</BODY>
+</HTML>
