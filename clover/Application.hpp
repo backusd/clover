@@ -813,20 +813,18 @@ private:
 public:
 	Application(std::string_view address, unsigned short port, unsigned int threads = std::thread::hardware_concurrency()) :
 		m_ioc(threads),
-		m_threads(threads)
+		m_threads(threads),
+        m_ctx{ ssl::context::tlsv12 }
 	{
         assert(m_threads > 0);
 
-        // The SSL context is required, and holds certificates
-        ssl::context ctx{ ssl::context::tlsv12 };
-
         // This holds the self-signed certificate used by the server
-        load_server_certificate(ctx);
+        load_server_certificate(m_ctx);
 
         // Create and launch a listening port
         std::make_shared<listener>(
             m_ioc,
-            ctx,
+            m_ctx,
             tcp::endpoint{ net::ip::make_address(address), port },
             this)->run();
 
@@ -921,5 +919,6 @@ private:
     }
 
 	net::io_context m_ioc;
+    ssl::context m_ctx;
 	unsigned int m_threads;
 };
