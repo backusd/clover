@@ -6,7 +6,8 @@ namespace Log
 	template <typename... Args>
 	void _Log(const char* color, std::string_view msg, Args&&... args) noexcept
 	{
-		std::cout << color << '[' << std::chrono::system_clock::now() << "] ";
+		std::cout << color << '[' << std::format("{:%T}", std::chrono::system_clock::now()) << "] ";
+		//std::cout << color << '[' << std::chrono::system_clock::now() << "] ";
 
 		if constexpr (sizeof...(Args) == 0)
 			std::cout << msg << '\n';
