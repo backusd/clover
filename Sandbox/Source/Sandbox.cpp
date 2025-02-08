@@ -1,21 +1,22 @@
-#ifdef PLATFORM_WINDOWS
-#include <SDKDDKVer.h>
-#endif
 
-#include "Application.hpp"
+#include <Clover.hpp>
 
 
-class Clover : public Application<Clover>
+using Clover::FAILURE_REASON;
+using Clover::PlainHTTPSession;
+using Clover::SSLHTTPSession;
+using Clover::PlainWebsocketSession;
+using Clover::SSLWebsocketSession;
+using Clover::HTTPRequestType;
+
+class Sandbox : public Clover::Application
 {
-    using ws_session = Application<Clover>::plain_websocket_session;
-    using ws_ssl_session = Application<Clover>::ssl_websocket_session;
-
 public:
-    Clover(std::string_view address, unsigned short port, unsigned int threads = std::thread::hardware_concurrency()) :
-        Application<Clover>(address, port, threads)
-    {}
+	Sandbox() : Clover::Application("0.0.0.0", 8080, 1, "/dev/ssl/cert.pem", "/dev/ssl/key.pem", "/dev/ssl/dh.pem")
+	{}
+    virtual ~Sandbox() override {}
 
-    void HandleFailure(FAILURE_REASON reason, const beast::error_code& ec)
+    void HandleFailure(FAILURE_REASON reason, const beast::error_code& ec) noexcept override
     {
         // ssl::error::stream_truncated, also known as an SSL "short read",
         // indicates the peer closed the connection without performing the
@@ -39,13 +40,9 @@ public:
 
         LOG_WARN("Clover: Not performing any specific failure handling of {0}: {1}", ToString(reason), ec.what());
     }
-
-    // Return a response for the given request.
-    // The concrete type of the response message (which depends on the request), is type-erased in message_generator.
-    template<class Body, class Allocator>
-    http::message_generator HandleRequest(http::request<Body, http::basic_fields<Allocator>>&& req)
+    http::message_generator HandleHTTPRequest(HTTPRequestType req) noexcept override
     {
-        std::string_view doc_root = ".";
+        std::string_view doc_root = "./Source/front-end/";
 
         // Returns a bad request response
         auto const bad_request =
@@ -140,41 +137,40 @@ public:
         res.keep_alive(req.keep_alive());
         return res;
     }
-
-    void HandleWebsocketData(ws_session* session, std::string&& data)
+    void HandleWebsocketData(PlainWebsocketSession* session, std::string&& data) noexcept override
     {
         LOG_INFO("WS: '{0}'", data);
-        ws_send(data);
+        WS_Send(data);
     }
-    void HandleWebsocketData(ws_ssl_session* session, std::string&& data)
+    void HandleWebsocketData(SSLWebsocketSession* session, std::string&& data) noexcept override
     {
         LOG_WARN("Not currently handling ws_ssl_session string data");
     }
-    void HandleWebsocketData(ws_session* session, void* data, size_t bytes)
+    void HandleWebsocketData(PlainWebsocketSession* session, void* data, size_t bytes) noexcept override
     {
         LOG_INFO("WS: Received {0} bytes", bytes);
     }
-    void HandleWebsocketData(ws_ssl_session* session, void* data, size_t bytes)
+    void HandleWebsocketData(SSLWebsocketSession* session, void* data, size_t bytes) noexcept override
     {
         LOG_WARN("Not currently handling ws_ssl_session binary data");
     }
-    void WebsocketSessionJoin(ws_session* session)
+    void WebsocketSessionJoin(PlainWebsocketSession* session) noexcept override
     {
         LOG_INFO("Accepted a new websocket connection");
         std::lock_guard<std::mutex> lock(m_mutex);
         m_wsSessions.insert(session);
     }
-    void WebsocketSessionJoin(ws_ssl_session* session)
+    void WebsocketSessionJoin(SSLWebsocketSession* session) noexcept override
     {
         LOG_WARN("Not currently handling ws_ssl_session joins");
     }
-    void WebsocketSessionLeave(ws_session* session)
+    void WebsocketSessionLeave(PlainWebsocketSession* session) noexcept override
     {
         LOG_INFO("Websocket connection disconnected");
         std::lock_guard<std::mutex> lock(m_mutex);
         m_wsSessions.erase(session);
     }
-    void WebsocketSessionLeave(ws_ssl_session* session)
+    void WebsocketSessionLeave(SSLWebsocketSession* session) noexcept override
     {
         LOG_WARN("Not currently handling ws_ssl_session leaves");
     }
@@ -239,12 +235,7 @@ private:
         return result;
     }
 
-private:
-    // This mutex synchronizes all access to sessions_
-    std::mutex m_mutex;
-    std::unordered_set<ws_session*> m_wsSessions;
-
-    void ws_send(std::string message)
+    void WS_Send(std::string message)
     {
         // Put the message in a shared pointer so we can re-use it for each client
         auto const ss = std::make_shared<std::string const>(std::move(message));
@@ -252,7 +243,7 @@ private:
         // Make a local list of all the weak pointers representing
         // the sessions, so we can do the actual sending without
         // holding the mutex:
-        std::vector<std::weak_ptr<ws_session>> v;
+        std::vector<std::weak_ptr<PlainWebsocketSession>> v;
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             v.reserve(m_wsSessions.size());
@@ -264,16 +255,16 @@ private:
         // pointer. If successful, then send the message on that session.
         for (auto const& wp : v)
             if (auto sp = wp.lock())
-                sp->send(ss);
+                sp->Send(ss);
     }
+
+    // This mutex synchronizes all access to sessions_
+    std::mutex m_mutex;
+    std::unordered_set<PlainWebsocketSession*> m_wsSessions;
 };
 
-int main(int argc, char* argv[])
+
+Clover::Application* Clover::CreateApplication()
 {
-    std::cout << "PATH: " << std::filesystem::current_path() << '\n';
-
-    Clover app("0.0.0.0", 8080, 1);
-    app.Run();
-
-    return EXIT_SUCCESS;
+	return new Sandbox();
 }

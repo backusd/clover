@@ -31,8 +31,17 @@
 *.out
 *.app
 
-# ---
-.vs/*
-x64
-*.vcxproj*
+#--- 
 
+# Directories
+.vs/
+Binaries/
+x64
+
+# Files
+*.vcxproj
+*.vcxproj.user
+*.vcxproj.filters
+*.sln
+*.log
+Makefile
