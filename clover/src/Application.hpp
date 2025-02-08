@@ -41,6 +41,30 @@ enum class FAILURE_REASON
     WEBSOCKET_WRITE_FAILURE,
 };
 
+inline std::string_view ToString(FAILURE_REASON reason) noexcept
+{
+    switch (reason)
+    {
+    case FAILURE_REASON::LISTENER_ACCEPTOR_OPEN_FAILURE:        return "LISTENER_ACCEPTOR_OPEN_FAILURE";
+    case FAILURE_REASON::LISTENER_ACCEPTOR_SET_OPTION_FAILURE:  return "LISTENER_ACCEPTOR_SET_OPTION_FAILURE";
+    case FAILURE_REASON::LISTENER_ACCEPTOR_BIND_FAILURE:        return "LISTENER_ACCEPTOR_BIND_FAILURE";
+    case FAILURE_REASON::LISTENER_ACCEPTOR_LISTEN_FAILURE:      return "LISTENER_ACCEPTOR_LISTEN_FAILURE";
+    case FAILURE_REASON::LISTENER_ON_ACCEPT_FAILURE:            return "LISTENER_ON_ACCEPT_FAILURE";
+    case FAILURE_REASON::HTTP_SESSION_ON_READ_FAILURE:          return "HTTP_SESSION_ON_READ_FAILURE";
+    case FAILURE_REASON::HTTP_SESSION_ON_WRITE_FAILURE:         return "HTTP_SESSION_ON_WRITE_FAILURE";
+    case FAILURE_REASON::SSL_DETECTION_FAILURE:                 return "SSL_DETECTION_FAILURE";
+    case FAILURE_REASON::SSL_HTTP_SESSION_HANDSHAKE_FAILURE:    return "SSL_HTTP_SESSION_HANDSHAKE_FAILURE";
+    case FAILURE_REASON::SSL_HTTP_SESSION_SHUTDOWN_FAILURE:     return "SSL_HTTP_SESSION_SHUTDOWN_FAILURE";
+    case FAILURE_REASON::WEBSOCKET_ON_ACCEPT_FAILURE:           return "WEBSOCKET_ON_ACCEPT_FAILURE";
+    case FAILURE_REASON::WEBSOCKET_READ_FAILURE:                return "WEBSOCKET_READ_FAILURE";
+    case FAILURE_REASON::WEBSOCKET_WRITE_FAILURE:               return "WEBSOCKET_WRITE_FAILURE";
+    default:
+        return "<Unrecognized failure reason>";
+    }
+
+    return "<Unrecognized failure reason>";
+}
+
 template<typename Derived>
 class Application
 {
@@ -758,9 +782,7 @@ private:
                 LOG_ERROR("[CORE] Received listener acceptor listen error: '{0}'", ec.what());
                 m_application->HandleFailure(FAILURE_REASON::LISTENER_ACCEPTOR_LISTEN_FAILURE, ec);
                 return;
-            }
-
-            
+            }            
         }
 
         // Start accepting incoming connections

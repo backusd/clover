@@ -37,28 +37,7 @@ public:
         if (ec == net::ssl::error::stream_truncated)
             return;
 
-        std::string_view rsn = "";
-        switch (reason)
-        {
-        case FAILURE_REASON::LISTENER_ACCEPTOR_OPEN_FAILURE:        rsn = "LISTENER_ACCEPTOR_OPEN_FAILURE"; break;
-        case FAILURE_REASON::LISTENER_ACCEPTOR_SET_OPTION_FAILURE:  rsn = "LISTENER_ACCEPTOR_SET_OPTION_FAILURE"; break;
-        case FAILURE_REASON::LISTENER_ACCEPTOR_BIND_FAILURE:        rsn = "LISTENER_ACCEPTOR_BIND_FAILURE"; break;
-        case FAILURE_REASON::LISTENER_ACCEPTOR_LISTEN_FAILURE:      rsn = "LISTENER_ACCEPTOR_LISTEN_FAILURE"; break;
-        case FAILURE_REASON::LISTENER_ON_ACCEPT_FAILURE:            rsn = "LISTENER_ON_ACCEPT_FAILURE"; break;
-        case FAILURE_REASON::HTTP_SESSION_ON_READ_FAILURE:          rsn = "HTTP_SESSION_ON_READ_FAILURE"; break;
-        case FAILURE_REASON::HTTP_SESSION_ON_WRITE_FAILURE:         rsn = "HTTP_SESSION_ON_WRITE_FAILURE"; break;
-        case FAILURE_REASON::SSL_DETECTION_FAILURE:                 rsn = "SSL_DETECTION_FAILURE"; break;
-        case FAILURE_REASON::SSL_HTTP_SESSION_HANDSHAKE_FAILURE:    rsn = "SSL_HTTP_SESSION_HANDSHAKE_FAILURE"; break;
-        case FAILURE_REASON::SSL_HTTP_SESSION_SHUTDOWN_FAILURE:     rsn = "SSL_HTTP_SESSION_SHUTDOWN_FAILURE"; break;
-        case FAILURE_REASON::WEBSOCKET_ON_ACCEPT_FAILURE:           rsn = "WEBSOCKET_ON_ACCEPT_FAILURE"; break;
-        case FAILURE_REASON::WEBSOCKET_READ_FAILURE:                rsn = "WEBSOCKET_READ_FAILURE"; break;
-        case FAILURE_REASON::WEBSOCKET_WRITE_FAILURE:               rsn = "WEBSOCKET_WRITE_FAILURE"; break;
-        default:
-            rsn = "<Unrecognized failure reason>";
-            break;
-        }
-
-        LOG_WARN("Clover: Not performing any specific failure handling of {0}: {1}", rsn, ec.what());
+        LOG_WARN("Clover: Not performing any specific failure handling of {0}: {1}", ToString(reason), ec.what());
     }
 
     // Return a response for the given request.
@@ -291,6 +270,8 @@ private:
 
 int main(int argc, char* argv[])
 {
+    std::cout << "PATH: " << std::filesystem::current_path() << '\n';
+
     Clover app("0.0.0.0", 8080, 1);
     app.Run();
 

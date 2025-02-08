@@ -12,10 +12,7 @@ namespace Log
 		if constexpr (sizeof...(Args) == 0)
 			std::cout << msg << '\n';
 		else
-		{
-			//std::vprint_nonunicode(std::cout, msg, std::make_format_args(args...));
 			std::cout << std::vformat(msg, std::make_format_args(args...)) << '\n';
-		}
 	}
 
 	template <typename... Args>
