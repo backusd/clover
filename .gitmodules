@@ -1,3 +1,6 @@
 [submodule "Vendor/json"]
 	path = Vendor/json
 	url = https://github.com/nlohmann/json.git
+[submodule "Vendor/inja"]
+	path = Vendor/inja
+	url = https://github.com/pantor/inja.git
