@@ -38,7 +38,7 @@ public:
     }
     virtual ~Sandbox() override {}
 
-    json GetHomeData(const Application::ParametersMap& parameters)
+    json GetHomeData(const Application::ParametersMap& /* parameters */)
     {
         LOG_TRACE("Sandbox: Inside GetHomeData...");
 
@@ -46,27 +46,27 @@ public:
         d["home"] = "some data";
         return d;
     }
-    json UpdateUserImage(const Application::ParametersMap& parameters)
+    json UpdateUserImage(const Application::ParametersMap& /* parameters */)
     {
         json d;
         d["update-user-image"] = "some data";
         return d;
     }
 
-    void HandleWebsocketData(PlainWebsocketSession* session, std::string&& data) noexcept override
+    void HandleWebsocketData(PlainWebsocketSession* /* session */, std::string&& data) noexcept override
     {
         LOG_INFO("WS: '{0}'", data);
         WS_Send(data);
     }
-    void HandleWebsocketData(SSLWebsocketSession* session, std::string&& data) noexcept override
+    void HandleWebsocketData(SSLWebsocketSession* /* session */, std::string&& /* data */) noexcept override
     {
         LOG_WARN("Not currently handling ws_ssl_session string data");
     }
-    void HandleWebsocketData(PlainWebsocketSession* session, void* data, size_t bytes) noexcept override
+    void HandleWebsocketData(PlainWebsocketSession* /* session */, void* data, size_t bytes) noexcept override
     {
         LOG_INFO("WS: Received {0} bytes", bytes);
     }
-    void HandleWebsocketData(SSLWebsocketSession* session, void* data, size_t bytes) noexcept override
+    void HandleWebsocketData(SSLWebsocketSession* /* session */, void* data, size_t /* bytes */) noexcept override
     {
         LOG_WARN("Not currently handling ws_ssl_session binary data");
     }
@@ -76,7 +76,7 @@ public:
         std::lock_guard<std::mutex> lock(m_mutex);
         m_wsSessions.insert(session);
     }
-    void WebsocketSessionJoin(SSLWebsocketSession* session) noexcept override
+    void WebsocketSessionJoin(SSLWebsocketSession* /* session */) noexcept override
     {
         LOG_WARN("Not currently handling ws_ssl_session joins");
     }
@@ -86,7 +86,7 @@ public:
         std::lock_guard<std::mutex> lock(m_mutex);
         m_wsSessions.erase(session);
     }
-    void WebsocketSessionLeave(SSLWebsocketSession* session) noexcept override
+    void WebsocketSessionLeave(SSLWebsocketSession* /* session */) noexcept override
     {
         LOG_WARN("Not currently handling ws_ssl_session leaves");
     }

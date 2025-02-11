@@ -130,9 +130,10 @@ namespace Clover
         }
 
         net::io_context m_ioc;
+        unsigned int m_threads;
         ssl::context m_ctx;
         inja::Environment m_injaEnv;
-        unsigned int m_threads;
+        
 
         std::string m_serverVersion = "Clover";
         std::string m_docRoot = "Source/front-end";
