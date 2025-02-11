@@ -1,5 +1,13 @@
 #pragma once
 
+// Disable all warnings for library includes
+#if defined PLATFORM_LINUX
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wall"
+#pragma GCC diagnostic ignored "-Wextra"
+#elif defined PLATFORM_WINDOWS
+#pragma warning(push, 0)
+#endif
 
 
 #ifdef PLATFORM_WINDOWS
@@ -53,18 +61,13 @@ using tcp = boost::asio::ip::tcp;               // from <boost/asio/ip/tcp.hpp>
 using json = nlohmann::json;
 
 
-#if defined PLATFORM_LINUX
-	#pragma GCC diagnostic push
-	#pragma GCC diagnostic ignored "-Wall"
-	#pragma GCC diagnostic ignored "-Wextra"
-#elif defined PLATFORM_WINDOWS
-	#pragma warning(push, 0) // Disable all warnings for library includes
-#endif
 #include <inja/inja.hpp>
+
+
+
+// Restore previous warning settings
 #if defined PLATFORM_LINUX
-	#pragma GCC diagnostic pop
+#pragma GCC diagnostic pop
 #elif defined PLATFORM_WINDOWS
-	#pragma warning(pop) // Restore previous warning settings
+#pragma warning(pop)
 #endif
-
-
