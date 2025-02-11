@@ -35,7 +35,10 @@ workspace "clover"
    -- Workspace-wide options for Linux
    filter "system:linux"
       systemversion "latest"
-      buildoptions { "-pthread" }
+      -- see here for build option explanations: https://stackoverflow.com/questions/3375697/what-are-the-useful-gcc-flags-for-c
+      buildoptions { "-pthread", "-Wextra", "-Wall", "-Wfloat-equal", "-Wundef", "-Wshadow",
+                     "-Wpointer-arith", "-Wcast-align", "-Wstrict-prototypes", "-Wwrite-strings",
+                     "-Waggregate-return", "-Wcast-qual", "-Wconversion", "-Wunreachable-code" }
       defines { "PLATFORM_LINUX" }
       links
       {
