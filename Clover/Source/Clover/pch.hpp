@@ -48,3 +48,5 @@ using tcp = boost::asio::ip::tcp;               // from <boost/asio/ip/tcp.hpp>
 
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
+
+#include <inja/inja.hpp>

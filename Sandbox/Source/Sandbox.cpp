@@ -21,9 +21,9 @@ public:
         SetDocumentRoot("Source/front-end/");
 
         // Inform Clover of the templates for error handling
-        SetBadRequestTarget("bad_request.html");
-        SetNotFoundTarget("not_found.html");
-        SetInternalServerErrorTarget("internal_server_error.html");
+        SetBadRequestTarget("error-handling/bad_request.html");
+        SetNotFoundTarget("error-handling/not_found.html");
+        SetInternalServerErrorTarget("error-handling/internal_server_error.html");
 
         
         // Register Targets
@@ -52,148 +52,6 @@ public:
         d["update-user-image"] = "some data";
         return d;
     }
-
-    /*
-
-    http::message_generator HandleHTTPRequest(HTTPRequestType req) noexcept override
-    {
-        // Example: ...com/user/home?id=1234&query=some-string
-        //      target = "/user/home"
-        //      parameters = { "id" = "1234", "query" = "some-string" }
-        auto [target, parameters] = ParseTarget(req.target());
-
-        // if the target has either no file extension or the extension is .html, then
-        // it will be treated an html request. Otherwise, we will assume the request is
-        // for another type of file (.css, .js, .png, etc)
-        if (IsHTMLRequest(target))
-        {
-            // GenerateHTMLResponse will work in 2 steps:
-            //  1. It will call GatherRequestData to gather all necessary data to stamp out
-            //     the html template. This is also where any functions registered via
-            //     RegisterTarget will be called.
-            //  2. It will call GenerateHTML to stamp out the html template into a string 
-            //     that will then make up the response body
-            return GenerateHTMlResponse(target, parameters);
-        }
-
-    //    // Gather the data in a json obect that will be used to create the html
-    //    json data = GatherRequestData(target, parameters);
-    //
-    //    // Pass the data to the html template engine
-    //    std::string html = GenerateHTML(target, data);
-
-        // Not an html request, so we will assume we are just serving a whole file
-        //
-        // In this case, it doesn't make sense for there to be any parameters, so let's
-        // warn if there are any
-        if (HasParameters(parameters))
-        {
-            LOG_WARN(...);
-        }
-
-        // The target will be treated as a file. If it doesn't exist, a 404 response will be returned
-        return ServeFile(target);
-
-
-
-
-        std::string_view doc_root = "./Source/front-end/";
-
-        // Returns a bad request response
-        auto const bad_request =
-            [&req](beast::string_view why)
-            {
-                http::response<http::string_body> res{ http::status::bad_request, req.version() };
-                res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-                res.set(http::field::content_type, "text/html");
-                res.keep_alive(req.keep_alive());
-                res.body() = std::string(why);
-                res.prepare_payload();
-                return res;
-            };
-
-        // Returns a not found response
-        auto const not_found =
-            [&req](beast::string_view target)
-            {
-                http::response<http::string_body> res{ http::status::not_found, req.version() };
-                res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-                res.set(http::field::content_type, "text/html");
-                res.keep_alive(req.keep_alive());
-                res.body() = "The resource '" + std::string(target) + "' was not found.";
-                res.prepare_payload();
-                return res;
-            };
-
-        // Returns a server error response
-        auto const server_error =
-            [&req](beast::string_view what)
-            {
-                http::response<http::string_body> res{ http::status::internal_server_error, req.version() };
-                res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-                res.set(http::field::content_type, "text/html");
-                res.keep_alive(req.keep_alive());
-                res.body() = "An error occurred: '" + std::string(what) + "'";
-                res.prepare_payload();
-                return res;
-            };
-
-        // Make sure we can handle the method
-        if (req.method() != http::verb::get &&
-            req.method() != http::verb::head)
-            return bad_request("Unknown HTTP-method");
-
-        // Request path must be absolute and not contain "..".
-        if (req.target().empty() ||
-            req.target()[0] != '/' ||
-            req.target().find("..") != beast::string_view::npos)
-            return bad_request("Illegal request-target");
-
-        // Build the path to the requested file
-        std::string path = path_cat(doc_root, req.target());
-        if (req.target().back() == '/')
-            path.append("index.html");
-
-        // Attempt to open the file
-        beast::error_code ec;
-        http::file_body::value_type body;
-        body.open(path.c_str(), beast::file_mode::scan, ec);
-
-        // Handle the case where the file doesn't exist
-        if (ec == beast::errc::no_such_file_or_directory)
-            return not_found(req.target());
-
-        // Handle an unknown error
-        if (ec)
-            return server_error(ec.message());
-
-        // Cache the size since we need it after the move
-        auto const size = body.size();
-
-        // Respond to HEAD request
-        if (req.method() == http::verb::head)
-        {
-            http::response<http::empty_body> res{ http::status::ok, req.version() };
-            res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-            res.set(http::field::content_type, mime_type(path));
-            res.content_length(size);
-            res.keep_alive(req.keep_alive());
-            return res;
-        }
-
-        // Respond to GET request
-        http::response<http::file_body> res{
-            std::piecewise_construct,
-            std::make_tuple(std::move(body)),
-            std::make_tuple(http::status::ok, req.version()) };
-        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-        res.set(http::field::content_type, mime_type(path));
-        res.content_length(size);
-        res.keep_alive(req.keep_alive());
-        return res;
-    }
-
-    */
 
     void HandleWebsocketData(PlainWebsocketSession* session, std::string&& data) noexcept override
     {

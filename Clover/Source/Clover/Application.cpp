@@ -2,33 +2,51 @@
 #include "Application.hpp"
 #include "Log.hpp"
 
-#include "server_certificate.hpp"
+#include <boost/exception/diagnostic_information.hpp>
+#include <boost/exception_ptr.hpp>
 
 namespace Clover
 {
     // =====================================================
     // Application
     Application::Application(std::string_view address, unsigned short port, unsigned int threads,
-        const std::string& cert, const std::string& key, const std::string& dh) :
+        const std::string& cert, const std::string& key, const std::string& dh) noexcept :
         m_ioc(threads),
         m_threads(threads),
-        m_ctx{ ssl::context::tlsv12 }
+        m_ctx{ ssl::context::tlsv12 },
+        m_injaEnv()
     {
         assert(m_threads > 0);
 
-        std::cout << std::filesystem::current_path() << '\n';
+        try
+        {
+            LOG_INFO("[CORE] Current directory: '{0}'", std::filesystem::current_path().generic_string());
 
-        // This holds the self-signed certificate used by the server
-        LoadServerCertificate(cert, key, dh);
+            // This holds the self-signed certificate used by the server
+            LoadServerCertificate(cert, key, dh);
 
-        // Create and launch a listening port
-        std::make_shared<Listener>(
-            m_ioc,
-            m_ctx,
-            tcp::endpoint{ net::ip::make_address(address), port },
-            this)->Run();
+            // Create and launch a listening port
+            std::make_shared<Listener>(
+                m_ioc,
+                m_ctx,
+                tcp::endpoint{ net::ip::make_address(address), port },
+                this)->Run();
 
-        LOG_INFO("Started listening on {0}:{1}", address, port);
+            LOG_INFO("[CORE] Started listening on {0}:{1}", address, port);
+        }
+        catch (const boost::exception& e)
+        {
+            LOG_ERROR("[CORE] Failed to initialize the application. Caught boost::exception: \n'{0}'", 
+                boost::diagnostic_information(e));
+        }
+        catch (const std::exception& e)
+        {
+            LOG_ERROR("[CORE] Failed to initialize the application. Caught std::exception: \n'{0}'", e.what());
+        }
+        catch (...)
+        {
+            LOG_ERROR("[CORE] Failed to initialize the application. Caught unknown exception.");
+        }
     }
 
     void Application::LoadServerCertificate(const std::string& cert, const std::string& key, const std::string& dh)
@@ -111,14 +129,14 @@ namespace Clover
         }
     }
 
-    void Application::Run()
+    void Application::Run() noexcept
     {
         // Capture SIGINT and SIGTERM to perform a clean shutdown
         net::signal_set signals(m_ioc, SIGINT, SIGTERM);
         signals.async_wait(
             [&](beast::error_code const&, int)
             {
-                LOG_INFO("Captured SIGINT or SIGTERM. Calling stop() on the io_context to kill all worker threads");
+                LOG_INFO("[CORE] Captured SIGINT or SIGTERM. Calling stop() on the io_context to kill all worker threads");
 
                 // Stop the `io_context`. This will cause `run()`
                 // to return immediately, eventually destroying the
@@ -127,7 +145,7 @@ namespace Clover
             });
 
         // Run the I/O service on the requested number of threads
-        LOG_INFO("Spawning {0} worker threads", m_threads);
+        LOG_INFO("[CORE] Spawning {0} worker threads", m_threads);
         std::vector<std::thread> v;
         v.reserve(m_threads - 1);
         for (auto i = m_threads - 1; i > 0; --i)
@@ -167,19 +185,36 @@ namespace Clover
             m_POSTTargets.insert(std::make_pair(target, dataGatherFn));
     }
 
-    http::message_generator Application::HandleHTTPRequest(HTTPRequestType req)
+    http::message_generator Application::HandleHTTPRequest(HTTPRequestType req) noexcept
     {
-        switch (req.method())
+        try
         {
-        case http::verb::head:
-        case http::verb::get:  return HandleHTTPGETRequest(req);
-        case http::verb::put:  return HandleHTTPPUTRequest(req);
-        case http::verb::post: return HandleHTTPPOSTRequest(req);
+            switch (req.method())
+            {
+            case http::verb::head:
+            case http::verb::get:  return HandleHTTPGETRequest(req);
+            case http::verb::put:  return HandleHTTPPUTRequest(req);
+            case http::verb::post: return HandleHTTPPOSTRequest(req);
+            }
+
+            return BadRequest(std::format("Not currently handling request method: '{0}'", req.method()), req);
+        }
+        catch (const boost::exception& e)
+        {
+            LOG_ERROR("[CORE] DetectSession::OnDetect failure. Caught boost::exception: \n'{0}'",
+                boost::diagnostic_information(e));
+        }
+        catch (const std::exception& e)
+        {
+            LOG_ERROR("[CORE] DetectSession::OnDetect failure. Caught std::exception: \n'{0}'", e.what());
+        }
+        catch (...)
+        {
+            LOG_ERROR("[CORE] DetectSession::OnDetect failure. Caught unknown exception.");
         }
 
-        return BadRequest(std::format("Not currently handling request method: '{0}'", req.method()), req);
+        return InternalServerError("Something went wrong", req);
     }
-
     http::message_generator Application::HandleHTTPGETRequest(HTTPRequestType& req)
     {
         // Example: ...com/user/home?id=1234&query=some-string
@@ -189,9 +224,17 @@ namespace Clover
 
         LOG_TRACE("[CORE] Received GET request for '{0}'", std::string_view(req.target()));
         LOG_TRACE("[CORE] Determined target to be: '{0}'", target);
-        LOG_TRACE("[CORE] Determined params  to be:");
+        LOG_TRACE("[CORE] Determined params to be:");
         for (const auto& [key, value] : parameters)
             LOG_TRACE("[CORE]     '{0}': '{1}'", key, value);
+
+        // It is never valid for the target to contain "..", so send a bad request response if so
+        if (target.find("..") != std::string::npos)
+        {
+            std::string_view reason = "Invalid request because target contains '..'";
+            LOG_WARN("[CORE] {0} : '{1}'", reason, target);
+            return BadRequest(reason, req);
+        }
 
         // if the target has either no file extension or the extension is .html, then
         // it will be treated an html request. Otherwise, we will assume the request is
@@ -217,7 +260,7 @@ namespace Clover
         // warn if there are any
         if (!parameters.empty())
         {
-            LOG_WARN("[CORE] A request for '{0}' had parameters, but this is not an html request, so parameters are being ignored", req.target());
+            LOG_WARN("[CORE] A request for '{0}' had parameters, but this is not an html request, so parameters are being ignored", std::string_view(req.target()));
         }
 
         // The target will be treated as a file. If it doesn't exist, a 404 response will be returned
@@ -244,7 +287,7 @@ namespace Clover
         return res;
     }
 
-    std::pair<std::string_view, Application::ParametersMap> Application::ParseTarget(std::string_view target)
+    std::pair<std::string_view, Application::ParametersMap> Application::ParseTarget(std::string_view target) const noexcept
     {
         std::pair<std::string_view, Application::ParametersMap> result;
         
@@ -313,27 +356,16 @@ namespace Clover
 
         return result;
     }
-    bool Application::IsTargetHTML(std::string_view target)
+    json Application::GatherRequestData(std::string_view target, const Application::ParametersMap& urlParams) const
     {
-        // If the last character is '/', then the request was for a directory, which
-        // we will default to assuming this is a valid HTML target
-        if (target.ends_with('/'))
-            return true;
-        
-        // Create a string_view for the whole target
-        std::string_view file = target;
+        // The normal use case is for the user application to register a target like '/home' and
+        // this will ultimately map to a file called 'home.html'. When a GET request comes through
+        // for '/home', this works just fine. However, if the GET request was for '/home.html', then
+        // we will fail to find the user supplied callback. Therefore, if the target ends in '.html',
+        // we will remove those characters when we go to lookup the user supplied callback
+        if (target.ends_with(".html"))
+            target.remove_suffix(5);
 
-        // Get a substring that contains all of the characters after the last '/'
-        size_t pos = target.rfind('/');
-        if (pos != std::string::npos)
-            file = target.substr(pos + 1);
-
-        // Look for the extension and return true if it matches ".html"
-        pos = file.rfind('.');
-        return pos == std::string::npos ? true : file.substr(pos).compare(".html") == 0;
-    }
-    json Application::GatherRequestData(std::string_view target, const Application::ParametersMap& urlParams)
-    {
         // Call user-supplied callbacks
         auto itr = m_GETTargets.find(target);
         if (itr == m_GETTargets.end())
@@ -344,25 +376,6 @@ namespace Clover
 
         LOG_TRACE("[CORE] GatherRequestData: Calling user defined data gathering function for target: '{0}'", target);
         return itr->second(urlParams);
-    }
-    std::string Application::GenerateHTML(const std::string& file, const json& data)
-    {
-        // We have already done a check to ensure the file exists
-        std::ifstream fileStream(file);
-
-        std::string content{
-            std::istreambuf_iterator<char>(fileStream),
-            std::istreambuf_iterator<char>() };
-
-
-
-
-
-
-
-
-
-        return content;
     }
     http::message_generator Application::GenerateHTMLResponse(std::string_view target, const Application::ParametersMap& urlParams, HTTPRequestType& req)
     {
@@ -388,12 +401,24 @@ namespace Clover
         }
 
         // Gather all data that will be used to fulfill the request to generate the necessary html
-        json d = GatherRequestData(target, urlParams);
+        json data = GatherRequestData(target, urlParams);
 
-        LOG_TRACE("[CORE] GenerateHTMLResponse: Received data for target '{0}': \n{1}", target, d.dump(4));
+        LOG_TRACE("[CORE] GenerateHTMLResponse: Received data for target '{0}': \n{1}", target, data.dump(4));
 
         // Generate the html to be rendered
-        std::string html = GenerateHTML(file, d);
+        std::string html;
+        try
+        {
+            html = m_injaEnv.render_file(file, data);
+        }
+        catch (const inja::RenderError& err)
+        {
+            LOG_ERROR("[CORE] Caught inja::RenderError: Type = '{0}' | Message = '{0}'", err.type, err.message);
+            LOG_ERROR("[CORE]     The failure came from this call: 'm_injaEnv.render_file(file, data)', where file = '{0}' and data = \n{1}", file, data.dump(4));
+            return InternalServerError(err.message, req);
+        }
+
+        LOG_INFO("[CORE] Returning status 200 - OK for target '{0}'", target);
 
         http::response<http::string_body> res{ http::status::ok, req.version() };
         res.set(http::field::server, m_serverVersion);
@@ -405,10 +430,25 @@ namespace Clover
     }
     http::message_generator Application::ServeFile(std::string_view target, HTTPRequestType& req)
     {
+        std::string file(target);
+
+        if (file.ends_with('/'))
+        {
+            LOG_ERROR("[CORE] Something went wrong. ServeFile was called with target = '{0}' which ends with '/'. However, this should have been handled as an HTML request and not handled via ServeFile", target);
+            return BadRequest(std::format("[CORE] ServerFile: Cannot serve target '{0}' because it ends with '/'", target), req);
+        }
+
+        // Strip any leading '/' (We already ensure the document root ends with '/')
+        if (file.starts_with('/')) 
+            file = file.erase(0, 1); 
+
+        // Prepend the document root path
+        file.insert(0, m_docRoot);
+
         // Attempt to open the file
         beast::error_code ec;
         http::file_body::value_type body;
-        body.open(target.data(), beast::file_mode::scan, ec);
+        body.open(file.data(), beast::file_mode::scan, ec); 
 
         // Handle the case where the file doesn't exist
         if (ec == beast::errc::no_such_file_or_directory)
@@ -420,6 +460,8 @@ namespace Clover
 
         // Cache the size since we need it after the move
         auto const size = body.size();
+
+        LOG_INFO("[CORE] Returning status 200 - OK for target '{0}'", target);
 
         // Respond to HEAD request
         if (req.method() == http::verb::head)
@@ -443,61 +485,133 @@ namespace Clover
         res.keep_alive(req.keep_alive());
         return res;
     }
+    
     http::message_generator Application::BadRequest(std::string_view reason, HTTPRequestType& req)
     {
+        LOG_WARN("[CORE] Returning status 400 - Bad Request for target '{0}'", std::string_view(req.target()));
+        LOG_WARN("[CORE]     Reason: {0}", reason);
+        
+        std::string body;
+
+        if (m_badRequestTarget.empty())
+            body = reason;
+        else
+        {
+            // Prepend the document root path
+            std::string file = m_docRoot + m_badRequestTarget;
+            if (!std::filesystem::exists(file))
+            {
+                LOG_ERROR("[CORE] BadRequest: File not found: '{0}'", file);
+                body = reason;
+            }
+            else
+            {
+                json data = { { "reason", std::string(reason) } }; 
+                try
+                {                    
+                    body = m_injaEnv.render_file(file, data);
+                }
+                catch (const inja::RenderError& err) 
+                {
+                    LOG_ERROR("[CORE] BadRequest: Caught inja::RenderError: Type = '{0}' | Message = '{0}'", err.type, err.message);
+                    LOG_ERROR("[CORE]     The failure came from this call: 'm_injaEnv.render_file(file, data)', where file = '{0}' and data = \n{1}", file, data.dump(4));
+                    body = reason;
+                }
+            }
+        }
+
         http::response<http::string_body> res{ http::status::bad_request, req.version() };
         res.set(http::field::server, m_serverVersion);
         res.set(http::field::content_type, "text/html");
         res.keep_alive(req.keep_alive());
-        res.body() = reason;
+        res.body() = body;
         res.prepare_payload();
         return res;
     }
     http::message_generator Application::FileNotFound(std::string_view target, HTTPRequestType& req)
     {
+        LOG_WARN("[CORE] Returning status 404 - Not Found for target '{0}'", std::string_view(req.target()));
+
+        std::string reason = "The resource '" + std::string(target) + "' was not found.";
+        std::string body;
+
+        if (m_notFoundTarget.empty())
+            body = reason;
+        else
+        {
+            // Prepend the document root path
+            std::string file = m_docRoot + m_notFoundTarget;
+            if (!std::filesystem::exists(file)) 
+            {
+                LOG_ERROR("[CORE] FileNotFound: File not found: '{0}'", file);
+                body = reason;
+            }
+            else
+            {
+                json data = { { "reason", std::string(reason) } };
+                try
+                {
+                    body = m_injaEnv.render_file(file, data); 
+                }
+                catch (const inja::RenderError& err)
+                {
+                    LOG_ERROR("[CORE] FileNotFound: Caught inja::RenderError: Type = '{0}' | Message = '{0}'", err.type, err.message);
+                    LOG_ERROR("[CORE]     The failure came from this call: 'm_injaEnv.render_file(file, data)', where file = '{0}' and data = \n{1}", file, data.dump(4));
+                    body = reason; 
+                }
+            }
+        }
+
         http::response<http::string_body> res{ http::status::not_found, req.version() };
         res.set(http::field::server, m_serverVersion);
         res.set(http::field::content_type, "text/html");
         res.keep_alive(req.keep_alive());
-        res.body() = "The resource '" + std::string(target) + "' was not found.";
+        res.body() = body;
         res.prepare_payload();
         return res;
     }
     http::message_generator Application::InternalServerError(std::string_view reason, HTTPRequestType& req)
     {
+        LOG_WARN("[CORE] Returning status 500 - Internal Server Error for target '{0}'", std::string_view(req.target()));
+        LOG_WARN("[CORE]     Reason: {0}", reason);
+
+        std::string _reason = "An error occurred: '" + std::string(reason) + "'";
+        std::string body;
+
+        if (m_internalServerErrorTarget.empty())
+            body = _reason;
+        else
+        {
+            // Prepend the document root path
+            std::string file = m_docRoot + m_internalServerErrorTarget;
+            if (!std::filesystem::exists(file)) 
+            {
+                LOG_ERROR("[CORE] InternalServerError: File not found: '{0}'", file);
+                body = _reason;
+            }
+            else
+            {
+                json data = { { "reason", _reason } };
+                try
+                {
+                    body = m_injaEnv.render_file(file, data);
+                }
+                catch (const inja::RenderError& err)
+                {
+                    LOG_ERROR("[CORE] InternalServerError: Caught inja::RenderError: Type = '{0}' | Message = '{0}'", err.type, err.message);
+                    LOG_ERROR("[CORE]     The failure came from this call: 'm_injaEnv.render_file(file, data)', where file = '{0}' and data = \n{1}", file, data.dump(4));
+                    body = _reason;
+                }
+            }
+        }
+
         http::response<http::string_body> res{ http::status::internal_server_error, req.version() };
         res.set(http::field::server, m_serverVersion);
         res.set(http::field::content_type, "text/html");
         res.keep_alive(req.keep_alive());
-        res.body() = "An error occurred: '" + std::string(reason) + "'";
+        res.body() = body;
         res.prepare_payload();
         return res;
-    }
-
-    std::string_view Application::MimeType(std::string_view path)
-    {
-        if (path.ends_with(".htm"))  return "text/html";
-        if (path.ends_with(".html")) return "text/html";
-        if (path.ends_with(".php"))  return "text/html";
-        if (path.ends_with(".css"))  return "text/css";
-        if (path.ends_with(".txt"))  return "text/plain";
-        if (path.ends_with(".js"))   return "application/javascript";
-        if (path.ends_with(".json")) return "application/json";
-        if (path.ends_with(".xml"))  return "application/xml";
-        if (path.ends_with(".swf"))  return "application/x-shockwave-flash";
-        if (path.ends_with(".flv"))  return "video/x-flv";
-        if (path.ends_with(".png"))  return "image/png";
-        if (path.ends_with(".jpe"))  return "image/jpeg";
-        if (path.ends_with(".jpeg")) return "image/jpeg";
-        if (path.ends_with(".jpg"))  return "image/jpeg";
-        if (path.ends_with(".gif"))  return "image/gif";
-        if (path.ends_with(".bmp"))  return "image/bmp";
-        if (path.ends_with(".ico"))  return "image/vnd.microsoft.icon";
-        if (path.ends_with(".tiff")) return "image/tiff";
-        if (path.ends_with(".tif"))  return "image/tiff";
-        if (path.ends_with(".svg"))  return "image/svg+xml";
-        if (path.ends_with(".svgz")) return "image/svg+xml";
-        return "application/text";
     }
 
     // =====================================================
@@ -616,58 +730,92 @@ namespace Clover
                 this->shared_from_this()));
     }
 
-    void DetectSession::OnRun()
+    void DetectSession::OnRun() noexcept
     {
-        // Set the timeout.
-        m_stream.expires_after(std::chrono::seconds(30));
+        // Need a try-catch here so an exception doesn't escape and cause a crash
+        try
+        {
+            // Set the timeout.
+            m_stream.expires_after(std::chrono::seconds(30));
 
-        beast::async_detect_ssl(
-            m_stream,
-            m_buffer,
-            beast::bind_front_handler(
-                &DetectSession::OnDetect,
-                this->shared_from_this()));
+            beast::async_detect_ssl(
+                m_stream,
+                m_buffer,
+                beast::bind_front_handler(
+                    &DetectSession::OnDetect,
+                    this->shared_from_this()));
+        }
+        catch (const boost::exception& e)
+        {
+            LOG_ERROR("[CORE] DetectSession::OnRun failure. Caught boost::exception: \n'{0}'",
+                boost::diagnostic_information(e));
+        }
+        catch (const std::exception& e)
+        {
+            LOG_ERROR("[CORE] DetectSession::OnRun failure. Caught std::exception: \n'{0}'", e.what());
+        }
+        catch (...)
+        {
+            LOG_ERROR("[CORE] DetectSession::OnRun failure. Caught unknown exception.");
+        }
     }
 
-    void DetectSession::OnDetect(beast::error_code ec, bool result)
-    {
-        if (ec)
+    void DetectSession::OnDetect(beast::error_code ec, bool result) noexcept
+    {        
+        // Need a try-catch here so an exception doesn't escape and cause a crash
+        try
         {
-            // I'm not sure if this a Chrome thing, or maybe its all browsers, but if I make a simple GET request via the browser, 
-            // 1 or 2 requests will be triggered. The first one makes it all the way to creating an HTTP session and will
-            // get a response from the request. The others seem to get stuck in this on_detect section, and I'm guessing its
-            // because the browser initiated the connection, but then realized it doesn't need the connection, so it then
-            // abandoned sending whatever data it needed to in order to actually complete making the request.
-            if (ec == beast::error::timeout)
+            if (ec)
             {
-                LOG_TRACE("Attempting to detect session type for connection from {0}:{1} failed because the socket was closed due to a timeout", m_address, m_port);
+                // I'm not sure if this a Chrome thing, or maybe its all browsers, but if I make a simple GET request via the browser, 
+                // 1 or 2 requests will be triggered. The first one makes it all the way to creating an HTTP session and will
+                // get a response from the request. The others seem to get stuck in this on_detect section, and I'm guessing its
+                // because the browser initiated the connection, but then realized it doesn't need the connection, so it then
+                // abandoned sending whatever data it needed to in order to actually complete making the request.
+                if (ec == beast::error::timeout)
+                {
+                    LOG_TRACE("[CORE] Attempting to detect session type for connection from {0}:{1} failed because the socket was closed due to a timeout", m_address, m_port);
+                    return;
+                }
+
+                LOG_ERROR("[CORE] Received DetectSession::OnDetect error: '{0}'", ec.what());
                 return;
             }
 
-            LOG_ERROR("[CORE] Received DetectSession::OnDetect error: '{0}'", ec.what());
-            return;
-        }
+            if (result)
+            {
+                LOG_TRACE("[CORE] Incoming connection is SSL enabled. Attempting to start SSLHTTPSession...");
 
-        if (result)
-        {
-            LOG_TRACE("Incoming connection is SSL enabled. Attempting to start SSLHTTPSession...");
+                // Launch SSL session
+                std::make_shared<SSLHTTPSession>(
+                    std::move(m_stream),
+                    m_ctx,
+                    std::move(m_buffer),
+                    m_application)->Run();
+                return;
+            }
 
-            // Launch SSL session
-            std::make_shared<SSLHTTPSession>(
+            LOG_TRACE("[CORE] Incoming connection is not SSL enabled. Attempting to start HTTPSession...");
+
+            // Launch plain session
+            std::make_shared<PlainHTTPSession>(
                 std::move(m_stream),
-                m_ctx,
                 std::move(m_buffer),
                 m_application)->Run();
-            return;
         }
-
-        LOG_TRACE("Incoming connection is not SSL enabled. Attempting to start HTTPSession...");
-
-        // Launch plain session
-        std::make_shared<PlainHTTPSession>(
-            std::move(m_stream),
-            std::move(m_buffer),
-            m_application)->Run();
+        catch (const boost::exception& e)
+        {
+            LOG_ERROR("[CORE] DetectSession::OnDetect failure. Caught boost::exception: \n'{0}'",
+                boost::diagnostic_information(e));
+        }
+        catch (const std::exception& e)
+        {
+            LOG_ERROR("[CORE] DetectSession::OnDetect failure. Caught std::exception: \n'{0}'", e.what());
+        }
+        catch (...)
+        {
+            LOG_ERROR("[CORE] DetectSession::OnDetect failure. Caught unknown exception.");
+        }
     }
 
 
@@ -717,13 +865,12 @@ namespace Clover
         }
     }
 
-    // Start accepting incoming connections
     void Listener::Run()
     {
         DoAccept();
     }
 
-    void Listener::DoAccept()
+    void Listener::DoAccept() noexcept
     {
         // The new connection gets its own strand
         m_acceptor.async_accept(
@@ -733,23 +880,39 @@ namespace Clover
                 this->shared_from_this()));
     }
 
-    void Listener::OnAccept(beast::error_code ec, tcp::socket socket)
+    void Listener::OnAccept(beast::error_code ec, tcp::socket socket) noexcept
     {
-        if (ec)
+        try
         {
-            LOG_ERROR("[CORE] Received Listener::on_accept error: '{0}'", ec.what());
-        }
-        else
-        {
-            LOG_TRACE("Attempting to accept incoming connection from {0}:{1}...",
-                socket.remote_endpoint().address().to_string(),
-                socket.remote_endpoint().port());
+            if (ec)
+            {
+                LOG_ERROR("[CORE] Received Listener::OnAccept error: '{0}'", ec.what());
+            }
+            else
+            {
+                LOG_TRACE("[CORE] Attempting to accept incoming connection from {0}:{1}...",
+                    socket.remote_endpoint().address().to_string(),
+                    socket.remote_endpoint().port());
 
-            // Create the detector http_session and run it
-            std::make_shared<DetectSession>(
-                std::move(socket),
-                m_ctx,
-                m_application)->Run();
+                // Create the detector http_session and run it
+                std::make_shared<DetectSession>(
+                    std::move(socket),
+                    m_ctx,
+                    m_application)->Run();
+            }
+        }
+        catch (const boost::exception& e)
+        {
+            LOG_ERROR("[CORE] Listener::OnAccept failure. Caught boost::exception: \n'{0}'", 
+                boost::diagnostic_information(e));
+        }
+        catch (const std::exception& e)
+        {
+            LOG_ERROR("[CORE] Listener::OnAccept failure. Caught std::exception: \n'{0}'", e.what());
+        }
+        catch (...)
+        {
+            LOG_ERROR("[CORE] Listener::OnAccept failure. Caught unknown exception.");
         }
 
         // Accept another connection
