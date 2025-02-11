@@ -195,9 +195,9 @@ namespace Clover
             case http::verb::get:  return HandleHTTPGETRequest(req);
             case http::verb::put:  return HandleHTTPPUTRequest(req);
             case http::verb::post: return HandleHTTPPOSTRequest(req);
+            default:
+                return BadRequest(std::format("Not currently handling request method: '{0}'", req.method()), req);
             }
-
-            return BadRequest(std::format("Not currently handling request method: '{0}'", req.method()), req);
         }
         catch (const boost::exception& e)
         {

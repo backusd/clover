@@ -36,9 +36,7 @@ workspace "clover"
    filter "system:linux"
       systemversion "latest"
       -- see here for build option explanations: https://stackoverflow.com/questions/3375697/what-are-the-useful-gcc-flags-for-c
-      buildoptions { "-pthread", "-Wextra", "-Wall", "-Wfloat-equal", "-Wundef", "-Wshadow",
-                     "-Wpointer-arith", "-Wcast-align", "-Wwrite-strings",
-                     "-Waggregate-return", "-Wcast-qual", "-Wconversion", "-Wunreachable-code" }
+      buildoptions { "-pthread", "-Wextra", "-Wall" }
       defines { "PLATFORM_LINUX" }
       links
       {
