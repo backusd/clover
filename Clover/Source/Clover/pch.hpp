@@ -1,5 +1,8 @@
 #pragma once
 
+// Disable all warnings for library includes
+#pragma warning(push, 0)
+
 #ifdef PLATFORM_WINDOWS
 #include <SDKDDKVer.h>
 #endif
@@ -46,7 +49,12 @@ namespace net = boost::asio;                    // from <boost/asio.hpp>
 namespace ssl = boost::asio::ssl;               // from <boost/asio/ssl.hpp>
 using tcp = boost::asio::ip::tcp;               // from <boost/asio/ip/tcp.hpp>
 
+
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
 #include <inja/inja.hpp>
+
+
+
+#pragma warning(pop) // Restore previous warning settings
