@@ -2,46 +2,93 @@
 #include <Clover.hpp>
 
 
-using Clover::FAILURE_REASON;
 using Clover::PlainHTTPSession;
 using Clover::SSLHTTPSession;
 using Clover::PlainWebsocketSession;
 using Clover::SSLWebsocketSession;
-using Clover::HTTPRequestType;
 
 class Sandbox : public Clover::Application
 {
 public:
 	Sandbox() : Clover::Application("0.0.0.0", 8080, 1, "/dev/ssl/cert.pem", "/dev/ssl/key.pem", "/dev/ssl/dh.pem")
-	{}
+	{
+        // Set the server version string (will be used as the "Server" response header field)
+        SetServerVersion("Clover");
+        
+        // Set the document root
+        SetDocumentRoot("Source/front-end/");
+
+        // Inform Clover of the templates for error handling
+        SetBadRequestTarget("bad_request.html");
+        SetNotFoundTarget("not_found.html");
+        SetInternalServerErrorTarget("internal_server_error.html");
+
+        
+        // Register Targets
+        // Registering a target is entirely optional. The idea here is that when a request comes
+        // through, we need to go look up all the necessary data to fulfill that request. However,
+        // if no data needs to be looked up, then there is no need to register the target. In short,
+        // registering a target simply adds the data gathering step between receiving a request, and
+        // generating the html response.
+        RegisterGETTarget("/home", [this](json parameters) -> json { return this->GetHomeData(parameters); });
+
+        RegisterPUTTarget("/preferences/update-user-image", [this](json parameters) -> json { return this->UpdateUserImage(parameters); });
+    }
     virtual ~Sandbox() override {}
 
-    void HandleFailure(FAILURE_REASON reason, const beast::error_code& ec) noexcept override
+    json GetHomeData(json parameters)
     {
-        // ssl::error::stream_truncated, also known as an SSL "short read",
-        // indicates the peer closed the connection without performing the
-        // required closing handshake (for example, Google does this to
-        // improve performance). Generally this can be a security issue,
-        // but if your communication protocol is self-terminated (as
-        // it is with both HTTP and WebSocket) then you may simply
-        // ignore the lack of close_notify.
-        //
-        // https://github.com/boostorg/beast/issues/38
-        //
-        // https://security.stackexchange.com/questions/91435/how-to-handle-a-malicious-ssl-tls-shutdown
-        //
-        // When a short read would cut off the end of an HTTP message,
-        // Beast returns the error beast::http::error::partial_message.
-        // Therefore, if we see a short read here, it has occurred
-        // after the message has been completed, so it is safe to ignore it.
-
-        if (ec == net::ssl::error::stream_truncated)
-            return;
-
-        LOG_WARN("Clover: Not performing any specific failure handling of {0}: {1}", ToString(reason), ec.what());
+        return parameters;
     }
+    json UpdateUserImage(json parameters)
+    {
+        return parameters;
+    }
+
+    /*
+
     http::message_generator HandleHTTPRequest(HTTPRequestType req) noexcept override
     {
+        // Example: ...com/user/home?id=1234&query=some-string
+        //      target = "/user/home"
+        //      parameters = { "id" = "1234", "query" = "some-string" }
+        auto [target, parameters] = ParseTarget(req.target());
+
+        // if the target has either no file extension or the extension is .html, then
+        // it will be treated an html request. Otherwise, we will assume the request is
+        // for another type of file (.css, .js, .png, etc)
+        if (IsHTMLRequest(target))
+        {
+            // GenerateHTMLResponse will work in 2 steps:
+            //  1. It will call GatherRequestData to gather all necessary data to stamp out
+            //     the html template. This is also where any functions registered via
+            //     RegisterTarget will be called.
+            //  2. It will call GenerateHTML to stamp out the html template into a string 
+            //     that will then make up the response body
+            return GenerateHTMlResponse(target, parameters);
+        }
+
+    //    // Gather the data in a json obect that will be used to create the html
+    //    json data = GatherRequestData(target, parameters);
+    //
+    //    // Pass the data to the html template engine
+    //    std::string html = GenerateHTML(target, data);
+
+        // Not an html request, so we will assume we are just serving a whole file
+        //
+        // In this case, it doesn't make sense for there to be any parameters, so let's
+        // warn if there are any
+        if (HasParameters(parameters))
+        {
+            LOG_WARN(...);
+        }
+
+        // The target will be treated as a file. If it doesn't exist, a 404 response will be returned
+        return ServeFile(target);
+
+
+
+
         std::string_view doc_root = "./Source/front-end/";
 
         // Returns a bad request response
@@ -137,6 +184,9 @@ public:
         res.keep_alive(req.keep_alive());
         return res;
     }
+
+    */
+
     void HandleWebsocketData(PlainWebsocketSession* session, std::string&& data) noexcept override
     {
         LOG_INFO("WS: '{0}'", data);
