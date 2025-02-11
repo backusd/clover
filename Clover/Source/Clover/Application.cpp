@@ -187,15 +187,19 @@ namespace Clover
         //      parameters = { "id" = "1234", "query" = "some-string" }
         auto [target, parameters] = ParseTarget(req.target());
 
-        LOG_TRACE("Request target = {0}", std::string_view(req.target()));
-        LOG_TRACE("Parsed target  = {0}", target);
-        LOG_TRACE("Parsed params  = \n{0}", parameters.dump(4));
+        LOG_TRACE("[CORE] Received GET request for '{0}'", std::string_view(req.target()));
+        LOG_TRACE("[CORE] Determined target to be: '{0}'", target);
+        LOG_TRACE("[CORE] Determined params  to be:");
+        for (const auto& [key, value] : parameters)
+            LOG_TRACE("[CORE]     '{0}': '{1}'", key, value);
 
         // if the target has either no file extension or the extension is .html, then
         // it will be treated an html request. Otherwise, we will assume the request is
         // for another type of file (.css, .js, .png, etc)
         if (IsTargetHTML(target))
         {
+            LOG_TRACE("[CORE] Determined target '{0}' IS an HTML request", target);
+
             // GenerateHTMLResponse will work in 2 steps:
             //  1. It will call GatherRequestData to gather all necessary data to stamp out
             //     the html template. This is also where any functions registered via
@@ -204,6 +208,8 @@ namespace Clover
             //     that will then make up the response body
             return GenerateHTMLResponse(target, parameters, req);
         }
+
+        LOG_TRACE("[CORE] Determined target '{0}' IS NOT an HTML request", target);
 
         // Not an html request, so we will assume we are just serving a whole file
         //
@@ -238,9 +244,9 @@ namespace Clover
         return res;
     }
 
-    std::pair<std::string_view, json> Application::ParseTarget(std::string_view target)
+    std::pair<std::string_view, Application::ParametersMap> Application::ParseTarget(std::string_view target)
     {
-        std::pair<std::string_view, json> result;
+        std::pair<std::string_view, Application::ParametersMap> result;
         
         size_t pos = target.find('?');
         if (pos == std::string::npos) 
@@ -261,7 +267,7 @@ namespace Clover
                 equalsPos = target.find('=', keyPos);
                 ampPos = target.find('&', keyPos);
 
-                std::string key, value;
+                std::string_view key, value;
 
                 // If no '=' was found or it was found after the '&' then this is an error. However, we want to 
                 // try to recover as much as possible, so if there is still a '&', we will just continue like normal
@@ -322,29 +328,22 @@ namespace Clover
         if (pos != std::string::npos)
             file = target.substr(pos + 1);
 
-        LOG_TRACE("IsTargetHTML: (target) {0} -> (file) {1}", target, file);
-
         // Look for the extension and return true if it matches ".html"
         pos = file.rfind('.');
         return pos == std::string::npos ? true : file.substr(pos).compare(".html") == 0;
     }
-    json Application::GatherRequestData(std::string_view target, const json& urlParameters)
+    json Application::GatherRequestData(std::string_view target, const Application::ParametersMap& urlParams)
     {
         // Call user-supplied callbacks
+        auto itr = m_GETTargets.find(target);
+        if (itr == m_GETTargets.end())
+        {
+            LOG_TRACE("[CORE] GatherRequestData: No user defined data gathering function for target: '{0}'", target);
+            return {};
+        }
 
-
-
-        // Do NOT merge urlParameters, instead, pass the urlParams to the user supplied
-        // functions and leave it up to the user to keep them if necessary
-
-
-
-
-
-
-
-
-        return urlParameters;
+        LOG_TRACE("[CORE] GatherRequestData: Calling user defined data gathering function for target: '{0}'", target);
+        return itr->second(urlParams);
     }
     std::string Application::GenerateHTML(const std::string& file, const json& data)
     {
@@ -365,7 +364,7 @@ namespace Clover
 
         return content;
     }
-    http::message_generator Application::GenerateHTMLResponse(std::string_view target, json data, HTTPRequestType& req)
+    http::message_generator Application::GenerateHTMLResponse(std::string_view target, const Application::ParametersMap& urlParams, HTTPRequestType& req)
     {
         // If the target does not already end in ".html", then we want to add it
         std::string file(target);
@@ -379,12 +378,19 @@ namespace Clover
         // Prepend the document root path
         file.insert(0, m_docRoot);
 
+        LOG_TRACE("[CORE] GenerateHTMLResponse: Converted target to file: '{0}' -> '{1}'", target, file);
+
         // If the file does not exist, then return 404
         if (!std::filesystem::exists(file))
+        {
+            LOG_TRACE("[CORE] GenerateHTMLResponse: File not found: '{0}'", file);
             return FileNotFound(target, req);
+        }
 
         // Gather all data that will be used to fulfill the request to generate the necessary html
-        json d = GatherRequestData(target, data);
+        json d = GatherRequestData(target, urlParams);
+
+        LOG_TRACE("[CORE] GenerateHTMLResponse: Received data for target '{0}': \n{1}", target, d.dump(4));
 
         // Generate the html to be rendered
         std::string html = GenerateHTML(file, d);

@@ -2,6 +2,7 @@
 #include "pch.hpp"
 #include "Log.hpp"
 
+
 namespace Clover
 {
     class PlainWebsocketSession;
@@ -10,9 +11,9 @@ namespace Clover
     class Application
     {
     public:
-
-        using DataGatherFn = std::function<json(json)>;
-
+        using ParametersMap = std::unordered_map<std::string_view, std::string_view>;
+        using DataGatherFn = std::function<json(const ParametersMap&)>;
+        
 
         Application(std::string_view address, unsigned short port, unsigned int threads = std::thread::hardware_concurrency(),
                     const std::string& cert = "", const std::string& key = "", const std::string& dh = "");
@@ -52,11 +53,11 @@ namespace Clover
 
 
         void LoadServerCertificate(const std::string& cert, const std::string& key, const std::string& dh);
-        std::pair<std::string_view, json> ParseTarget(std::string_view target);
+        std::pair<std::string_view, ParametersMap> ParseTarget(std::string_view target);
         bool IsTargetHTML(std::string_view target);
-        json GatherRequestData(std::string_view target, const json& urlParameters);
+        json GatherRequestData(std::string_view target, const ParametersMap& urlParams);
         std::string GenerateHTML(const std::string& file, const json& data);
-        http::message_generator GenerateHTMLResponse(std::string_view target, json data, HTTPRequestType& req);
+        http::message_generator GenerateHTMLResponse(std::string_view target, const ParametersMap& urlParams, HTTPRequestType& req);
         http::message_generator ServeFile(std::string_view target, HTTPRequestType& req);
 
         http::message_generator HandleHTTPGETRequest(HTTPRequestType& req);
@@ -79,9 +80,24 @@ namespace Clover
         std::string m_notFoundTarget = "";
         std::string m_internalServerErrorTarget = "";
 
-        std::unordered_map<std::string, DataGatherFn> m_GETTargets;
-        std::unordered_map<std::string, DataGatherFn> m_PUTTargets;
-        std::unordered_map<std::string, DataGatherFn> m_POSTTargets;
+        // string_hash is used that that we can do a lookup using a string_view even though
+        // the keys are strings. See: https://www.cppstories.com/2021/heterogeneous-access-cpp20/
+        struct string_hash {
+            using is_transparent = void;
+            [[nodiscard]] size_t operator()(const char* txt) const {
+                return std::hash<std::string_view>{}(txt);
+            }
+            [[nodiscard]] size_t operator()(std::string_view txt) const {
+                return std::hash<std::string_view>{}(txt);
+            }
+            [[nodiscard]] size_t operator()(const std::string& txt) const {
+                return std::hash<std::string>{}(txt);
+            }
+        };
+
+        std::unordered_map<std::string, DataGatherFn, string_hash, std::equal_to<>> m_GETTargets;
+        std::unordered_map<std::string, DataGatherFn, string_hash, std::equal_to<>> m_PUTTargets;
+        std::unordered_map<std::string, DataGatherFn, string_hash, std::equal_to<>> m_POSTTargets;
     };
 
     // To be defined in client

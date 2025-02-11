@@ -7,6 +7,8 @@ using Clover::SSLHTTPSession;
 using Clover::PlainWebsocketSession;
 using Clover::SSLWebsocketSession;
 
+using Clover::Application;
+
 class Sandbox : public Clover::Application
 {
 public:
@@ -30,19 +32,25 @@ public:
         // if no data needs to be looked up, then there is no need to register the target. In short,
         // registering a target simply adds the data gathering step between receiving a request, and
         // generating the html response.
-        RegisterGETTarget("/home", [this](json parameters) -> json { return this->GetHomeData(parameters); });
+        RegisterGETTarget("/home", [this](const Application::ParametersMap& parameters) -> json { return this->GetHomeData(parameters); });
 
-        RegisterPUTTarget("/preferences/update-user-image", [this](json parameters) -> json { return this->UpdateUserImage(parameters); });
+        RegisterPUTTarget("/preferences/update-user-image", [this](const Application::ParametersMap& parameters) -> json { return this->UpdateUserImage(parameters); });
     }
     virtual ~Sandbox() override {}
 
-    json GetHomeData(json parameters)
+    json GetHomeData(const Application::ParametersMap& parameters)
     {
-        return parameters;
+        LOG_TRACE("Sandbox: Inside GetHomeData...");
+
+        json d;
+        d["home"] = "some data";
+        return d;
     }
-    json UpdateUserImage(json parameters)
+    json UpdateUserImage(const Application::ParametersMap& parameters)
     {
-        return parameters;
+        json d;
+        d["update-user-image"] = "some data";
+        return d;
     }
 
     /*
