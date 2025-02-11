@@ -10,7 +10,10 @@ project "Clover"
    includedirs
    {
       "Source",
-      "/dev/boost_1_87_0"
+      "/dev/boost_1_87_0",
+
+      -- json
+      "../Vendor/json/include"
    }
 
    targetdir ("../Binaries/" .. OutputDir .. "/%{prj.name}")
@@ -21,7 +24,7 @@ project "Clover"
        defines { "PLATFORM_WINDOWS" }
        includedirs
        {
-           "C:\\Program Files\\OpenSSL-Win64\\include"
+           "C:\\Program Files\\OpenSSL-Win64\\include"           
        }
        libdirs
        {

@@ -13,7 +13,10 @@ project "Sandbox"
       "/dev/boost_1_87_0",
 
 	  -- Include Clover
-	  "../Clover/Source"
+	  "../Clover/Source",
+
+      -- json
+      "../Vendor/json/include"
    }
 
    links

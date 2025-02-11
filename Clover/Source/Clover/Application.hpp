@@ -2,8 +2,6 @@
 #include "pch.hpp"
 #include "Log.hpp"
 
-typedef int json;
-
 namespace Clover
 {
     class PlainWebsocketSession;
@@ -56,10 +54,9 @@ namespace Clover
         void LoadServerCertificate(const std::string& cert, const std::string& key, const std::string& dh);
         std::pair<std::string_view, json> ParseTarget(std::string_view target);
         bool IsTargetHTML(std::string_view target);
-        json GatherRequestData(std::string_view target, json urlParameters);
-        std::string GenerateHTML(const std::string& file, json& data);
+        json GatherRequestData(std::string_view target, const json& urlParameters);
+        std::string GenerateHTML(const std::string& file, const json& data);
         http::message_generator GenerateHTMLResponse(std::string_view target, json data, HTTPRequestType& req);
-        bool HasParameters(json urlParameters);
         http::message_generator ServeFile(std::string_view target, HTTPRequestType& req);
 
         http::message_generator HandleHTTPGETRequest(HTTPRequestType& req);

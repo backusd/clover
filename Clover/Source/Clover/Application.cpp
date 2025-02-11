@@ -189,7 +189,7 @@ namespace Clover
 
         LOG_TRACE("Request target = {0}", std::string_view(req.target()));
         LOG_TRACE("Parsed target  = {0}", target);
-        LOG_TRACE("Parsed params  = {0}", parameters);
+        LOG_TRACE("Parsed params  = \n{0}", parameters.dump(4));
 
         // if the target has either no file extension or the extension is .html, then
         // it will be treated an html request. Otherwise, we will assume the request is
@@ -209,7 +209,7 @@ namespace Clover
         //
         // In this case, it doesn't make sense for there to be any parameters, so let's
         // warn if there are any
-        if (HasParameters(parameters))
+        if (!parameters.empty())
         {
             LOG_WARN("[CORE] A request for '{0}' had parameters, but this is not an html request, so parameters are being ignored", req.target());
         }
@@ -241,8 +241,6 @@ namespace Clover
     std::pair<std::string_view, json> Application::ParseTarget(std::string_view target)
     {
         std::pair<std::string_view, json> result;
-
-        result.second = 1234;
         
         size_t pos = target.find('?');
         if (pos == std::string::npos) 
@@ -252,9 +250,60 @@ namespace Clover
         else 
         {
             result.first = std::string_view(target.data(), pos); // Return substring up to the delimiter
-        }
 
-        LOG_TRACE("ParseTarget: {0} -> {1}", target, result.first);
+            // parse the parameters into json
+            size_t keyPos = pos + 1;
+            size_t equalsPos, ampPos;
+
+            // We are going to progress the key position until we go beyond the string_view
+            while (keyPos < target.size())
+            {
+                equalsPos = target.find('=', keyPos);
+                ampPos = target.find('&', keyPos);
+
+                std::string key, value;
+
+                // If no '=' was found or it was found after the '&' then this is an error. However, we want to 
+                // try to recover as much as possible, so if there is still a '&', we will just continue like normal
+                if (equalsPos > ampPos || equalsPos == std::string::npos)
+                {
+                    // If there are no more '&', then just log an error message and break
+                    if (ampPos == std::string::npos)
+                    {
+                        LOG_WARN("[CORE] Parsing parameters failed because there is no '=' for key '{0}': '{1}", target.substr(keyPos), target);
+                        break;
+                    }
+
+                    // If there are remaining '&', then log an error, but continue like normal
+                    key = target.substr(keyPos, ampPos - keyPos);
+                    LOG_WARN("[CORE] Parsing parameters failed because there is no '=' for key '{0}': '{1}", key, target);
+
+                    keyPos = ampPos + 1;
+                    continue;
+                }
+
+                key = target.substr(keyPos, equalsPos - keyPos);
+
+                // If there are no more '&', then just go to the end of the string_view
+                if (ampPos == std::string::npos)
+                    value = target.substr(equalsPos + 1);
+                else
+                    value = target.substr(equalsPos + 1, ampPos - equalsPos - 1);
+
+                // Check if this key was already added
+                if (result.second.contains(key))
+                    LOG_WARN("[CORE] Parsing parameters failed because this is the second time the key '{0}' was found. Skipping second occurrence. Parameters: {1}", key, target);
+                else
+                    result.second[key] = value;                
+
+                // If there are no more '&', then we are done
+                if (ampPos == std::string::npos)
+                    break;
+
+                // Increment the key position to what it would be if it exists
+                keyPos = ampPos + 1;
+            }
+        }
 
         return result;
     }
@@ -279,11 +328,25 @@ namespace Clover
         pos = file.rfind('.');
         return pos == std::string::npos ? true : file.substr(pos).compare(".html") == 0;
     }
-    json Application::GatherRequestData(std::string_view target, json urlParameters)
+    json Application::GatherRequestData(std::string_view target, const json& urlParameters)
     {
+        // Call user-supplied callbacks
+
+
+
+        // Do NOT merge urlParameters, instead, pass the urlParams to the user supplied
+        // functions and leave it up to the user to keep them if necessary
+
+
+
+
+
+
+
+
         return urlParameters;
     }
-    std::string Application::GenerateHTML(const std::string& file, json& data)
+    std::string Application::GenerateHTML(const std::string& file, const json& data)
     {
         // We have already done a check to ensure the file exists
         std::ifstream fileStream(file);
@@ -291,6 +354,14 @@ namespace Clover
         std::string content{
             std::istreambuf_iterator<char>(fileStream),
             std::istreambuf_iterator<char>() };
+
+
+
+
+
+
+
+
 
         return content;
     }
@@ -306,7 +377,7 @@ namespace Clover
             file = file.erase(0, 1);
 
         // Prepend the document root path
-        file = m_docRoot + file;
+        file.insert(0, m_docRoot);
 
         // If the file does not exist, then return 404
         if (!std::filesystem::exists(file))
@@ -325,10 +396,6 @@ namespace Clover
         res.body() = html;
         res.prepare_payload();
         return res;
-    }
-    bool Application::HasParameters(json urlParameters)
-    {
-        return false;
     }
     http::message_generator Application::ServeFile(std::string_view target, HTTPRequestType& req)
     {
