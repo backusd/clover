@@ -542,6 +542,12 @@ namespace Clover
                 std::format("../Profile-Results/{0}_{1}_{2}.json", (std::string)m_parser->get().target(), m_address, m_port)
             );
 
+#ifdef TRACE_LOGGING
+            auto timePointStart = std::chrono::high_resolution_clock::now();
+#endif // TRACE_LOGGING            
+
+            std::string target;
+
             {
                 PROFILE_SCOPE("HTTPSession::OnRead");
 
@@ -583,7 +589,8 @@ namespace Clover
                             m_application);
                     }
 
-                    LOG_INFO("[CORE] Received http request from {0}:{1} -> {2} {3}", m_address, m_port, (std::string)m_parser->get().method_string(), (std::string)m_parser->get().target());
+                    target = (std::string)m_parser->get().target();
+                    LOG_INFO("[CORE] Received http request from {0}:{1} -> {2} {3}", m_address, m_port, (std::string)m_parser->get().method_string(), target);
                     //    LOG_TRACE("\tVerb      : {0}", (std::string)m_parser->get().method_string());
                     //    LOG_TRACE("\tTarget    : {0}", (std::string)m_parser->get().target());
                     //    LOG_TRACE("\tKeep Alive: {0}", m_parser->get().keep_alive() ? "true" : "false");
@@ -612,6 +619,11 @@ namespace Clover
                 if (m_response_queue.size() < m_queue_limit)
                     DoRead();
             }
+
+#ifdef TRACE_LOGGING
+            std::chrono::duration<double, std::milli> fp_ms = std::chrono::high_resolution_clock::now() - timePointStart;
+            LOG_TRACE("[CORE] Request from {0}:{1} for target '{2}' took {3}ms", m_address, m_port, target, fp_ms.count());
+#endif
 
             PROFILE_END_SESSION();
         }

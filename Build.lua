@@ -68,7 +68,7 @@ workspace "clover"
    defines
    {
        -- Uncomment the next line to enable profiling for each request
-       "PROFILING_ENABLED",
+       -- "PROFILING_ENABLED",
 
        -- Uncomment the next line to enable trace logging
        "TRACE_LOGGING"

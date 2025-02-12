@@ -1,6 +1,8 @@
 #include "Profiling.hpp"
 #include "Log.hpp"
 
+#if PROFILING_ENABLED
+
 namespace Clover
 {
 void Profiler::BeginSession(std::string_view name, const std::string& outputFilename)
@@ -82,3 +84,5 @@ void ProfilerTimer::Stop()
 }
 
 }
+
+#endif
