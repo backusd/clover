@@ -37,6 +37,7 @@
 .vs/
 Binaries/
 x64
+Profile-Results/
 
 # Files
 *.vcxproj

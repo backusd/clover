@@ -27,6 +27,7 @@
 #include <memory>
 #include <mutex>
 #include <queue>
+#include <source_location>
 #include <string>
 #include <string.h>
 #include <string_view>

@@ -40,6 +40,8 @@ public:
 
     json GetHomeData(const Application::ParametersMap& /* parameters */)
     {
+        PROFILE_SCOPE("Sandbox::GetHomeData");
+
         LOG_TRACE("Sandbox: Inside GetHomeData...");
 
         json d;
@@ -48,6 +50,8 @@ public:
     }
     json UpdateUserImage(const Application::ParametersMap& /* parameters */)
     {
+        PROFILE_SCOPE("Sandbox::UpdateUserImage");
+
         json d;
         d["update-user-image"] = "some data";
         return d;

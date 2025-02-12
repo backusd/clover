@@ -1,6 +1,7 @@
 #pragma once
 #include "pch.hpp"
 #include "Log.hpp"
+#include "Profiling.hpp"
 
 #include <boost/exception/diagnostic_information.hpp>
 #include <boost/exception_ptr.hpp>
@@ -536,72 +537,83 @@ namespace Clover
 
         void OnRead(beast::error_code ec, std::size_t bytes_transferred) noexcept
         {
-            // Need a try-catch here so an exception doesn't escape and cause a crash
-            try
+            PROFILE_BEGIN_SESSION(
+                std::format("session={0}:{1}:{2}", m_address, m_port, (std::string)m_parser->get().target()),
+                std::format("../Profile-Results/{0}_{1}_{2}.json", (std::string)m_parser->get().target(), m_address, m_port)
+            );
+
             {
-                boost::ignore_unused(bytes_transferred);
+                PROFILE_SCOPE("HTTPSession::OnRead");
 
-                if (ec)
+                // Need a try-catch here so an exception doesn't escape and cause a crash
+                try
                 {
-                    // This means they closed the connection
-                    if (ec == http::error::end_of_stream)
-                        return GetDerived().DoEOF();
+                    boost::ignore_unused(bytes_transferred);
 
-                    // Because at the end of each read, we attempt to make another read, we will always find ourselves
-                    // waiting. However, if there is no more data, then eventually we will hit the socket timeout, in which 
-                    // case we can just be done.
-                    // NOTE: Do NOT call do_eof() because that will call shutdown() on the socket, which is not valid because
-                    //       we have already reached a timeout
-                    if (ec == beast::error::timeout)
+                    if (ec)
+                    {
+                        // This means they closed the connection
+                        if (ec == http::error::end_of_stream)
+                            return GetDerived().DoEOF();
+
+                        // Because at the end of each read, we attempt to make another read, we will always find ourselves
+                        // waiting. However, if there is no more data, then eventually we will hit the socket timeout, in which 
+                        // case we can just be done.
+                        // NOTE: Do NOT call do_eof() because that will call shutdown() on the socket, which is not valid because
+                        //       we have already reached a timeout
+                        if (ec == beast::error::timeout)
+                            return;
+
+                        LOG_ERROR("[CORE] Received HTTPSession::OnRead error: '{0}'", ec.what());
                         return;
+                    }
 
-                    LOG_ERROR("[CORE] Received HTTPSession::OnRead error: '{0}'", ec.what());
-                    return;
+                    // See if it is a WebSocket Upgrade
+                    if (websocket::is_upgrade(m_parser->get()))
+                    {
+                        // Disable the timeout.
+                        // The websocket::stream uses its own timeout settings.
+                        beast::get_lowest_layer(GetDerived().Stream()).expires_never();
+
+                        // Create a websocket session, transferring ownership
+                        // of both the socket and the HTTP request.
+                        return MakeWebsocketSession(
+                            GetDerived().ReleaseStream(),
+                            m_parser->release(),
+                            m_application);
+                    }
+
+                    LOG_INFO("[CORE] Received http request from {0}:{1} -> {2} {3}", m_address, m_port, (std::string)m_parser->get().method_string(), (std::string)m_parser->get().target());
+                    //    LOG_TRACE("\tVerb      : {0}", (std::string)m_parser->get().method_string());
+                    //    LOG_TRACE("\tTarget    : {0}", (std::string)m_parser->get().target());
+                    //    LOG_TRACE("\tKeep Alive: {0}", m_parser->get().keep_alive() ? "true" : "false");
+                    //    for (auto itr = m_parser->get().base().cbegin(); itr != m_parser->get().base().cend(); itr = itr->next_)
+                    //        LOG_TRACE("\t{0}: {1}", (std::string)itr->name_string(), (std::string)itr->value());
+                    //    LOG_TRACE("\tBody      : {0}\n", (std::string)m_parser->get().body());
+
+                    // Send the response
+                    QueueWrite(m_application->HandleHTTPRequest(m_parser->release()));
                 }
-
-                // See if it is a WebSocket Upgrade
-                if (websocket::is_upgrade(m_parser->get()))
+                catch (const boost::exception& e)
                 {
-                    // Disable the timeout.
-                    // The websocket::stream uses its own timeout settings.
-                    beast::get_lowest_layer(GetDerived().Stream()).expires_never();
-
-                    // Create a websocket session, transferring ownership
-                    // of both the socket and the HTTP request.
-                    return MakeWebsocketSession(
-                        GetDerived().ReleaseStream(),
-                        m_parser->release(),
-                        m_application);
+                    LOG_ERROR("[CORE] HTTPSession::OnRead failure. Caught boost::exception: \n'{0}'",
+                        boost::diagnostic_information(e));
+                }
+                catch (const std::exception& e)
+                {
+                    LOG_ERROR("[CORE] HTTPSession::OnRead failure. Caught std::exception: \n'{0}'", e.what());
+                }
+                catch (...)
+                {
+                    LOG_ERROR("[CORE] HTTPSession::OnRead failure. Caught unknown exception.");
                 }
 
-                LOG_INFO("[CORE] Received http request from {0}:{1} -> {2} {3}", m_address, m_port, (std::string)m_parser->get().method_string(), (std::string)m_parser->get().target());
-                //    LOG_TRACE("\tVerb      : {0}", (std::string)m_parser->get().method_string());
-                //    LOG_TRACE("\tTarget    : {0}", (std::string)m_parser->get().target());
-                //    LOG_TRACE("\tKeep Alive: {0}", m_parser->get().keep_alive() ? "true" : "false");
-                //    for (auto itr = m_parser->get().base().cbegin(); itr != m_parser->get().base().cend(); itr = itr->next_)
-                //        LOG_TRACE("\t{0}: {1}", (std::string)itr->name_string(), (std::string)itr->value());
-                //    LOG_TRACE("\tBody      : {0}\n", (std::string)m_parser->get().body());
-
-                // Send the response
-                QueueWrite(m_application->HandleHTTPRequest(m_parser->release()));
-            }
-            catch (const boost::exception& e)
-            {
-                LOG_ERROR("[CORE] HTTPSession::OnRead failure. Caught boost::exception: \n'{0}'",
-                    boost::diagnostic_information(e));
-            }
-            catch (const std::exception& e)
-            {
-                LOG_ERROR("[CORE] HTTPSession::OnRead failure. Caught std::exception: \n'{0}'", e.what());
-            }
-            catch (...)
-            {
-                LOG_ERROR("[CORE] HTTPSession::OnRead failure. Caught unknown exception.");
+                // If we aren't at the queue limit, try to pipeline another request
+                if (m_response_queue.size() < m_queue_limit)
+                    DoRead();
             }
 
-            // If we aren't at the queue limit, try to pipeline another request
-            if (m_response_queue.size() < m_queue_limit)
-                DoRead();
+            PROFILE_END_SESSION();
         }
 
         void QueueWrite(http::message_generator response)

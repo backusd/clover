@@ -2,6 +2,7 @@
 
 
 #include "Clover/Application.hpp"
+#include "Clover/Profiling.hpp"
 
 
 // ******** Entry Point ********

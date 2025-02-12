@@ -65,6 +65,15 @@ workspace "clover"
       "Vendor/inja/include"
    }
 
+   defines
+   {
+       -- Uncomment the next line to enable profiling for each request
+       "PROFILING_ENABLED",
+
+       -- Uncomment the next line to enable trace logging
+       "TRACE_LOGGING"
+   }
+
 
 
 OutputDir = "%{cfg.system}-%{cfg.architecture}/%{cfg.buildcfg}"

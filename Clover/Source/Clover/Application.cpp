@@ -187,6 +187,8 @@ namespace Clover
 
     http::message_generator Application::HandleHTTPRequest(HTTPRequestType req) noexcept
     {
+        PROFILE_SCOPE("Application::HandleHTTPRequest");
+        
         try
         {
             switch (req.method())
@@ -217,23 +219,33 @@ namespace Clover
     }
     http::message_generator Application::HandleHTTPGETRequest(HTTPRequestType& req)
     {
+        PROFILE_SCOPE("Application::HandleHTTPGETRequest");
+
         // Example: ...com/user/home?id=1234&query=some-string
         //      target = "/user/home"
         //      parameters = { "id" = "1234", "query" = "some-string" }
         auto [target, parameters] = ParseTarget(req.target());
 
-        LOG_TRACE("[CORE] Received GET request for '{0}'", std::string_view(req.target()));
-        LOG_TRACE("[CORE] Determined target to be: '{0}'", target);
-        LOG_TRACE("[CORE] Determined params to be:");
-        for (const auto& [key, value] : parameters)
-            LOG_TRACE("[CORE]     '{0}': '{1}'", key, value);
-
-        // It is never valid for the target to contain "..", so send a bad request response if so
-        if (target.find("..") != std::string::npos)
         {
-            std::string_view reason = "Invalid request because target contains '..'";
-            LOG_WARN("[CORE] {0} : '{1}'", reason, target);
-            return BadRequest(reason, req);
+            PROFILE_SCOPE("Some logging 1");
+
+// Need this here so that when TRACE_LOGGING is not define, we don't have an empty for-loop
+#ifdef TRACE_LOGGING
+            LOG_TRACE("[CORE] Received GET request for '{0}'", std::string_view(req.target()));
+            LOG_TRACE("[CORE] Determined target to be: '{0}'", target);
+            LOG_TRACE("[CORE] Determined params to be:");
+            for (const auto& [key, value] : parameters)
+                LOG_TRACE("[CORE]     '{0}': '{1}'", key, value);
+#endif
+
+            // It is never valid for the target to contain "..", so send a bad request response if so
+            if (target.find("..") != std::string::npos)
+            {
+                std::string_view reason = "Invalid request because target contains '..'";
+                LOG_WARN("[CORE] {0} : '{1}'", reason, target);
+                return BadRequest(reason, req);
+            }
+
         }
 
         // if the target has either no file extension or the extension is .html, then
@@ -268,6 +280,8 @@ namespace Clover
     }
     http::message_generator Application::HandleHTTPPUTRequest(HTTPRequestType& req)
     {
+        PROFILE_SCOPE("Application::HandleHTTPPUTRequest");
+
         http::response<http::string_body> res{ http::status::ok, req.version() };
         res.set(http::field::server, m_serverVersion);
         res.set(http::field::content_type, "text/html"); 
@@ -278,6 +292,8 @@ namespace Clover
     }
     http::message_generator Application::HandleHTTPPOSTRequest(HTTPRequestType& req)
     {
+        PROFILE_SCOPE("Application::HandleHTTPPOSTRequest");
+
         http::response<http::string_body> res{ http::status::ok, req.version() };
         res.set(http::field::server, m_serverVersion);
         res.set(http::field::content_type, "text/html");
@@ -289,6 +305,8 @@ namespace Clover
 
     std::pair<std::string_view, Application::ParametersMap> Application::ParseTarget(std::string_view target) const noexcept
     {
+        PROFILE_SCOPE("Application::ParseTarget");
+
         std::pair<std::string_view, Application::ParametersMap> result;
         
         size_t pos = target.find('?');
@@ -358,6 +376,8 @@ namespace Clover
     }
     json Application::GatherRequestData(std::string_view target, const Application::ParametersMap& urlParams) const
     {
+        PROFILE_SCOPE("Application::GatherRequestData");
+
         // The normal use case is for the user application to register a target like '/home' and
         // this will ultimately map to a file called 'home.html'. When a GET request comes through
         // for '/home', this works just fine. However, if the GET request was for '/home.html', then
@@ -379,6 +399,8 @@ namespace Clover
     }
     http::message_generator Application::GenerateHTMLResponse(std::string_view target, const Application::ParametersMap& urlParams, HTTPRequestType& req)
     {
+        PROFILE_SCOPE("Application::GenerateHTMLResponse");
+
         // If the target does not already end in ".html", then we want to add it
         std::string file(target);
         if (!file.ends_with(".html"))
@@ -401,14 +423,23 @@ namespace Clover
         }
 
         // Gather all data that will be used to fulfill the request to generate the necessary html
-        json data = GatherRequestData(target, urlParams);
+        json data;
+        {
+            PROFILE_SCOPE("GatherRequestData - outer");
+            data = GatherRequestData(target, urlParams);
+        }
+        {
+            PROFILE_SCOPE("Some logging 2");
 
-        LOG_TRACE("[CORE] GenerateHTMLResponse: Received data for target '{0}': \n{1}", target, data.dump(4));
+            LOG_TRACE("[CORE] GenerateHTMLResponse: Received data for target '{0}': \n{1}", target, data.dump(4));
+        }
 
         // Generate the html to be rendered
         std::string html;
         try
         {
+            PROFILE_SCOPE("Inja render_file");
+
             html = m_injaEnv.render_file(file, data);
         }
         catch (const inja::RenderError& err)
@@ -421,15 +452,22 @@ namespace Clover
         LOG_INFO("[CORE] Returning status 200 - OK for target '{0}'", target);
 
         http::response<http::string_body> res{ http::status::ok, req.version() };
-        res.set(http::field::server, m_serverVersion);
-        res.set(http::field::content_type, "text/html");
-        res.keep_alive(req.keep_alive());
-        res.body() = html;
-        res.prepare_payload();
+
+        {
+            PROFILE_SCOPE("Prepare response");
+
+            res.set(http::field::server, m_serverVersion);
+            res.set(http::field::content_type, "text/html");
+            res.keep_alive(req.keep_alive());
+            res.body() = html;
+            res.prepare_payload();
+        }
         return res;
     }
     http::message_generator Application::ServeFile(std::string_view target, HTTPRequestType& req)
     {
+        PROFILE_SCOPE("Application::ServeFile");
+
         std::string file(target);
 
         if (file.ends_with('/'))
@@ -488,6 +526,8 @@ namespace Clover
     
     http::message_generator Application::BadRequest(std::string_view reason, HTTPRequestType& req)
     {
+        PROFILE_SCOPE("Application::BadRequest");
+
         LOG_WARN("[CORE] Returning status 400 - Bad Request for target '{0}'", std::string_view(req.target()));
         LOG_WARN("[CORE]     Reason: {0}", reason);
         
@@ -530,6 +570,8 @@ namespace Clover
     }
     http::message_generator Application::FileNotFound(std::string_view target, HTTPRequestType& req)
     {
+        PROFILE_SCOPE("Application::FileNotFound");
+
         LOG_WARN("[CORE] Returning status 404 - Not Found for target '{0}'", std::string_view(req.target()));
 
         std::string reason = "The resource '" + std::string(target) + "' was not found.";
@@ -572,6 +614,8 @@ namespace Clover
     }
     http::message_generator Application::InternalServerError(std::string_view reason, HTTPRequestType& req)
     {
+        PROFILE_SCOPE("Application::InternalServerError");
+
         LOG_WARN("[CORE] Returning status 500 - Internal Server Error for target '{0}'", std::string_view(req.target()));
         LOG_WARN("[CORE]     Reason: {0}", reason);
 

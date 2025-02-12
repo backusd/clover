@@ -38,7 +38,12 @@ namespace Log
 }
 
 
+#ifdef TRACE_LOGGING
 #define LOG_TRACE(...) ::Log::Trace(__VA_ARGS__)
+#else
+#define LOG_TRACE(...)
+#endif
+
 #define LOG_INFO(...) ::Log::Info(__VA_ARGS__)
 #define LOG_WARN(...) ::Log::Warn(__VA_ARGS__)
 #define LOG_ERROR(...) ::Log::Error(__VA_ARGS__)
