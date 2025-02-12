@@ -62,11 +62,11 @@ public:
     {
         LOG_WARN("Not currently handling ws_ssl_session string data");
     }
-    void HandleWebsocketData(PlainWebsocketSession* /* session */, void* data, size_t bytes) noexcept override
+    void HandleWebsocketData(PlainWebsocketSession* /* session */, void* /* data */, size_t bytes) noexcept override
     {
         LOG_INFO("WS: Received {0} bytes", bytes);
     }
-    void HandleWebsocketData(SSLWebsocketSession* /* session */, void* data, size_t /* bytes */) noexcept override
+    void HandleWebsocketData(SSLWebsocketSession* /* session */, void* /* session */, size_t /* bytes */) noexcept override
     {
         LOG_WARN("Not currently handling ws_ssl_session binary data");
     }
