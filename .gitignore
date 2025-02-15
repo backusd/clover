@@ -35,9 +35,12 @@
 
 # Directories
 .vs/
+.vscode/
 Binaries/
 x64
 Profile-Results/
+node_modules/
+
 
 # Files
 *.vcxproj

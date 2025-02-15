@@ -1,0 +1,1 @@
+C:\dev\clover\Renderer\Renderer\obj\Debug\Renderer.esproj.CoreCompileInputs.cache

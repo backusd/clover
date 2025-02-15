@@ -1,13 +1,28 @@
-<HTML>
-<HEAD>
-<META NAME="GENERATOR" Content="Microsoft Visual Studio">
-<TITLE></TITLE>
-</HEAD>
-<BODY>
-<p>
-{{ home }}
-</p>
+<!doctype html>
+<html lang="en-US">
+<head>
+	<meta charset="UTF-8">
+	<meta name="description" content="Sandbox Application">
+	<meta name="author" content="Dakota Backus">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+	<title>Sandbox</title>
 
-</BODY>
-</HTML>
+	<link rel="stylesheet" href="styles.css">
+	<link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+
+	<script type="importmap">
+		{
+		  "imports": {
+			"wgpu-matrix": "https://wgpu-matrix.org/dist/3.x/wgpu-matrix.module.js"
+		  }
+		}
+	</script>
+	<script type="module" src="renderer.js"></script>
+</head>
+<body>
+
+	<canvas id="main-canvas"></canvas>
+
+</body>
+</html>
