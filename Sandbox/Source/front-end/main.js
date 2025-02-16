@@ -5,13 +5,7 @@ function fail(msg) {
     // eslint-disable-next-line no-alert
     alert(msg);
 }
-async function GetDeviceAndContext(canvasId) {
-    let gpuAdapter = await navigator.gpu.requestAdapter();
-    if (!gpuAdapter) {
-        fail('Failed to get GPUAdapter');
-        throw new Error("Failed to get GPUAdapter");
-    }
-    let device = await gpuAdapter.requestDevice();
+function GetCanvas(canvasId) {
     // Get a WebGPU context from the canvas and configure it
     let canvas = document.getElementById(canvasId);
     if (!canvas) {
@@ -22,6 +16,15 @@ async function GetDeviceAndContext(canvasId) {
         fail(`html element with id = ${canvasId} is NOT a canvas element`);
         throw new Error(`html element with id = ${canvasId} is NOT a canvas element`);
     }
+    return canvas;
+}
+async function GetDeviceAndContext(canvas) {
+    let gpuAdapter = await navigator.gpu.requestAdapter();
+    if (!gpuAdapter) {
+        fail('Failed to get GPUAdapter');
+        throw new Error("Failed to get GPUAdapter");
+    }
+    let device = await gpuAdapter.requestDevice();
     const context = canvas.getContext('webgpu');
     if (!context) {
         fail('Failed to get the webgpu context from the canvas');
@@ -31,12 +34,14 @@ async function GetDeviceAndContext(canvasId) {
 }
 async function main() {
     try {
+        // Get the canvas from the id
+        let canvas = GetCanvas("main-canvas");
         // Asynchronously get the device and context
-        let { device, context } = await GetDeviceAndContext("main-canvas");
+        let { device, context } = await GetDeviceAndContext(canvas);
         // Create the Renderer
         let renderer = new Renderer(device, context);
         // Load the application (input handling, game logic, scene, etc)
-        let application = new Application(renderer);
+        let application = new Application(renderer, canvas);
         await application.InitializeAsync();
         // Begin the render loop
         function render() {
