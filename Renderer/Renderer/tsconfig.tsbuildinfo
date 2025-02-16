@@ -1,1 +1,1 @@
-{"root":["./renderer.ts"],"version":"5.7.3"}
+{"root":["./log.ts","./renderer.ts"],"version":"5.7.3"}

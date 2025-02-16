@@ -3,7 +3,7 @@
 SET PATH=%PATH%;c:\Windows\System32
 
 pushd ..
-xcopy Renderer\Renderer\renderer.js Sandbox\Source\front-end\ /f
-xcopy Renderer\Renderer\renderer.js.map Sandbox\Source\front-end\ /f
+xcopy Renderer\Renderer\*.js Sandbox\Source\front-end\ /f /Y
+xcopy Renderer\Renderer\*.js.map Sandbox\Source\front-end\ /f /Y
 popd
 pause

@@ -1,7 +1,9 @@
 import { vec3 } from 'wgpu-matrix';
+import Log from "./Log.js";
 function fail(msg) {
     // eslint-disable-next-line no-alert
     alert(msg);
+    Log(msg);
 }
 class Renderer {
     constructor(device, context) {
