@@ -41,6 +41,7 @@ x64
 Profile-Results/
 node_modules/
 Renderer/Renderer/*.js
+Renderer/Renderer/*.js.map
 
 
 # Files

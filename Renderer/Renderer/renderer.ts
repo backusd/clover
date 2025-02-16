@@ -1,15 +1,16 @@
 import { vec3 } from 'wgpu-matrix';
-import Log from "./Log.js"
+import {
+    LOG_CORE_INFO,
+    LOG_CORE_TRACE,
+    LOG_CORE_WARN,
+    LOG_CORE_ERROR,
+    LOG_INFO,
+    LOG_TRACE,
+    LOG_WARN,
+    LOG_ERROR,
+    } from "./Log.js"
 
-function fail(msg: string)
-{
-    // eslint-disable-next-line no-alert
-    alert(msg);
-
-    Log(msg);
-} 
-
-class Renderer
+export class Renderer
 {
     constructor(device : GPUDevice, context : GPUCanvasContext)
     {
@@ -95,61 +96,3 @@ class Renderer
     private m_renderPassDescriptor: GPURenderPassDescriptor;
     private m_pipeline: GPURenderPipeline;
 }
-
-async function GetDeviceAndContext(canvasId : string)
-{
-    let gpuAdapter: GPUAdapter | null = await navigator.gpu.requestAdapter();
-    if (!gpuAdapter)
-    {
-        fail('Failed to get GPUAdapter');
-        throw 1;
-    }
-
-    let device: GPUDevice = await gpuAdapter.requestDevice();
-
-    // Get a WebGPU context from the canvas and configure it
-    let canvas: HTMLElement | null = document.getElementById(canvasId)
-    if (!canvas)
-    {
-        fail(`There is no html element with id = ${canvasId}`);
-        throw 1;
-    }
-    if (!(canvas instanceof HTMLCanvasElement))
-    {
-        fail(`html element with id = ${canvasId} is NOT a canvas element`);
-        throw 1;
-    }
-
-    const context: GPUCanvasContext | null = canvas.getContext('webgpu');
-    if (!context)
-    {
-        fail('Failed to get the webgpu context from the canvas');
-        throw 1;
-    }
-
-    return { device, context };
-}
-
-async function main()
-{
-    // Asynchronously get the device and context
-    let { device, context } = await GetDeviceAndContext("main-canvas");
-
-    // Create the Renderer
-    let renderer: Renderer = new Renderer(device, context);
-
-    // Load the scene
-    const v1 = vec3.fromValues(0, 1, 2);
-    const v2 = vec3.fromValues(3, 4, 5);
-    console.log(vec3.add(v1, v2));
-
-    // Begin the render loop
-    function render()
-    {
-        renderer.Render();
-        requestAnimationFrame(render);
-    }
-    requestAnimationFrame(render);
-}
-
-main();

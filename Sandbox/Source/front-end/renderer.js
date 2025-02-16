@@ -1,11 +1,4 @@
-import { vec3 } from 'wgpu-matrix';
-import Log from "./Log.js";
-function fail(msg) {
-    // eslint-disable-next-line no-alert
-    alert(msg);
-    Log(msg);
-}
-class Renderer {
+export class Renderer {
     constructor(device, context) {
         this.m_device = device;
         this.m_context = context;
@@ -79,45 +72,4 @@ class Renderer {
     m_renderPassDescriptor;
     m_pipeline;
 }
-async function GetDeviceAndContext(canvasId) {
-    let gpuAdapter = await navigator.gpu.requestAdapter();
-    if (!gpuAdapter) {
-        fail('Failed to get GPUAdapter');
-        throw 1;
-    }
-    let device = await gpuAdapter.requestDevice();
-    // Get a WebGPU context from the canvas and configure it
-    let canvas = document.getElementById(canvasId);
-    if (!canvas) {
-        fail(`There is no html element with id = ${canvasId}`);
-        throw 1;
-    }
-    if (!(canvas instanceof HTMLCanvasElement)) {
-        fail(`html element with id = ${canvasId} is NOT a canvas element`);
-        throw 1;
-    }
-    const context = canvas.getContext('webgpu');
-    if (!context) {
-        fail('Failed to get the webgpu context from the canvas');
-        throw 1;
-    }
-    return { device, context };
-}
-async function main() {
-    // Asynchronously get the device and context
-    let { device, context } = await GetDeviceAndContext("main-canvas");
-    // Create the Renderer
-    let renderer = new Renderer(device, context);
-    // Load the scene
-    const v1 = vec3.fromValues(0, 1, 2);
-    const v2 = vec3.fromValues(3, 4, 5);
-    console.log(vec3.add(v1, v2));
-    // Begin the render loop
-    function render() {
-        renderer.Render();
-        requestAnimationFrame(render);
-    }
-    requestAnimationFrame(render);
-}
-main();
-//# sourceMappingURL=renderer.js.map
+//# sourceMappingURL=Renderer.js.map

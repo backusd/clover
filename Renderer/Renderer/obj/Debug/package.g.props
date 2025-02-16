@@ -3,7 +3,7 @@
   <PropertyGroup>
     <PackageJsonName Condition="$(PackageJsonName) == ''">renderer</PackageJsonName>
     <PackageJsonVersion Condition="$(PackageJsonVersion) == ''">1.0.0</PackageJsonVersion>
-    <PackageJsonMain Condition="$(PackageJsonMain) == ''">renderer.js</PackageJsonMain>
+    <PackageJsonMain Condition="$(PackageJsonMain) == ''">main.js</PackageJsonMain>
     <PackageJsonScriptsTest Condition="$(PackageJsonScriptsTest) == ''">echo "Error: no test specified" &amp;&amp; exit 1</PackageJsonScriptsTest>
     <PackageJsonScriptsBuild Condition="$(PackageJsonScriptsBuild) == ''">tsc --build</PackageJsonScriptsBuild>
     <PackageJsonScriptsClean Condition="$(PackageJsonScriptsClean) == ''">tsc --build --clean</PackageJsonScriptsClean>
