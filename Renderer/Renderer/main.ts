@@ -12,6 +12,7 @@ import
 } from "./Log.js";
 import { Renderer } from "./Renderer.js";
 import { Application } from "./Application.js";
+import { Timer } from "./Timer.js"
 
 
 function fail(msg: string)
@@ -76,11 +77,13 @@ async function main()
         await application.InitializeAsync();
 
         // Begin the render loop
+        let timer: Timer = new Timer(true, "main() timer");
         function render()
         {
-            application.Update();
+            let timeDelta: number = timer.Tick();
+            application.Update(timeDelta);
+            // Note: The Application is responsible for calling Render() on the Renderer
             application.Render();
-            renderer.Render();
             requestAnimationFrame(render);
         }
         requestAnimationFrame(render);

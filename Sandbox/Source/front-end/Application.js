@@ -1,9 +1,74 @@
 import { LOG_TRACE } from "./Log.js";
+import { Camera } from "./Camera.js";
+import { mat4 } from 'wgpu-matrix';
+const cubeVertexSize = 4 * 10; // Byte size of one cube vertex.
+const cubePositionOffset = 0;
+const cubeColorOffset = 4 * 4; // Byte offset of cube vertex color attribute.
+const cubeUVOffset = 4 * 8;
+const cubeVertexCount = 36;
+// prettier-ignore
+const cubeVertexArray = new Float32Array([
+    // float4 position, float4 color, float2 uv,
+    1, -1, 1, 1, 1, 0, 1, 1, 0, 1,
+    -1, -1, 1, 1, 0, 0, 1, 1, 1, 1,
+    -1, -1, -1, 1, 0, 0, 0, 1, 1, 0,
+    1, -1, -1, 1, 1, 0, 0, 1, 0, 0,
+    1, -1, 1, 1, 1, 0, 1, 1, 0, 1,
+    -1, -1, -1, 1, 0, 0, 0, 1, 1, 0,
+    1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+    1, -1, 1, 1, 1, 0, 1, 1, 1, 1,
+    1, -1, -1, 1, 1, 0, 0, 1, 1, 0,
+    1, 1, -1, 1, 1, 1, 0, 1, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+    1, -1, -1, 1, 1, 0, 0, 1, 1, 0,
+    -1, 1, 1, 1, 0, 1, 1, 1, 0, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, -1, 1, 1, 1, 0, 1, 1, 0,
+    -1, 1, -1, 1, 0, 1, 0, 1, 0, 0,
+    -1, 1, 1, 1, 0, 1, 1, 1, 0, 1,
+    1, 1, -1, 1, 1, 1, 0, 1, 1, 0,
+    -1, -1, 1, 1, 0, 0, 1, 1, 0, 1,
+    -1, 1, 1, 1, 0, 1, 1, 1, 1, 1,
+    -1, 1, -1, 1, 0, 1, 0, 1, 1, 0,
+    -1, -1, -1, 1, 0, 0, 0, 1, 0, 0,
+    -1, -1, 1, 1, 0, 0, 1, 1, 0, 1,
+    -1, 1, -1, 1, 0, 1, 0, 1, 1, 0,
+    1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+    -1, 1, 1, 1, 0, 1, 1, 1, 1, 1,
+    -1, -1, 1, 1, 0, 0, 1, 1, 1, 0,
+    -1, -1, 1, 1, 0, 0, 1, 1, 1, 0,
+    1, -1, 1, 1, 1, 0, 1, 1, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+    1, -1, -1, 1, 1, 0, 0, 1, 0, 1,
+    -1, -1, -1, 1, 0, 0, 0, 1, 1, 1,
+    -1, 1, -1, 1, 0, 1, 0, 1, 1, 0,
+    1, 1, -1, 1, 1, 1, 0, 1, 0, 0,
+    1, -1, -1, 1, 1, 0, 0, 1, 0, 1,
+    -1, 1, -1, 1, 0, 1, 0, 1, 1, 0,
+]);
 export class Application {
     constructor(renderer, canvas) {
+        this.m_pipeline = null;
+        this.m_renderPassDescriptor = null;
+        this.m_uniformBindGroup = null;
         this.m_renderer = renderer;
         this.m_canvas = canvas;
+        this.m_camera = new Camera();
         this.SetupInputCallbacks();
+        let device = this.m_renderer.GetDevice();
+        const uniformBufferSize = 4 * 16; // 4x4 matrix
+        this.m_uniformBuffer = device.createBuffer({
+            size: uniformBufferSize,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+        // Create a vertex buffer from the cube data.
+        this.m_verticesBuffer = device.createBuffer({
+            size: cubeVertexArray.byteLength,
+            usage: GPUBufferUsage.VERTEX,
+            mappedAtCreation: true,
+        });
+        new Float32Array(this.m_verticesBuffer.getMappedRange()).set(cubeVertexArray);
+        this.m_verticesBuffer.unmap();
     }
     SetupInputCallbacks() {
         window.addEventListener('keydown', (e) => this.OnKeyDown(e));
@@ -30,7 +95,7 @@ export class Application {
                 this.OnRButtonUp(e);
         });
         this.m_canvas.addEventListener('pointermove', (e) => this.OnPointerMove(e));
-        this.m_canvas.addEventListener('wheel', (e) => this.OnWheel(e));
+        this.m_canvas.addEventListener('wheel', (e) => this.OnWheel(e), { passive: false });
     }
     OnKeyDown(e) {
         LOG_TRACE(`OnKeyDown: ${e.code}`);
@@ -103,12 +168,199 @@ export class Application {
         e.stopPropagation();
     }
     async InitializeAsync() {
+        let device = this.m_renderer.GetDevice();
+        let context = this.m_renderer.GetContext();
+        let canvas = context.canvas;
+        if (canvas instanceof OffscreenCanvas)
+            throw Error("Cannot initialize Renderer. canvis is instanceof OffscreenCanvas - not sure how to handle that");
+        const devicePixelRatio = window.devicePixelRatio;
+        canvas.width = canvas.clientWidth * devicePixelRatio;
+        canvas.height = canvas.clientHeight * devicePixelRatio;
+        const module = device.createShaderModule({
+            label: 'cube shader module',
+            code: `
+struct Uniforms {
+  modelViewProjectionMatrix : mat4x4f,
+}
+
+@group(0) @binding(0) var<uniform> uniforms : Uniforms;
+@group(0) @binding(1) var mySampler: sampler;
+@group(0) @binding(2) var myTexture: texture_2d<f32>;
+
+struct VertexOutput {
+  @builtin(position) Position : vec4f,
+  @location(0) fragUV : vec2f,
+}
+
+@vertex
+fn vertex_main(
+  @location(0) position : vec4f,
+  @location(1) uv : vec2f
+) -> VertexOutput {
+  return VertexOutput(uniforms.modelViewProjectionMatrix * position, uv);
+}
+
+@fragment
+fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f {
+  return textureSample(myTexture, mySampler, fragUV);
+}
+`
+        });
+        this.m_pipeline = device.createRenderPipeline({
+            layout: 'auto',
+            vertex: {
+                module,
+                buffers: [
+                    {
+                        arrayStride: cubeVertexSize,
+                        attributes: [
+                            {
+                                // position
+                                shaderLocation: 0,
+                                offset: cubePositionOffset,
+                                format: 'float32x4',
+                            },
+                            {
+                                // uv
+                                shaderLocation: 1,
+                                offset: cubeUVOffset,
+                                format: 'float32x2',
+                            },
+                        ],
+                    },
+                ],
+            },
+            fragment: {
+                module,
+                targets: [
+                    {
+                        format: navigator.gpu.getPreferredCanvasFormat(),
+                    },
+                ],
+            },
+            primitive: {
+                topology: 'triangle-list',
+                cullMode: 'back',
+            },
+            depthStencil: {
+                depthWriteEnabled: true,
+                depthCompare: 'less',
+                format: 'depth24plus',
+            },
+        });
+        const depthTexture = device.createTexture({
+            size: [canvas.width, canvas.height],
+            format: 'depth24plus',
+            usage: GPUTextureUsage.RENDER_ATTACHMENT,
+        });
+        // Fetch the image and upload it into a GPUTexture.
+        let cubeTexture;
+        {
+            const response = await fetch('./images/molecule.jpeg');
+            const imageBitmap = await createImageBitmap(await response.blob());
+            cubeTexture = device.createTexture({
+                size: [imageBitmap.width, imageBitmap.height, 1],
+                format: 'rgba8unorm',
+                usage: GPUTextureUsage.TEXTURE_BINDING |
+                    GPUTextureUsage.COPY_DST |
+                    GPUTextureUsage.RENDER_ATTACHMENT,
+            });
+            device.queue.copyExternalImageToTexture({ source: imageBitmap }, { texture: cubeTexture }, [imageBitmap.width, imageBitmap.height]);
+        }
+        // Create a sampler with linear filtering for smooth interpolation.
+        const sampler = device.createSampler({
+            magFilter: 'linear',
+            minFilter: 'linear',
+        });
+        this.m_uniformBindGroup = device.createBindGroup({
+            layout: this.m_pipeline.getBindGroupLayout(0),
+            entries: [
+                {
+                    binding: 0,
+                    resource: {
+                        buffer: this.m_uniformBuffer,
+                    },
+                },
+                {
+                    binding: 1,
+                    resource: sampler,
+                },
+                {
+                    binding: 2,
+                    resource: cubeTexture.createView(),
+                },
+            ],
+        });
+        this.m_renderPassDescriptor = {
+            colorAttachments: [
+                {
+                    view: context.getCurrentTexture().createView(),
+                    clearValue: [0.5, 0.5, 0.5, 1.0],
+                    loadOp: 'clear',
+                    storeOp: 'store',
+                },
+            ],
+            depthStencilAttachment: {
+                view: depthTexture.createView(),
+                depthClearValue: 1.0,
+                depthLoadOp: 'clear',
+                depthStoreOp: 'store',
+            },
+        };
     }
-    Update() {
+    GetModelViewProjectionMatrix(deltaTime) {
+        let context = this.m_renderer.GetContext();
+        let canvas = context.canvas;
+        if (canvas instanceof OffscreenCanvas)
+            throw Error("Cannot GetModelViewProjectionMatrix. canvas is instanceof OffscreenCanvas - not sure how to handle that");
+        const aspect = canvas.width / canvas.height;
+        const projectionMatrix = mat4.perspective((2 * Math.PI) / 5, aspect, 1, 100.0);
+        const modelViewProjectionMatrix = mat4.create();
+        const viewMatrix = this.m_camera.GetViewMatrix();
+        mat4.multiply(projectionMatrix, viewMatrix, modelViewProjectionMatrix);
+        return modelViewProjectionMatrix;
+    }
+    Update(timeDelta) {
     }
     Render() {
+        let device = this.m_renderer.GetDevice();
+        let context = this.m_renderer.GetContext();
+        if (!(this.m_renderPassDescriptor))
+            return;
+        if (!(this.m_pipeline))
+            return;
+        for (let item of this.m_renderPassDescriptor.colorAttachments) {
+            if (item)
+                item.view = context.getCurrentTexture().createView();
+        }
+        const modelViewProjection = this.GetModelViewProjectionMatrix(0);
+        device.queue.writeBuffer(this.m_uniformBuffer, 0, modelViewProjection.buffer, modelViewProjection.byteOffset, modelViewProjection.byteLength);
+        const commandEncoder = device.createCommandEncoder();
+        const passEncoder = commandEncoder.beginRenderPass(this.m_renderPassDescriptor);
+        passEncoder.setPipeline(this.m_pipeline);
+        passEncoder.setBindGroup(0, this.m_uniformBindGroup);
+        passEncoder.setVertexBuffer(0, this.m_verticesBuffer);
+        passEncoder.draw(cubeVertexCount);
+        passEncoder.end();
+        device.queue.submit([commandEncoder.finish()]);
+        // make a command encoder to start encoding commands
+        const encoder = device.createCommandEncoder({ label: 'our encoder' });
+        // make a render pass encoder to encode render specific commands
+        const pass = encoder.beginRenderPass(this.m_renderPassDescriptor);
+        pass.setPipeline(this.m_pipeline);
+        pass.draw(3); // call our vertex shader 3 times.
+        pass.end();
+        const commandBuffer = encoder.finish();
+        device.queue.submit([commandBuffer]);
+        //		this.m_renderer.Render(this.m_camera);
     }
     m_renderer;
     m_canvas;
+    m_camera;
+    m_renderPassDescriptor;
+    m_pipeline;
+    m_uniformBuffer;
+    m_verticesBuffer;
+    m_uniformBindGroup;
 }
 //# sourceMappingURL=Application.js.map

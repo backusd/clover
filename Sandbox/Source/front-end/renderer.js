@@ -8,7 +8,8 @@ export class Renderer {
             format: presentationFormat
         };
         this.m_context.configure(config);
-        const module = this.m_device.createShaderModule({
+        /*
+        const module: GPUShaderModule = this.m_device.createShaderModule({
             label: 'our hardcoded red triangle shaders',
             code: `
       @vertex fn vs(
@@ -28,7 +29,8 @@ export class Renderer {
       }
     `,
         });
-        this.m_pipeline = device.createRenderPipeline({
+
+        this.m_pipeline = this.m_device.createRenderPipeline({
             label: 'our hardcoded red triangle pipeline',
             layout: 'auto',
             vertex: {
@@ -39,37 +41,48 @@ export class Renderer {
                 targets: [{ format: presentationFormat }],
             },
         });
+
         this.m_renderPassDescriptor = {
             label: 'our basic canvas renderPass',
             colorAttachments: [
                 {
                     // view: <- to be filled out when we render
-                    view: context.getCurrentTexture().createView(),
+                    view: this.m_context.getCurrentTexture().createView(),
                     clearValue: [0.3, 0.3, 0.3, 1],
                     loadOp: 'clear',
                     storeOp: 'store',
                 },
             ],
         };
+        */
     }
-    Render() {
+    Render(camera) {
+        //this.RenderTriangleExample();
+    }
+    RenderTriangleExample() {
         // Get the current texture from the canvas context and
         // set it as the texture to render to.
         //renderPassDescriptor.colorAttachments[0].view =
         //    context.getCurrentTexture().createView();
         // make a command encoder to start encoding commands
-        const encoder = this.m_device.createCommandEncoder({ label: 'our encoder' });
-        // make a render pass encoder to encode render specific commands
-        const pass = encoder.beginRenderPass(this.m_renderPassDescriptor);
-        pass.setPipeline(this.m_pipeline);
-        pass.draw(3); // call our vertex shader 3 times.
-        pass.end();
-        const commandBuffer = encoder.finish();
-        this.m_device.queue.submit([commandBuffer]);
+        //       const encoder: GPUCommandEncoder = this.m_device.createCommandEncoder({ label: 'our encoder' });
+        //
+        //       // make a render pass encoder to encode render specific commands
+        //       const pass: GPURenderPassEncoder = encoder.beginRenderPass(this.m_renderPassDescriptor);
+        //       pass.setPipeline(this.m_pipeline);
+        //       pass.draw(3);  // call our vertex shader 3 times.
+        //       pass.end();
+        //
+        //       const commandBuffer: GPUCommandBuffer = encoder.finish();
+        //       this.m_device.queue.submit([commandBuffer]);
+    }
+    GetDevice() {
+        return this.m_device;
+    }
+    GetContext() {
+        return this.m_context;
     }
     m_device;
     m_context;
-    m_renderPassDescriptor;
-    m_pipeline;
 }
 //# sourceMappingURL=Renderer.js.map

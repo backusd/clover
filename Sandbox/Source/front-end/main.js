@@ -1,6 +1,7 @@
 import { LOG_CORE_ERROR, } from "./Log.js";
 import { Renderer } from "./Renderer.js";
 import { Application } from "./Application.js";
+import { Timer } from "./Timer.js";
 function fail(msg) {
     // eslint-disable-next-line no-alert
     alert(msg);
@@ -44,10 +45,12 @@ async function main() {
         let application = new Application(renderer, canvas);
         await application.InitializeAsync();
         // Begin the render loop
+        let timer = new Timer(true, "main() timer");
         function render() {
-            application.Update();
+            let timeDelta = timer.Tick();
+            application.Update(timeDelta);
+            // Note: The Application is responsible for calling Render() on the Renderer
             application.Render();
-            renderer.Render();
             requestAnimationFrame(render);
         }
         requestAnimationFrame(render);
