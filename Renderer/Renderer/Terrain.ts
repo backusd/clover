@@ -4,13 +4,14 @@ import
 	MeshDescriptor,
 	MeshGroup,
 	BindGroup,
+	RenderPassLayer,
 	RenderPassDescriptor,
 	RenderPass,
 	Renderer
 } from "./Renderer.js";
 import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
 
-const vertexSize = 4 * 2; // Byte size of one vertex
+const vertexSize = 4 * 4 * 2; // Byte size of one vertex = (4 bytes/float) * (4 floats for position + 4 floats for color)
 const positionOffest = 0;
 const colorOffset = 4 * 4; // Byte offset of the vertex color attribute
 const vertexCount = 8;
@@ -37,7 +38,7 @@ export class Terrain
 		this.m_width = width;
 		this.m_depth = depth;
 	}
-	public Initialize(renderer: Renderer): void
+	public Initialize(renderer: Renderer, passBindGroupLayout: GPUBindGroupLayout): RenderPassLayer
 	{
 		let device = renderer.GetDevice();
 		let context = renderer.GetContext();
@@ -89,10 +90,16 @@ fn fragment_main(@location(0) color: vec4f) -> @location(0) vec4f
 `
 		});
 
+		let layoutDescriptor: GPUPipelineLayoutDescriptor = {
+			bindGroupLayouts: [passBindGroupLayout]
+		};
+		let pipelineLayout: GPUPipelineLayout = device.createPipelineLayout(layoutDescriptor);
+		pipelineLayout.label = "Terrain PipelineLayout";
+
 		// Create the pipeline
 		let pipeline = device.createRenderPipeline({
 			label: "terrain pipeline",
-			layout: 'auto',
+			layout: pipelineLayout,
 			vertex: {
 				module,
 				buffers: [
@@ -143,6 +150,10 @@ fn fragment_main(@location(0) color: vec4f) -> @location(0) vec4f
 		}
 		terrainMeshGroup.AddMeshDescriptor(boxDescriptor);
 
+		// RenderPassLayer
+		let renderPassLayer: RenderPassLayer = new RenderPassLayer(pipeline);
+		renderPassLayer.AddMeshGroup(terrainMeshGroup);
+		return renderPassLayer;
 	}
 
 	private m_width: number;

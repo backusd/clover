@@ -42,14 +42,14 @@ export class MeshGroup
 }
 export class BindGroup
 {
-    constructor(index: number, bindGroup: GPUBindGroup)
+    constructor(groupNumber: number, bindGroup: GPUBindGroup)
     {
-        this.m_index = index;
+        this.m_groupNumber = groupNumber;
         this.m_bindGroup = bindGroup;
     }
-    public GetIndex(): number
+    public GetGroupNumber(): number
     {
-        return this.m_index;
+        return this.m_groupNumber;
     }
     public GetBindGroup(): GPUBindGroup
     {
@@ -57,7 +57,42 @@ export class BindGroup
     }
 
     private m_bindGroup: GPUBindGroup;
-    private m_index: number;
+    private m_groupNumber: number;
+}
+export class RenderPassLayer
+{
+    constructor(pipeline: GPURenderPipeline)
+    {
+        this.m_renderPipeline = pipeline;
+        this.m_bindGroups = [];
+        this.m_meshGroups = [];
+    }
+    public AddBindGroup(bindGroup: BindGroup): void
+    {
+        this.m_bindGroups.push(bindGroup);
+    }
+    public AddMeshGroup(meshGroup: MeshGroup): void
+    {
+        this.m_meshGroups.push(meshGroup);
+    }
+    public Render(passEncoder: GPURenderPassEncoder): void
+    {
+        // Set the pipeline
+        passEncoder.setPipeline(this.m_renderPipeline);
+
+        // Set the BindGroups
+        this.m_bindGroups.forEach(bindGroup =>
+        {
+            passEncoder.setBindGroup(bindGroup.GetGroupNumber(), bindGroup.GetBindGroup());
+        });
+
+        // Set the mesh group
+        // !!! This will make a draw call for each mesh in the group !!!
+        this.m_meshGroups.forEach(meshGroup => { meshGroup.Render(passEncoder); });
+    }
+    private m_renderPipeline: GPURenderPipeline;
+    private m_bindGroups: BindGroup[];
+    private m_meshGroups: MeshGroup[];
 }
 export class RenderPassDescriptor
 {
@@ -87,20 +122,19 @@ export class RenderPassDescriptor
 }
 export class RenderPass
 {
-    constructor(descriptor: RenderPassDescriptor, pipeline: GPURenderPipeline)
+    constructor(descriptor: RenderPassDescriptor)
     {
         this.m_renderPassDescriptor = descriptor;
-        this.m_renderPipeline = pipeline;
         this.m_bindGroups = [];
-        this.m_meshGroups = [];
+        this.m_layers = [];
     }
     public AddBindGroup(bindGroup: BindGroup): void
     {
         this.m_bindGroups.push(bindGroup);
     }
-    public AddMeshGroup(meshGroup: MeshGroup): void
+    public AddRenderPassLayer(layer: RenderPassLayer): void
     {
-        this.m_meshGroups.push(meshGroup);
+        this.m_layers.push(layer);
     }
     public Render(device: GPUDevice, context: GPUCanvasContext, encoder: GPUCommandEncoder): void
     {
@@ -113,26 +147,21 @@ export class RenderPass
         const passEncoder = encoder.beginRenderPass(this.m_renderPassDescriptor.GetDescriptor());
         passEncoder.label = "Basic RenderPassEncoder";
 
-        // Set the pipeline
-        passEncoder.setPipeline(this.m_renderPipeline);
-
-        // Set the BindGroups
+        // Set the BindGroups that will be used for the entire render pass
         this.m_bindGroups.forEach(bindGroup =>
         {
-            passEncoder.setBindGroup(bindGroup.GetIndex(), bindGroup.GetBindGroup());
+            passEncoder.setBindGroup(bindGroup.GetGroupNumber(), bindGroup.GetBindGroup());
         });
 
-        // Set the mesh group
-        // !!! This will make a draw call for each mesh in the group !!!
-        this.m_meshGroups.forEach(meshGroup => { meshGroup.Render(passEncoder); });
+        // Run each layer
+        this.m_layers.forEach(layer => { layer.Render(passEncoder); })
 
         passEncoder.end();
     }
 
     private m_renderPassDescriptor: RenderPassDescriptor;
-    private m_renderPipeline: GPURenderPipeline;
     private m_bindGroups: BindGroup[];
-    private m_meshGroups: MeshGroup[];
+    private m_layers: RenderPassLayer[];
 }
 export class Renderer
 {

@@ -1,59 +1,57 @@
 
-Renderer
-- (contains) CommandEncoder
+***** Renderer *****
 - (contains) 1+ RenderPass
 
-*****
+-----
 NOTE: A RenderPass will be described by a RenderPassDescriptor, which will require specifying the 'colorAttachments' 
       aka the output texture(s) that are bound. It will also require setting the depth-stencil texture. Therefore, 
 	  each render pass must set new targets. So, to decide if something should be rendered within a given pass, you
 	  simply need to ask 'Do we want to set a new output target and depth-stencil?'
-*****
-RenderPass
+-----
+***** RenderPass *****
+>> Mental Model: "A RenderPass covers the whole process of setting the output textures and depth-stencil, and all
+                  subsequent draw calls until the results in the ouput textures are finalized."
 - (contains) RenderPassDescriptor
 - (contains) 0+ BindGroup
 	* This is for bind groups that do NOT change across RenderPassLayers. Example: Setting the camera model-view-projection matrix
 - (contains) 1+ RenderPassLayers
 
-RenderPassLayer
-- (contains) RenderPipeline
-- (contains) 0+ BindGroup
-- (contains) 1+ MeshGroup
 
-RenderPassDescriptor
+***** RenderPassDescriptor *****
 - (contains) 1+ GPURenderPassColorAttachment
 - (contains) GPURenderPassDepthStencilAttachment
 - (contains) [user-defined callback] Prepare()
 	* Will be called immediately before encoding render pass commands
 	* Common use case is to set the TextureView for the color attachments
 
-RenderPipeline
+
+***** RenderPassLayer *****
+>> Mental Model: "A RenderPassLayer will contain pipeline updates and draw calls that share vertex/fragment shaders."
+- (contains) RenderPipeline
+- (contains) 0+ BindGroup
+- (contains) 1+ MeshGroup
+
+
+***** RenderPipeline *****
 - For now, just manually create the whole thing
 
-BindGroup
+***** BindGroup *****
 - (contains) index
 - (contains) GPUBindGroup
 	For now, just manually create the whole thing
 
-MeshGroup
+***** MeshGroup *****
 - (contains) 1+ VertexBuffer 
 - (contains) Should contains all metadata about how the vertices are structured
 	* This should be used when creating the RenderPipeline
 
-
-
-
-
 ---------------------------------------------------------------------------------------
 
 Renderer::Render()
+- Create new CommandEncoder
 - foreach RenderPass:
 	RenderPass::Render(CommandEncoder)
 - device.queue.submit(CommandEncoder::finish()])
-
-
-!!! Add in details for RenderPassLayer !!!
-
 
 
 RenderPass::Render()
@@ -61,12 +59,19 @@ RenderPass::Render()
 	- This calls a callback to prepare any necessary state for the descriptor
 	- A common example is to get a view of the current texture of the GPUCanvasContext
 - Create new RenderPassEncoder = CommandEncoder::beginRenderPass(RenderPassDescriptor)
+- foreach BindGroup:
+	RenderPassEncoder::SetBindGroup(BindGroup.index, BindGroup.bindGroup)
+- foreach RenderPassLayer:
+	RenderPassLayer::Render()
+- RenderPassEncoder::end()
+
+
+RenderPassLayer::Render()
 - RenderPassEncoder::setPipeline(RenderPipeline)
 - foreach BindGroup:
 	RenderPassEncoder::SetBindGroup(BindGroup.index, BindGroup.bindGroup)
 - foreach MeshGroup:
 	RenderPassEncoder::SetVertexBuffer(MeshGroup.VertexBuffer)
  	RenderPassEncoder::draw(MeshGroup -> vertexcount/indexcount)
-- RenderPassEncoder::end()
 
 

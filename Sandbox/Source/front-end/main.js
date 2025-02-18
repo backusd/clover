@@ -46,14 +46,15 @@ async function main() {
         await application.InitializeAsync();
         // Begin the render loop
         let timer = new Timer(true, "main() timer");
-        function render() {
+        function DoFrame() {
             let timeDelta = timer.Tick();
             application.Update(timeDelta);
-            // Note: The Application is responsible for calling Render() on the Renderer
-            application.Render();
-            requestAnimationFrame(render);
+            // Note: The Application does NOT call render directly. Rather it is the responsibility of
+            // the application to set up the RenderPasses, which the Renderer will loop over when rendering
+            renderer.Render();
+            requestAnimationFrame(DoFrame);
         }
-        requestAnimationFrame(render);
+        requestAnimationFrame(DoFrame);
     }
     catch (err) {
         if (typeof err === "string") {

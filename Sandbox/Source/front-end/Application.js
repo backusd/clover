@@ -1,7 +1,8 @@
 import { LOG_TRACE } from "./Log.js";
-import { MeshGroup, BindGroup, RenderPassDescriptor, RenderPass } from "./Renderer.js";
+import { MeshGroup, BindGroup, RenderPassLayer, RenderPassDescriptor, RenderPass } from "./Renderer.js";
 import { Camera } from "./Camera.js";
 import { mat4 } from 'wgpu-matrix';
+import { Terrain } from "./Terrain.js";
 const cubeVertexSize = 4 * 10; // Byte size of one cube vertex.
 const cubePositionOffset = 0;
 const cubeColorOffset = 4 * 4; // Byte offset of cube vertex color attribute.
@@ -161,7 +162,7 @@ export class Application {
         LOG_TRACE("OnRButtonUp");
     }
     OnPointerMove(e) {
-        LOG_TRACE(`OnPointerMove: (${e.movementX}, ${e.movementY})`);
+        //LOG_TRACE(`OnPointerMove: (${e.movementX}, ${e.movementY})`);
     }
     OnWheel(e) {
         LOG_TRACE(`OnWheel: ${e.deltaX}, ${e.deltaY} (${e.deltaMode})`);
@@ -177,7 +178,6 @@ export class Application {
         const devicePixelRatio = window.devicePixelRatio;
         canvas.width = canvas.clientWidth * devicePixelRatio;
         canvas.height = canvas.clientHeight * devicePixelRatio;
-        // fn vertex_main(@location(0) position : vec4f, @location(1) uv : vec2f) -> VertexOutput
         const module = device.createShaderModule({
             label: 'cube shader module',
             code: `
@@ -193,8 +193,9 @@ struct Vertex
 }
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
-@group(0) @binding(1) var mySampler: sampler;
-@group(0) @binding(2) var myTexture: texture_2d<f32>;
+
+@group(1) @binding(0) var mySampler: sampler;
+@group(1) @binding(1) var myTexture: texture_2d<f32>;
 
 struct VertexOutput
 {
@@ -215,9 +216,39 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 }
 `
         });
+        let mvpBindGroupLayout = device.createBindGroupLayout({
+            label: "Model-View-Projection BindGroupLayout",
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+                    buffer: {}
+                }
+            ]
+        });
+        let cubeBindGroupLayout = device.createBindGroupLayout({
+            label: "Cube BindGroupLayout",
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    sampler: {}
+                },
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    texture: {}
+                }
+            ]
+        });
+        let cubePipelineLayoutDescriptor = {
+            bindGroupLayouts: [mvpBindGroupLayout, cubeBindGroupLayout]
+        };
+        let cubePipelineLayout = device.createPipelineLayout(cubePipelineLayoutDescriptor);
+        cubePipelineLayout.label = "Cube PipelineLayout";
         this.m_pipeline = device.createRenderPipeline({
             label: "main pipeline",
-            layout: 'auto',
+            layout: cubePipelineLayout,
             vertex: {
                 module,
                 buffers: [
@@ -282,21 +313,26 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
             magFilter: 'linear',
             minFilter: 'linear',
         });
-        this.m_uniformBindGroup = device.createBindGroup({
-            layout: this.m_pipeline.getBindGroupLayout(0),
+        let mvpBindGroup = device.createBindGroup({
+            layout: mvpBindGroupLayout,
             entries: [
                 {
                     binding: 0,
                     resource: {
                         buffer: this.m_uniformBuffer,
                     },
-                },
+                }
+            ],
+        });
+        let cubeBindGroup = device.createBindGroup({
+            layout: cubeBindGroupLayout,
+            entries: [
                 {
-                    binding: 1,
+                    binding: 0,
                     resource: sampler,
                 },
                 {
-                    binding: 2,
+                    binding: 1,
                     resource: cubeTexture.createView(),
                 },
             ],
@@ -326,14 +362,21 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
             startInstance: undefined
         };
         boxMeshGroup.AddMeshDescriptor(boxDescriptor);
-        // Bind Group
-        let bindGroup = new BindGroup(0, this.m_uniformBindGroup);
+        // Bind Groups
+        let passBindGroup = new BindGroup(0, mvpBindGroup);
+        let cubeLayerBindGroup = new BindGroup(1, cubeBindGroup);
         // RenderPassDescriptor
         let renderPassDescriptor = new RenderPassDescriptor(this.m_renderPassDescriptor);
+        // RenderPassLayer
+        let renderPassLayer = new RenderPassLayer(this.m_pipeline);
+        renderPassLayer.AddMeshGroup(boxMeshGroup);
+        renderPassLayer.AddBindGroup(cubeLayerBindGroup);
         // RenderPass
-        let renderPass = new RenderPass(renderPassDescriptor, this.m_pipeline);
-        renderPass.AddMeshGroup(boxMeshGroup);
-        renderPass.AddBindGroup(bindGroup);
+        let renderPass = new RenderPass(renderPassDescriptor);
+        renderPass.AddBindGroup(passBindGroup); // bind group for model-view-projection matrix
+        let terrain = new Terrain(10, 10);
+        renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, mvpBindGroupLayout));
+        //renderPass.AddRenderPassLayer(renderPassLayer);
         this.m_renderer.AddRenderPass(renderPass);
     }
     GetModelViewProjectionMatrix(deltaTime) {
@@ -352,42 +395,6 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
         let device = this.m_renderer.GetDevice();
         const modelViewProjection = this.GetModelViewProjectionMatrix(0);
         device.queue.writeBuffer(this.m_uniformBuffer, 0, modelViewProjection.buffer, modelViewProjection.byteOffset, modelViewProjection.byteLength);
-    }
-    Render() {
-        //		let device = this.m_renderer.GetDevice();
-        //		let context = this.m_renderer.GetContext();
-        //
-        //		if (!(this.m_renderPassDescriptor))
-        //			return;
-        //
-        //		if (!(this.m_pipeline))
-        //			return;
-        //
-        //		for (let item of this.m_renderPassDescriptor.colorAttachments)
-        //		{
-        //			if (item)
-        //				item.view = context.getCurrentTexture().createView();
-        //		}
-        //
-        //		const modelViewProjection = this.GetModelViewProjectionMatrix(0);
-        //		device.queue.writeBuffer(
-        //			this.m_uniformBuffer,
-        //			0,
-        //			modelViewProjection.buffer,
-        //			modelViewProjection.byteOffset,
-        //			modelViewProjection.byteLength
-        //		);
-        //
-        //		const commandEncoder = device.createCommandEncoder({ label: 'our encoder' });
-        //		const passEncoder = commandEncoder.beginRenderPass(this.m_renderPassDescriptor);
-        //		passEncoder.label = "Our Pass Encoder";
-        //		passEncoder.setPipeline(this.m_pipeline);
-        //		passEncoder.setBindGroup(0, this.m_uniformBindGroup); 
-        //		passEncoder.setVertexBuffer(0, this.m_verticesBuffer);
-        //		passEncoder.draw(cubeVertexCount);
-        //		passEncoder.end();
-        //		device.queue.submit([commandEncoder.finish()]);
-        this.m_renderer.Render(this.m_camera);
     }
     m_renderer;
     m_canvas;

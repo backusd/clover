@@ -4,12 +4,14 @@ import
 	MeshDescriptor,
 	MeshGroup,
 	BindGroup,
+	RenderPassLayer,
 	RenderPassDescriptor,
 	RenderPass,
 	Renderer
 } from "./Renderer.js";
 import { Camera } from "./Camera.js"
 import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
+import { Terrain } from "./Terrain.js"
 
 
 const cubeVertexSize = 4 * 10; // Byte size of one cube vertex.
@@ -215,7 +217,7 @@ export class Application
 	}
 	private OnPointerMove(e: PointerEvent)
 	{
-		LOG_TRACE(`OnPointerMove: (${e.movementX}, ${e.movementY})`);
+		//LOG_TRACE(`OnPointerMove: (${e.movementX}, ${e.movementY})`);
 	}
 	private OnWheel(e: WheelEvent)
 	{
@@ -253,8 +255,9 @@ struct Vertex
 }
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
-@group(0) @binding(1) var mySampler: sampler;
-@group(0) @binding(2) var myTexture: texture_2d<f32>;
+
+@group(1) @binding(0) var mySampler: sampler;
+@group(1) @binding(1) var myTexture: texture_2d<f32>;
 
 struct VertexOutput
 {
@@ -276,9 +279,45 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 `
 		});
 
+		let mvpBindGroupLayout: GPUBindGroupLayout = device.createBindGroupLayout(
+			{
+				label: "Model-View-Projection BindGroupLayout",
+				entries: [
+					{
+						binding: 0,
+						visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+						buffer: {}						
+					}
+				]
+			}
+		);
+		let cubeBindGroupLayout: GPUBindGroupLayout = device.createBindGroupLayout(
+			{
+				label: "Cube BindGroupLayout",
+				entries: [
+					{
+						binding: 0,
+						visibility: GPUShaderStage.FRAGMENT,
+						sampler: {}
+					},
+					{
+						binding: 1,
+						visibility: GPUShaderStage.FRAGMENT,
+						texture: {}
+					}
+				]
+			}
+		);
+
+		let cubePipelineLayoutDescriptor: GPUPipelineLayoutDescriptor = {
+			bindGroupLayouts: [mvpBindGroupLayout, cubeBindGroupLayout]
+		};
+		let cubePipelineLayout: GPUPipelineLayout = device.createPipelineLayout(cubePipelineLayoutDescriptor);
+		cubePipelineLayout.label = "Cube PipelineLayout";
+
 		this.m_pipeline = device.createRenderPipeline({
 			label: "main pipeline",
-			layout: 'auto',
+			layout: cubePipelineLayout,
 			vertex: {
 				module,
 				buffers: [
@@ -353,21 +392,26 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 			minFilter: 'linear',
 		});
 
-		this.m_uniformBindGroup = device.createBindGroup({
-			layout: this.m_pipeline.getBindGroupLayout(0),
+		let mvpBindGroup = device.createBindGroup({
+			layout: mvpBindGroupLayout,
 			entries: [
 				{
 					binding: 0,
 					resource: {
 						buffer: this.m_uniformBuffer,
 					},
-				},
+				}
+			],
+		});
+		let cubeBindGroup = device.createBindGroup({
+			layout: cubeBindGroupLayout,
+			entries: [
 				{
-					binding: 1,
+					binding: 0,
 					resource: sampler,
 				},
 				{
-					binding: 2,
+					binding: 1,
 					resource: cubeTexture.createView(),
 				},
 			],
@@ -392,7 +436,6 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 		};	
 
 
-
 		// Box MeshGroup
 		let boxMeshGroup: MeshGroup = new MeshGroup(this.m_verticesBuffer, 0);
 		let boxDescriptor: MeshDescriptor = {
@@ -403,16 +446,30 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 		}
 		boxMeshGroup.AddMeshDescriptor(boxDescriptor);
 
-		// Bind Group
-		let bindGroup: BindGroup = new BindGroup(0, this.m_uniformBindGroup);
+		// Bind Groups
+		let passBindGroup: BindGroup = new BindGroup(0, mvpBindGroup);
+		let cubeLayerBindGroup: BindGroup = new BindGroup(1, cubeBindGroup);
 
 		// RenderPassDescriptor
 		let renderPassDescriptor: RenderPassDescriptor = new RenderPassDescriptor(this.m_renderPassDescriptor);
 
+		// RenderPassLayer
+		let renderPassLayer: RenderPassLayer = new RenderPassLayer(this.m_pipeline);
+		renderPassLayer.AddMeshGroup(boxMeshGroup);
+		renderPassLayer.AddBindGroup(cubeLayerBindGroup);
+
 		// RenderPass
-		let renderPass: RenderPass = new RenderPass(renderPassDescriptor, this.m_pipeline);
-		renderPass.AddMeshGroup(boxMeshGroup);
-		renderPass.AddBindGroup(bindGroup);
+		let renderPass: RenderPass = new RenderPass(renderPassDescriptor);
+		renderPass.AddBindGroup(passBindGroup); // bind group for model-view-projection matrix
+
+
+
+		let terrain: Terrain = new Terrain(10, 10);
+		renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, mvpBindGroupLayout));
+
+
+
+		//renderPass.AddRenderPassLayer(renderPassLayer);
 
 		this.m_renderer.AddRenderPass(renderPass);
 	}

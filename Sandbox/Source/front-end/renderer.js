@@ -24,18 +24,45 @@ export class MeshGroup {
     m_meshDescriptors;
 }
 export class BindGroup {
-    constructor(index, bindGroup) {
-        this.m_index = index;
+    constructor(groupNumber, bindGroup) {
+        this.m_groupNumber = groupNumber;
         this.m_bindGroup = bindGroup;
     }
-    GetIndex() {
-        return this.m_index;
+    GetGroupNumber() {
+        return this.m_groupNumber;
     }
     GetBindGroup() {
         return this.m_bindGroup;
     }
     m_bindGroup;
-    m_index;
+    m_groupNumber;
+}
+export class RenderPassLayer {
+    constructor(pipeline) {
+        this.m_renderPipeline = pipeline;
+        this.m_bindGroups = [];
+        this.m_meshGroups = [];
+    }
+    AddBindGroup(bindGroup) {
+        this.m_bindGroups.push(bindGroup);
+    }
+    AddMeshGroup(meshGroup) {
+        this.m_meshGroups.push(meshGroup);
+    }
+    Render(passEncoder) {
+        // Set the pipeline
+        passEncoder.setPipeline(this.m_renderPipeline);
+        // Set the BindGroups
+        this.m_bindGroups.forEach(bindGroup => {
+            passEncoder.setBindGroup(bindGroup.GetGroupNumber(), bindGroup.GetBindGroup());
+        });
+        // Set the mesh group
+        // !!! This will make a draw call for each mesh in the group !!!
+        this.m_meshGroups.forEach(meshGroup => { meshGroup.Render(passEncoder); });
+    }
+    m_renderPipeline;
+    m_bindGroups;
+    m_meshGroups;
 }
 export class RenderPassDescriptor {
     constructor(descriptor) {
@@ -57,17 +84,16 @@ export class RenderPassDescriptor {
     m_renderPassDescriptor;
 }
 export class RenderPass {
-    constructor(descriptor, pipeline) {
+    constructor(descriptor) {
         this.m_renderPassDescriptor = descriptor;
-        this.m_renderPipeline = pipeline;
         this.m_bindGroups = [];
-        this.m_meshGroups = [];
+        this.m_layers = [];
     }
     AddBindGroup(bindGroup) {
         this.m_bindGroups.push(bindGroup);
     }
-    AddMeshGroup(meshGroup) {
-        this.m_meshGroups.push(meshGroup);
+    AddRenderPassLayer(layer) {
+        this.m_layers.push(layer);
     }
     Render(device, context, encoder) {
         // Prepare is a user-defined callback to make any final adjustments to the descriptor
@@ -77,34 +103,31 @@ export class RenderPass {
         // Create the encoder for this render pass
         const passEncoder = encoder.beginRenderPass(this.m_renderPassDescriptor.GetDescriptor());
         passEncoder.label = "Basic RenderPassEncoder";
-        // Set the pipeline
-        passEncoder.setPipeline(this.m_renderPipeline);
-        // Set the BindGroups
+        // Set the BindGroups that will be used for the entire render pass
         this.m_bindGroups.forEach(bindGroup => {
-            passEncoder.setBindGroup(bindGroup.GetIndex(), bindGroup.GetBindGroup());
+            passEncoder.setBindGroup(bindGroup.GetGroupNumber(), bindGroup.GetBindGroup());
         });
-        // Set the mesh group
-        // !!! This will make a draw call for each mesh in the group !!!
-        this.m_meshGroups.forEach(meshGroup => { meshGroup.Render(passEncoder); });
+        // Run each layer
+        this.m_layers.forEach(layer => { layer.Render(passEncoder); });
         passEncoder.end();
     }
     m_renderPassDescriptor;
-    m_renderPipeline;
     m_bindGroups;
-    m_meshGroups;
+    m_layers;
 }
 export class Renderer {
     constructor(device, context) {
         this.m_device = device;
         this.m_context = context;
-        //    this.m_commandEncoder = device.createCommandEncoder({label: "Renderer command encoder"});
         this.m_context.configure({
             device: this.m_device,
             format: navigator.gpu.getPreferredCanvasFormat()
         });
         this.m_renderPasses = [];
     }
-    Render(camera) {
+    Render() {
+        // Must create a new command encoder for each frame. GPUCommandEncoder is 
+        // specifically designed to not be reusable.
         let commandEncoder = this.m_device.createCommandEncoder({ label: "Renderer command encoder" });
         // Run each render pass
         this.m_renderPasses.forEach(pass => { pass.Render(this.m_device, this.m_context, commandEncoder); });
@@ -122,7 +145,6 @@ export class Renderer {
     }
     m_device;
     m_context;
-    //    private m_commandEncoder: GPUCommandEncoder;
     m_renderPasses;
 }
 //# sourceMappingURL=Renderer.js.map
