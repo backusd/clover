@@ -376,7 +376,7 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
         renderPass.AddBindGroup(passBindGroup); // bind group for model-view-projection matrix
         let terrain = new Terrain(10, 10);
         renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, mvpBindGroupLayout));
-        //renderPass.AddRenderPassLayer(renderPassLayer);
+        renderPass.AddRenderPassLayer(renderPassLayer);
         this.m_renderer.AddRenderPass(renderPass);
     }
     GetViewProjectionMatrix(deltaTime) {

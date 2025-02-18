@@ -469,7 +469,7 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 
 
 
-		//renderPass.AddRenderPassLayer(renderPassLayer);
+		renderPass.AddRenderPassLayer(renderPassLayer);
 
 		this.m_renderer.AddRenderPass(renderPass);
 	}

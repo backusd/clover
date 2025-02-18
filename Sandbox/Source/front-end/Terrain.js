@@ -69,7 +69,7 @@ fn fragment_main(@location(0) color: vec4f) -> @location(0) vec4f
         // Create Buffer for instance data
         const sizeOfFloat = 4;
         let bytesInAMatrix = sizeOfFloat * 4 * 4;
-        let numInstances = 12;
+        let numInstances = (this.m_width * 2 + 1) + (this.m_depth * 2 + 1);
         const instanceBuffer = device.createBuffer({
             label: 'Instance Buffer',
             size: bytesInAMatrix * numInstances,
@@ -77,30 +77,45 @@ fn fragment_main(@location(0) color: vec4f) -> @location(0) vec4f
         });
         // Copy data into the buffer
         let instanceData = new Float32Array(16 * numInstances);
-        let instance1 = instanceData.subarray(0, 16);
-        let instance2 = instanceData.subarray(16, 32);
-        let instance3 = instanceData.subarray(32, 48);
-        let instance4 = instanceData.subarray(48, 64);
-        let instance5 = instanceData.subarray(64, 80);
-        let instance6 = instanceData.subarray(80, 96);
-        let instance7 = instanceData.subarray(96, 112);
-        let instance8 = instanceData.subarray(112, 128);
-        let instance9 = instanceData.subarray(128, 144);
-        let instance10 = instanceData.subarray(144, 160);
-        let instance11 = instanceData.subarray(160, 176);
-        let instance12 = instanceData.subarray(176, 192);
-        mat4.translation([0, 1, 1], instance1);
-        mat4.translation([0, 1, -1], instance2);
-        mat4.translation([0, -1, 1], instance3);
-        mat4.translation([0, -1, -1], instance4);
-        mat4.multiply(mat4.translation([1, 1, 0]), mat4.rotationY(Math.PI / 2), instance5);
-        mat4.multiply(mat4.translation([1, -1, 0]), mat4.rotationY(Math.PI / 2), instance6);
-        mat4.multiply(mat4.translation([-1, 1, 0]), mat4.rotationY(Math.PI / 2), instance7);
-        mat4.multiply(mat4.translation([-1, -1, 0]), mat4.rotationY(Math.PI / 2), instance8);
-        mat4.multiply(mat4.translation([1, 0, 1]), mat4.rotationZ(Math.PI / 2), instance9);
-        mat4.multiply(mat4.translation([1, 0, -1]), mat4.rotationZ(Math.PI / 2), instance10);
-        mat4.multiply(mat4.translation([-1, 0, 1]), mat4.rotationZ(Math.PI / 2), instance11);
-        mat4.multiply(mat4.translation([-1, 0, -1]), mat4.rotationZ(Math.PI / 2), instance12);
+        let instance = 0;
+        for (let x = -1 * this.m_width; x <= this.m_width; x++) {
+            let data = instanceData.subarray(instance * 16, (instance + 1) * 16);
+            let m = mat4.multiply(mat4.scaling([1, 1, this.m_depth]), mat4.rotationY(Math.PI / 2));
+            mat4.multiply(mat4.translation([x, 0, 0]), m, data);
+            instance++;
+        }
+        for (let y = -1 * this.m_depth; y <= this.m_depth; y++) {
+            let data = instanceData.subarray(instance * 16, (instance + 1) * 16);
+            mat4.multiply(mat4.translation([0, 0, y]), mat4.scaling([this.m_width, 1, 1]), data);
+            instance++;
+        }
+        //	let instance1 = instanceData.subarray(0, 16);
+        //	let instance2 = instanceData.subarray(16, 32);
+        //	let instance3 = instanceData.subarray(32, 48);
+        //	let instance4 = instanceData.subarray(48, 64);
+        //	let instance5 = instanceData.subarray(64, 80);
+        //	let instance6 = instanceData.subarray(80, 96);
+        //	let instance7 = instanceData.subarray(96, 112);
+        //	let instance8 = instanceData.subarray(112, 128);
+        //	let instance9 = instanceData.subarray(128, 144);
+        //	let instance10 = instanceData.subarray(144, 160);
+        //	let instance11 = instanceData.subarray(160, 176);
+        //	let instance12 = instanceData.subarray(176, 192);
+        //
+        //	mat4.translation([0,  1,  1], instance1);
+        //	mat4.translation([0,  1, -1], instance2);
+        //	mat4.translation([0, -1,  1], instance3);
+        //	mat4.translation([0, -1, -1], instance4);
+        //
+        //	mat4.multiply(mat4.translation([1, 1, 0]), mat4.rotationY(Math.PI / 2), instance5);
+        //	mat4.multiply(mat4.translation([1, -1, 0]), mat4.rotationY(Math.PI / 2), instance6);
+        //	mat4.multiply(mat4.translation([-1, 1, 0]), mat4.rotationY(Math.PI / 2), instance7);
+        //	mat4.multiply(mat4.translation([-1, -1, 0]), mat4.rotationY(Math.PI / 2), instance8);
+        //
+        //	mat4.multiply(mat4.translation([1, 0, 1]), mat4.rotationZ(Math.PI / 2), instance9);
+        //	mat4.multiply(mat4.translation([1, 0, -1]), mat4.rotationZ(Math.PI / 2), instance10);
+        //	mat4.multiply(mat4.translation([-1, 0, 1]), mat4.rotationZ(Math.PI / 2), instance11);
+        //	mat4.multiply(mat4.translation([-1, 0, -1]), mat4.rotationZ(Math.PI / 2), instance12);
         device.queue.writeBuffer(instanceBuffer, 0, instanceData.buffer, instanceData.byteOffset, instanceData.byteLength);
         let instanceBindGroupLayout = device.createBindGroupLayout({
             label: "Instance BindGroupLayout",
