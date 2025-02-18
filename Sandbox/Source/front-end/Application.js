@@ -1,4 +1,5 @@
 import { LOG_TRACE } from "./Log.js";
+import { MeshGroup, BindGroup, RenderPassDescriptor, RenderPass } from "./Renderer.js";
 import { Camera } from "./Camera.js";
 import { mat4 } from 'wgpu-matrix';
 const cubeVertexSize = 4 * 10; // Byte size of one cube vertex.
@@ -6,7 +7,6 @@ const cubePositionOffset = 0;
 const cubeColorOffset = 4 * 4; // Byte offset of cube vertex color attribute.
 const cubeUVOffset = 4 * 8;
 const cubeVertexCount = 36;
-// prettier-ignore
 const cubeVertexArray = new Float32Array([
     // float4 position, float4 color, float2 uv,
     1, -1, 1, 1, 1, 0, 1, 1, 0, 1,
@@ -63,6 +63,7 @@ export class Application {
         });
         // Create a vertex buffer from the cube data.
         this.m_verticesBuffer = device.createBuffer({
+            label: "vertices buffer",
             size: cubeVertexArray.byteLength,
             usage: GPUBufferUsage.VERTEX,
             mappedAtCreation: true,
@@ -176,37 +177,46 @@ export class Application {
         const devicePixelRatio = window.devicePixelRatio;
         canvas.width = canvas.clientWidth * devicePixelRatio;
         canvas.height = canvas.clientHeight * devicePixelRatio;
+        // fn vertex_main(@location(0) position : vec4f, @location(1) uv : vec2f) -> VertexOutput
         const module = device.createShaderModule({
             label: 'cube shader module',
             code: `
-struct Uniforms {
+struct Uniforms
+{
   modelViewProjectionMatrix : mat4x4f,
+}
+
+struct Vertex
+{
+  @location(0) position: vec4f,
+  @location(1) uv: vec2f
 }
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 @group(0) @binding(1) var mySampler: sampler;
 @group(0) @binding(2) var myTexture: texture_2d<f32>;
 
-struct VertexOutput {
+struct VertexOutput
+{
   @builtin(position) Position : vec4f,
   @location(0) fragUV : vec2f,
 }
 
 @vertex
-fn vertex_main(
-  @location(0) position : vec4f,
-  @location(1) uv : vec2f
-) -> VertexOutput {
-  return VertexOutput(uniforms.modelViewProjectionMatrix * position, uv);
+fn vertex_main(vertex: Vertex) -> VertexOutput
+{
+  return VertexOutput(uniforms.modelViewProjectionMatrix * vertex.position, vertex.uv);
 }
 
 @fragment
-fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f {
+fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
+{
   return textureSample(myTexture, mySampler, fragUV);
 }
 `
         });
         this.m_pipeline = device.createRenderPipeline({
+            label: "main pipeline",
             layout: 'auto',
             vertex: {
                 module,
@@ -307,6 +317,24 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f {
                 depthStoreOp: 'store',
             },
         };
+        // Box MeshGroup
+        let boxMeshGroup = new MeshGroup(this.m_verticesBuffer, 0);
+        let boxDescriptor = {
+            vertexCount: cubeVertexCount,
+            startVertex: 0,
+            instanceCount: undefined,
+            startInstance: undefined
+        };
+        boxMeshGroup.AddMeshDescriptor(boxDescriptor);
+        // Bind Group
+        let bindGroup = new BindGroup(0, this.m_uniformBindGroup);
+        // RenderPassDescriptor
+        let renderPassDescriptor = new RenderPassDescriptor(this.m_renderPassDescriptor);
+        // RenderPass
+        let renderPass = new RenderPass(renderPassDescriptor, this.m_pipeline);
+        renderPass.AddMeshGroup(boxMeshGroup);
+        renderPass.AddBindGroup(bindGroup);
+        this.m_renderer.AddRenderPass(renderPass);
     }
     GetModelViewProjectionMatrix(deltaTime) {
         let context = this.m_renderer.GetContext();
@@ -321,38 +349,45 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f {
         return modelViewProjectionMatrix;
     }
     Update(timeDelta) {
-    }
-    Render() {
         let device = this.m_renderer.GetDevice();
-        let context = this.m_renderer.GetContext();
-        if (!(this.m_renderPassDescriptor))
-            return;
-        if (!(this.m_pipeline))
-            return;
-        for (let item of this.m_renderPassDescriptor.colorAttachments) {
-            if (item)
-                item.view = context.getCurrentTexture().createView();
-        }
         const modelViewProjection = this.GetModelViewProjectionMatrix(0);
         device.queue.writeBuffer(this.m_uniformBuffer, 0, modelViewProjection.buffer, modelViewProjection.byteOffset, modelViewProjection.byteLength);
-        const commandEncoder = device.createCommandEncoder();
-        const passEncoder = commandEncoder.beginRenderPass(this.m_renderPassDescriptor);
-        passEncoder.setPipeline(this.m_pipeline);
-        passEncoder.setBindGroup(0, this.m_uniformBindGroup);
-        passEncoder.setVertexBuffer(0, this.m_verticesBuffer);
-        passEncoder.draw(cubeVertexCount);
-        passEncoder.end();
-        device.queue.submit([commandEncoder.finish()]);
-        // make a command encoder to start encoding commands
-        const encoder = device.createCommandEncoder({ label: 'our encoder' });
-        // make a render pass encoder to encode render specific commands
-        const pass = encoder.beginRenderPass(this.m_renderPassDescriptor);
-        pass.setPipeline(this.m_pipeline);
-        pass.draw(3); // call our vertex shader 3 times.
-        pass.end();
-        const commandBuffer = encoder.finish();
-        device.queue.submit([commandBuffer]);
-        //		this.m_renderer.Render(this.m_camera);
+    }
+    Render() {
+        //		let device = this.m_renderer.GetDevice();
+        //		let context = this.m_renderer.GetContext();
+        //
+        //		if (!(this.m_renderPassDescriptor))
+        //			return;
+        //
+        //		if (!(this.m_pipeline))
+        //			return;
+        //
+        //		for (let item of this.m_renderPassDescriptor.colorAttachments)
+        //		{
+        //			if (item)
+        //				item.view = context.getCurrentTexture().createView();
+        //		}
+        //
+        //		const modelViewProjection = this.GetModelViewProjectionMatrix(0);
+        //		device.queue.writeBuffer(
+        //			this.m_uniformBuffer,
+        //			0,
+        //			modelViewProjection.buffer,
+        //			modelViewProjection.byteOffset,
+        //			modelViewProjection.byteLength
+        //		);
+        //
+        //		const commandEncoder = device.createCommandEncoder({ label: 'our encoder' });
+        //		const passEncoder = commandEncoder.beginRenderPass(this.m_renderPassDescriptor);
+        //		passEncoder.label = "Our Pass Encoder";
+        //		passEncoder.setPipeline(this.m_pipeline);
+        //		passEncoder.setBindGroup(0, this.m_uniformBindGroup); 
+        //		passEncoder.setVertexBuffer(0, this.m_verticesBuffer);
+        //		passEncoder.draw(cubeVertexCount);
+        //		passEncoder.end();
+        //		device.queue.submit([commandEncoder.finish()]);
+        this.m_renderer.Render(this.m_camera);
     }
     m_renderer;
     m_canvas;

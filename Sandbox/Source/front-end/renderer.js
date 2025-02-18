@@ -1,80 +1,118 @@
+export class MeshDescriptor {
+    vertexCount = 0;
+    startVertex = 0;
+    instanceCount = undefined;
+    startInstance = undefined;
+}
+export class MeshGroup {
+    constructor(buffer, slot) {
+        this.m_vertexBuffer = buffer;
+        this.m_vertexBufferSlot = slot;
+        this.m_meshDescriptors = [];
+    }
+    AddMeshDescriptor(descriptor) {
+        this.m_meshDescriptors.push(descriptor);
+    }
+    Render(encoder) {
+        encoder.setVertexBuffer(this.m_vertexBufferSlot, this.m_vertexBuffer);
+        this.m_meshDescriptors.forEach(mesh => {
+            encoder.draw(mesh.vertexCount, mesh.instanceCount, mesh.startVertex, mesh.startInstance);
+        });
+    }
+    m_vertexBuffer;
+    m_vertexBufferSlot;
+    m_meshDescriptors;
+}
+export class BindGroup {
+    constructor(index, bindGroup) {
+        this.m_index = index;
+        this.m_bindGroup = bindGroup;
+    }
+    GetIndex() {
+        return this.m_index;
+    }
+    GetBindGroup() {
+        return this.m_bindGroup;
+    }
+    m_bindGroup;
+    m_index;
+}
+export class RenderPassDescriptor {
+    constructor(descriptor) {
+        this.m_renderPassDescriptor = descriptor;
+        // The default preparation will be to set the TextureView for the first colorAttachment
+        // for the current canvas context
+        this.Prepare = (context) => {
+            for (let item of this.m_renderPassDescriptor.colorAttachments) {
+                if (item)
+                    item.view = context.getCurrentTexture().createView();
+                break;
+            }
+        };
+    }
+    GetDescriptor() {
+        return this.m_renderPassDescriptor;
+    }
+    Prepare;
+    m_renderPassDescriptor;
+}
+export class RenderPass {
+    constructor(descriptor, pipeline) {
+        this.m_renderPassDescriptor = descriptor;
+        this.m_renderPipeline = pipeline;
+        this.m_bindGroups = [];
+        this.m_meshGroups = [];
+    }
+    AddBindGroup(bindGroup) {
+        this.m_bindGroups.push(bindGroup);
+    }
+    AddMeshGroup(meshGroup) {
+        this.m_meshGroups.push(meshGroup);
+    }
+    Render(device, context, encoder) {
+        // Prepare is a user-defined callback to make any final adjustments to the descriptor
+        // before recording render commands. The default case is to set the TextureView for
+        // the first colorAttachment for the current canvas context
+        this.m_renderPassDescriptor.Prepare(context);
+        // Create the encoder for this render pass
+        const passEncoder = encoder.beginRenderPass(this.m_renderPassDescriptor.GetDescriptor());
+        passEncoder.label = "Basic RenderPassEncoder";
+        // Set the pipeline
+        passEncoder.setPipeline(this.m_renderPipeline);
+        // Set the BindGroups
+        this.m_bindGroups.forEach(bindGroup => {
+            passEncoder.setBindGroup(bindGroup.GetIndex(), bindGroup.GetBindGroup());
+        });
+        // Set the mesh group
+        // !!! This will make a draw call for each mesh in the group !!!
+        this.m_meshGroups.forEach(meshGroup => { meshGroup.Render(passEncoder); });
+        passEncoder.end();
+    }
+    m_renderPassDescriptor;
+    m_renderPipeline;
+    m_bindGroups;
+    m_meshGroups;
+}
 export class Renderer {
     constructor(device, context) {
         this.m_device = device;
         this.m_context = context;
-        const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
-        const config = {
+        //    this.m_commandEncoder = device.createCommandEncoder({label: "Renderer command encoder"});
+        this.m_context.configure({
             device: this.m_device,
-            format: presentationFormat
-        };
-        this.m_context.configure(config);
-        /*
-        const module: GPUShaderModule = this.m_device.createShaderModule({
-            label: 'our hardcoded red triangle shaders',
-            code: `
-      @vertex fn vs(
-        @builtin(vertex_index) vertexIndex : u32
-      ) -> @builtin(position) vec4f {
-        let pos = array(
-          vec2f( 0.0,  0.5),  // top center
-          vec2f(-0.5, -0.5),  // bottom left
-          vec2f( 0.5, -0.5)   // bottom right
-        );
-
-        return vec4f(pos[vertexIndex], 0.0, 1.0);
-      }
-
-      @fragment fn fs() -> @location(0) vec4f {
-        return vec4f(1, 0, 0, 1);
-      }
-    `,
+            format: navigator.gpu.getPreferredCanvasFormat()
         });
-
-        this.m_pipeline = this.m_device.createRenderPipeline({
-            label: 'our hardcoded red triangle pipeline',
-            layout: 'auto',
-            vertex: {
-                module,
-            },
-            fragment: {
-                module,
-                targets: [{ format: presentationFormat }],
-            },
-        });
-
-        this.m_renderPassDescriptor = {
-            label: 'our basic canvas renderPass',
-            colorAttachments: [
-                {
-                    // view: <- to be filled out when we render
-                    view: this.m_context.getCurrentTexture().createView(),
-                    clearValue: [0.3, 0.3, 0.3, 1],
-                    loadOp: 'clear',
-                    storeOp: 'store',
-                },
-            ],
-        };
-        */
+        this.m_renderPasses = [];
     }
     Render(camera) {
-        //this.RenderTriangleExample();
+        let commandEncoder = this.m_device.createCommandEncoder({ label: "Renderer command encoder" });
+        // Run each render pass
+        this.m_renderPasses.forEach(pass => { pass.Render(this.m_device, this.m_context, commandEncoder); });
+        // Finalize the command encoder and submit it for rendering
+        this.m_device.queue.submit([commandEncoder.finish()]);
     }
-    RenderTriangleExample() {
-        // Get the current texture from the canvas context and
-        // set it as the texture to render to.
-        //renderPassDescriptor.colorAttachments[0].view =
-        //    context.getCurrentTexture().createView();
-        // make a command encoder to start encoding commands
-        //       const encoder: GPUCommandEncoder = this.m_device.createCommandEncoder({ label: 'our encoder' });
-        //
-        //       // make a render pass encoder to encode render specific commands
-        //       const pass: GPURenderPassEncoder = encoder.beginRenderPass(this.m_renderPassDescriptor);
-        //       pass.setPipeline(this.m_pipeline);
-        //       pass.draw(3);  // call our vertex shader 3 times.
-        //       pass.end();
-        //
-        //       const commandBuffer: GPUCommandBuffer = encoder.finish();
-        //       this.m_device.queue.submit([commandBuffer]);
+    AddRenderPass(pass) {
+        this.m_renderPasses.push(pass);
     }
     GetDevice() {
         return this.m_device;
@@ -84,5 +122,7 @@ export class Renderer {
     }
     m_device;
     m_context;
+    //    private m_commandEncoder: GPUCommandEncoder;
+    m_renderPasses;
 }
 //# sourceMappingURL=Renderer.js.map
