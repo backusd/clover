@@ -57,7 +57,7 @@ export class Application {
         this.m_camera = new Camera();
         this.SetupInputCallbacks();
         let device = this.m_renderer.GetDevice();
-        const uniformBufferSize = 4 * 16; // 4x4 matrix
+        const uniformBufferSize = 4 * 16; // 2x 4x4 matrix
         this.m_uniformBuffer = device.createBuffer({
             size: uniformBufferSize,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -183,7 +183,7 @@ export class Application {
             code: `
 struct Uniforms
 {
-  modelViewProjectionMatrix : mat4x4f,
+  viewProjectionMatrix : mat4x4f
 }
 
 struct Vertex
@@ -206,7 +206,7 @@ struct VertexOutput
 @vertex
 fn vertex_main(vertex: Vertex) -> VertexOutput
 {
-  return VertexOutput(uniforms.modelViewProjectionMatrix * vertex.position, vertex.uv);
+  return VertexOutput(uniforms.viewProjectionMatrix * vertex.position, vertex.uv);
 }
 
 @fragment
@@ -379,7 +379,7 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
         //renderPass.AddRenderPassLayer(renderPassLayer);
         this.m_renderer.AddRenderPass(renderPass);
     }
-    GetModelViewProjectionMatrix(deltaTime) {
+    GetViewProjectionMatrix(deltaTime) {
         let context = this.m_renderer.GetContext();
         let canvas = context.canvas;
         if (canvas instanceof OffscreenCanvas)
@@ -393,7 +393,7 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
     }
     Update(timeDelta) {
         let device = this.m_renderer.GetDevice();
-        const modelViewProjection = this.GetModelViewProjectionMatrix(0);
+        const modelViewProjection = this.GetViewProjectionMatrix(0);
         device.queue.writeBuffer(this.m_uniformBuffer, 0, modelViewProjection.buffer, modelViewProjection.byteOffset, modelViewProjection.byteLength);
     }
     m_renderer;
