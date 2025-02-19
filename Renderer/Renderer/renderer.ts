@@ -6,9 +6,121 @@ import {
     LOG_CORE_ERROR
 } from "./Log.js"
 import { Camera } from "./Camera.js"
+import { HybridLookup } from "./Utils.js"
 
 
-export class MeshDescriptor
+
+export class Mesh
+{
+    public CreateMeshFromRawData(name: string, rawVertexData: Float32Array, floatsPerVertex: number, indices: Uint16Array | Uint32Array | null = null): void
+    {
+        this.m_name = name;
+        this.m_rawVertexData = rawVertexData;
+        this.m_indices = indices;
+        this.m_floatsPerVertex = floatsPerVertex;
+
+        LOG_CORE_TRACE(`Mesh::CreateMeshFromRawData: name = ${this.m_name} | rawVertexData.length = ${this.m_rawVertexData.length} | floatsPerVertex = ${this.m_floatsPerVertex}`);
+    }
+    public CreateMeshFromFile(file: string): void
+    {
+        LOG_CORE_WARN("Mesh::CreateMeshFromFile not yet implemented");
+    }
+
+    public RawVertexData(): Float32Array
+    {
+        return this.m_rawVertexData;
+    }
+    public HasIndices(): boolean
+    {
+        return this.m_indices !== null;
+    }
+    public IndicesAreUint16(): boolean
+    {
+        return this.m_indices !== null && this.m_indices instanceof Uint16Array;
+    }
+    public IndicesAreUint32(): boolean
+    {
+        return this.m_indices !== null && this.m_indices instanceof Uint32Array;
+    }
+    public IndicesUint16(): Uint16Array
+    {
+        if (this.m_indices === null)
+            throw Error(`Mesh(name = '${this.m_name}') - Invalid call to IndicesUint16 because m_indices is null`);
+
+        if (this.m_indices instanceof Uint32Array)
+            throw Error(`Mesh(name = '${this.m_name}') - Invalid call to IndicesUint16 because m_indices is Uint32Array`);
+
+        return this.m_indices;
+    }
+    public IndicesUint32(): Uint32Array
+    {
+        if (this.m_indices === null)
+            throw Error(`Mesh(name = '${this.m_name}') - Invalid call to IndicesUint32 because m_indices is null`);
+
+        if (this.m_indices instanceof Uint16Array)
+            throw Error(`Mesh(name = '${this.m_name}') - Invalid call to IndicesUint32 because m_indices is Uint16Array`);
+
+        return this.m_indices;
+    }
+    public Name(): string
+    {
+        return this.m_name;
+    }
+    public IsIndexCompatible(otherMesh: Mesh): boolean
+    {
+        if (this.m_indices === null && otherMesh.m_indices === null)
+            return true;
+
+        if (this.m_indices instanceof Uint16Array && otherMesh.m_indices instanceof Uint16Array)
+            return true;
+
+        if (this.m_indices instanceof Uint32Array && otherMesh.m_indices instanceof Uint32Array)
+            return true;
+
+        return false;
+    }
+    public VertexCount(): number
+    {
+        // The vertices array holds all the raw data, but one vertex will likely consist of
+        // several elements. For example, suppose each vertex looks like
+        //     { position: float4, color: float4 }
+        // Then each vertex consists of 8 floats.
+        // So the formula is numVertices = total_floats / floats_per_vertex
+        return this.m_rawVertexData.length / this.m_floatsPerVertex;
+    }
+    public IndexCount(): number
+    {
+        if (this.m_indices === null)
+            return 0;
+
+        if (this.m_indices instanceof Uint16Array)
+            return this.m_indices.length / 2;
+
+        return this.m_indices.length / 4;
+    }
+    public VertexStride(): number
+    {
+        // Each float is 4 bytes, and for 'stride' we want the total number of bytes
+        return this.m_floatsPerVertex * 4;
+    }
+    public TotalVertexByteCount(): number
+    {
+        return this.m_rawVertexData.length;
+    }
+    public TotalIndexByteCount(): number
+    {
+        if (this.m_indices === null)
+            return 0;
+
+        return this.m_indices.length;
+    }
+
+    private m_name: string = "";
+    private m_rawVertexData: Float32Array = new Float32Array();
+    private m_indices: Uint16Array | Uint32Array | null = null;
+    private m_floatsPerVertex: number = 0;
+}
+class MeshDescriptor
 {
     public vertexCount: number = 0;
     public startVertex: number = 0;
@@ -17,28 +129,228 @@ export class MeshDescriptor
 }
 export class MeshGroup
 {
-    constructor(buffer: GPUBuffer, slot: number)
+    constructor(name: string, device: GPUDevice, meshes: Mesh[] = [], vertexBufferSlot: number = 0)
     {
-        this.m_vertexBuffer = buffer;
-        this.m_vertexBufferSlot = slot;
-        this.m_meshDescriptors = [];
+        this.m_name = name;
+        this.m_device = device;
+        this.m_vertexBufferSlot = vertexBufferSlot;
+        this.m_meshes = new HybridLookup<Mesh>();
+        this.m_meshDescriptors = new HybridLookup<MeshDescriptor>();
+        this.m_indexFormat = "uint32";
+
+        LOG_CORE_TRACE(`MeshGroup constructor() - name = ${name} | # meshes = ${meshes.length} | slot = ${vertexBufferSlot}`);
+
+        this.RebuildBuffers(meshes);
     }
-    public AddMeshDescriptor(descriptor: MeshDescriptor): void
+    public AddMesh(mesh: Mesh): void
     {
-        this.m_meshDescriptors.push(descriptor);
+        // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        // NOTE: Really brute-force approach is used here where we just create a whole new buffer from scratch.
+        //       A likely better approach would be to create a new buffer of a larger size, copy the existing
+        //       buffer to the new buffer (copy is done on the GPU), and then write our new mesh data to the end
+        //       of the new buffer. Definitely more complicated and may run into issues with buffer lifetimes (?),
+        //       but has the benefit of not sending a bunch of vertices to the GPU that already exist in a GPU buffer.
+        // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+        // Make sure the new mesh is index compatible
+        if (this.m_meshes.size() > 0)
+        {
+            if (!this.m_meshes.get(0).IsIndexCompatible(mesh))
+                throw Error(`Mesh '${mesh.Name()}' cannot be added to the MeshGroup '${this.m_name}' because it is not index compatible`);
+        }
+
+        // Create an array of all meshes with the new one at the end
+        let meshes: Mesh[] = [];
+        for (let iii = 0; iii < this.m_meshes.size(); iii++)
+            meshes.push(this.m_meshes.get(iii));
+        meshes.push(mesh);
+
+        // Rebuild the buffers
+        this.RebuildBuffers(meshes);
+    }
+    public RemoveMesh(meshId: string | number): void
+    {
+        if (typeof meshId === "string")
+            this.RemoveMeshImpl(this.m_meshes.indexOf(meshId));
+        else if (typeof meshId === "number")
+            this.RemoveMeshImpl(meshId);
+    }
+    private RemoveMeshImpl(meshIndex: number): void
+    {
+        // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        // NOTE: Really brute-force approach is used here where we create a whole new buffer from scratch.
+        //       A likely better approach would be to create a new buffer on the GPU of a smaller size and then
+        //       perform 2 writes between the buffers: 1 copy for the data that preceded the erased data and 1
+        //       copy for the data that comes after the erased data. Not sure if you'd run into buffer lifetime
+        //       issues. This has the obvious benefit though of not sending any vertices to the GPU.
+        // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+        // Create an array of meshes, but exclude the one we are removing
+        let meshes: Mesh[] = [];
+        for (let iii = 0; iii < this.m_meshes.size(); iii++)
+        {
+            if (iii === meshIndex)
+                continue;
+
+            meshes.push(this.m_meshes.get(iii));
+        }
+
+        // Rebuild the buffers
+        this.RebuildBuffers(meshes);
     }
     public Render(encoder: GPURenderPassEncoder): void
     {
+        // Vertex Buffer
         encoder.setVertexBuffer(this.m_vertexBufferSlot, this.m_vertexBuffer);
-        this.m_meshDescriptors.forEach(mesh =>
+
+        // Index Buffer
+        if (this.m_indexBuffer !== null)
+            encoder.setIndexBuffer(this.m_indexBuffer, this.m_indexFormat);
+
+        // Draw call
+        for (let iii = 0; iii < this.m_meshDescriptors.size(); iii++)
         {
-            encoder.draw(mesh.vertexCount, mesh.instanceCount, mesh.startVertex, mesh.startInstance);
+            let md = this.m_meshDescriptors.get(iii);
+            encoder.draw(md.vertexCount, md.instanceCount, md.startVertex, md.startInstance);
+        }
+    }
+    private CheckIndexFormat(meshes: Mesh[]): void
+    {
+        // Before creating the buffers, we first need to make sure all the meshes use the same index format
+        if (meshes.length > 1)
+        {
+            // Index format will default to "uint32", so if they are actually Uint16, then we need to update the format
+            if (meshes[0].IndicesAreUint16())
+                this.m_indexFormat = "uint16";
+
+            for (let iii = 1; iii < meshes.length; iii++)
+            {
+                if (!meshes[0].IsIndexCompatible(meshes[iii]))
+                    throw Error(`Meshes '${meshes[0].Name()}' and '${meshes[iii].Name()}' cannot be in the same MeshGroup because their indices are not compatible`);
+            }
+        }
+    }
+    private RebuildBuffers(meshes: Mesh[]): void
+    {
+        LOG_CORE_TRACE(`MeshGroup::RebuildBuffers() - name = ${this.m_name} | # meshes = ${meshes.length}`);
+
+        // Perform validation checks before continuing
+        this.CheckIndexFormat(meshes);
+
+        // Clear the containers for meshes and descriptors
+        this.m_meshes.clear();
+        this.m_meshDescriptors.clear();
+
+        // 1. Add each mesh to the HybridLookup list
+        // 2. Create a mesh descriptor for the mesh
+        // 3. Update the total count of all vertices
+        // 4. Update the total count of all indices
+        let totalVertexCount = 0;
+        let totalVertexBytes = 0;
+        let totalIndexCount = 0;
+        let totalIndexBytes = 0;
+        for (const mesh of meshes)
+        {
+            this.m_meshes.add(mesh.Name(), mesh);
+
+            let md = new MeshDescriptor();
+            md.vertexCount = mesh.VertexCount();
+            md.startVertex = totalVertexCount;
+            this.m_meshDescriptors.add(mesh.Name(), md);
+
+            totalVertexCount += mesh.VertexCount();
+            totalVertexBytes += mesh.TotalVertexByteCount();
+
+            totalIndexCount += mesh.IndexCount();
+            totalIndexBytes += mesh.TotalIndexByteCount();
+        }
+
+        LOG_CORE_TRACE(`MeshGroup::RebuildBuffers() - Total vertices = ${totalVertexCount} | Total indices = ${totalIndexCount}`);
+
+        // Create an array to hold all the vertices and then append them all
+        let allVertices: Float32Array = new Float32Array(totalVertexBytes);
+        let offset = 0;
+        for (const mesh of meshes)
+        {
+            allVertices.set(mesh.RawVertexData(), offset);
+            offset += mesh.TotalVertexByteCount();
+        }
+
+        // Create the vertex buffer from the mesh data
+        this.m_vertexBuffer = this.m_device.createBuffer({
+            label: `${this.m_name} - VertexBuffer`,
+            size: allVertices.byteLength,
+            usage: GPUBufferUsage.VERTEX,
+            mappedAtCreation: true,
         });
+        new Float32Array(this.m_vertexBuffer.getMappedRange()).set(allVertices);
+        this.m_vertexBuffer.unmap();
+
+        // Only create the index buffer if there are indices to load
+        if (totalIndexBytes > 0)
+        {
+            if (meshes[0].IndicesAreUint16())
+            {
+                let allIndices: Uint16Array = new Uint16Array(totalIndexBytes);
+                let indexOffset = 0;
+                for (const mesh of meshes)
+                {
+                    allIndices.set(mesh.IndicesUint16(), indexOffset);
+                    indexOffset += mesh.TotalIndexByteCount();
+                }
+
+                // Create the index buffer from the index data
+                this.m_indexBuffer = this.m_device.createBuffer({
+                    label: `${this.m_name} - IndexBuffer`,
+                    size: allIndices.byteLength,
+                    usage: GPUBufferUsage.INDEX,
+                    mappedAtCreation: true,
+                });
+                new Uint16Array(this.m_indexBuffer.getMappedRange()).set(allIndices);
+                this.m_indexBuffer.unmap();
+            }
+            else
+            {
+                let allIndices: Uint32Array = new Uint32Array(totalIndexBytes);
+                let indexOffset = 0;
+                for (const mesh of meshes)
+                {
+                    allIndices.set(mesh.IndicesUint32(), indexOffset);
+                    indexOffset += mesh.TotalIndexByteCount();
+                }
+
+                // Create the index buffer from the index data
+                this.m_indexBuffer = this.m_device.createBuffer({
+                    label: `${this.m_name} - IndexBuffer`,
+                    size: allIndices.byteLength,
+                    usage: GPUBufferUsage.INDEX,
+                    mappedAtCreation: true,
+                });
+                new Uint32Array(this.m_indexBuffer.getMappedRange()).set(allIndices);
+                this.m_indexBuffer.unmap();
+            }
+        }
+        else
+        {
+            this.m_indexBuffer = null;
+        }
+    }
+    public SetInstanceCount(meshId: number | string, count: number): void
+    {
+        this.m_meshDescriptors.get(meshId).instanceCount = count;
+        this.m_meshDescriptors.get(meshId).startInstance = 0;
     }
 
-    private m_vertexBuffer: GPUBuffer;
+
+
+    private m_name: string;
+    private m_device: GPUDevice;
+    private m_meshes: HybridLookup<Mesh>;
+    private m_meshDescriptors: HybridLookup<MeshDescriptor>;    
+    private m_vertexBuffer!: GPUBuffer;
+    private m_indexBuffer: GPUBuffer | null = null;
+    private m_indexFormat: "uint16" | "uint32";
     private m_vertexBufferSlot: number;
-    private m_meshDescriptors: MeshDescriptor[];
 }
 export class BindGroup
 {

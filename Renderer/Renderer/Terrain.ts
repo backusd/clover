@@ -1,7 +1,7 @@
 import { LOG_INFO, LOG_TRACE, LOG_WARN, LOG_ERROR } from "./Log.js";
 import
 {
-	MeshDescriptor,
+	Mesh,
 	MeshGroup,
 	BindGroup,
 	RenderPassLayer,
@@ -11,7 +11,8 @@ import
 } from "./Renderer.js";
 import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
 
-const vertexSize = 4 * 4 * 2; // Byte size of one vertex = (4 bytes/float) * (4 floats for position + 4 floats for color)
+const terrainVertexNumFloats = 8;
+const vertexStride = 4 * terrainVertexNumFloats; // Byte size of one vertex = (4 bytes/float) * (4 floats for position + 4 floats for color)
 const positionOffest = 0;
 const colorOffset = 4 * 4; // Byte offset of the vertex color attribute
 const vertexCount = 2;
@@ -179,7 +180,7 @@ fn fragment_main(@location(0) color: vec4f) -> @location(0) vec4f
 				module,
 				buffers: [
 					{
-						arrayStride: vertexSize,
+						arrayStride: vertexStride,
 						attributes: [
 							{
 								// position
@@ -230,14 +231,11 @@ fn fragment_main(@location(0) color: vec4f) -> @location(0) vec4f
 		let terrainLayerBindGroup: BindGroup = new BindGroup(1, instanceBindGroup);
 
 		// Terrain MeshGroup
-		let terrainMeshGroup: MeshGroup = new MeshGroup(vertexBuffer, 0);
-		let boxDescriptor: MeshDescriptor = {
-			vertexCount: vertexCount,
-			startVertex: 0,
-			instanceCount: numInstances,
-			startInstance: 0
-		}
-		terrainMeshGroup.AddMeshDescriptor(boxDescriptor);
+		let terrainMesh = new Mesh();
+		terrainMesh.CreateMeshFromRawData("Terrain Mesh", terrainVertexArray, terrainVertexNumFloats);
+
+		let terrainMeshGroup = new MeshGroup("Terrain MeshGroup", device, [terrainMesh], 0);
+		terrainMeshGroup.SetInstanceCount("Terrain Mesh", numInstances);
 
 		// RenderPassLayer
 		let renderPassLayer: RenderPassLayer = new RenderPassLayer(pipeline);

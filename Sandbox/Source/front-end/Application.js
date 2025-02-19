@@ -1,9 +1,10 @@
 import { LOG_TRACE } from "./Log.js";
-import { MeshGroup, BindGroup, RenderPassLayer, RenderPassDescriptor, RenderPass } from "./Renderer.js";
+import { Mesh, MeshGroup, BindGroup, RenderPassLayer, RenderPassDescriptor, RenderPass } from "./Renderer.js";
 import { Camera } from "./Camera.js";
 import { mat4 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
-const cubeVertexSize = 4 * 10; // Byte size of one cube vertex.
+const cubeVertexNumFloats = 10;
+const cubeVertexStride = 4 * cubeVertexNumFloats; // Byte size of one cube vertex.
 const cubePositionOffset = 0;
 const cubeColorOffset = 4 * 4; // Byte offset of cube vertex color attribute.
 const cubeUVOffset = 4 * 8;
@@ -62,15 +63,15 @@ export class Application {
             size: uniformBufferSize,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
-        // Create a vertex buffer from the cube data.
-        this.m_verticesBuffer = device.createBuffer({
-            label: "vertices buffer",
-            size: cubeVertexArray.byteLength,
-            usage: GPUBufferUsage.VERTEX,
-            mappedAtCreation: true,
-        });
-        new Float32Array(this.m_verticesBuffer.getMappedRange()).set(cubeVertexArray);
-        this.m_verticesBuffer.unmap();
+        //	// Create a vertex buffer from the cube data.
+        //	this.m_verticesBuffer = device.createBuffer({
+        //		label: "vertices buffer",
+        //		size: cubeVertexArray.byteLength,
+        //		usage: GPUBufferUsage.VERTEX,
+        //		mappedAtCreation: true,
+        //	});
+        //	new Float32Array(this.m_verticesBuffer.getMappedRange()).set(cubeVertexArray);
+        //	this.m_verticesBuffer.unmap();
     }
     SetupInputCallbacks() {
         window.addEventListener('keydown', (e) => this.OnKeyDown(e));
@@ -178,6 +179,11 @@ export class Application {
         const devicePixelRatio = window.devicePixelRatio;
         canvas.width = canvas.clientWidth * devicePixelRatio;
         canvas.height = canvas.clientHeight * devicePixelRatio;
+        // Box Mesh
+        let boxMesh = new Mesh();
+        boxMesh.CreateMeshFromRawData("Box mesh", cubeVertexArray, cubeVertexNumFloats);
+        // MeshGroup
+        let boxMeshGroup = new MeshGroup("Box MeshGroup", device, [boxMesh], 0);
         const module = device.createShaderModule({
             label: 'cube shader module',
             code: `
@@ -253,7 +259,7 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
                 module,
                 buffers: [
                     {
-                        arrayStride: cubeVertexSize,
+                        arrayStride: cubeVertexStride,
                         attributes: [
                             {
                                 // position
@@ -354,14 +360,14 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
             },
         };
         // Box MeshGroup
-        let boxMeshGroup = new MeshGroup(this.m_verticesBuffer, 0);
-        let boxDescriptor = {
-            vertexCount: cubeVertexCount,
-            startVertex: 0,
-            instanceCount: undefined,
-            startInstance: undefined
-        };
-        boxMeshGroup.AddMeshDescriptor(boxDescriptor);
+        //	let boxMeshGroup: MeshGroup = new MeshGroup(this.m_verticesBuffer, 0);
+        //	let boxDescriptor: MeshDescriptor = {
+        //		vertexCount: cubeVertexCount,
+        //		startVertex: 0,
+        //		instanceCount: undefined,
+        //		startInstance: undefined
+        //	}
+        //	boxMeshGroup.AddMeshDescriptor(boxDescriptor);
         // Bind Groups
         let passBindGroup = new BindGroup(0, mvpBindGroup);
         let cubeLayerBindGroup = new BindGroup(1, cubeBindGroup);
@@ -402,7 +408,7 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
     m_renderPassDescriptor;
     m_pipeline;
     m_uniformBuffer;
-    m_verticesBuffer;
+    //	private m_verticesBuffer: GPUBuffer;
     m_uniformBindGroup;
 }
 //# sourceMappingURL=Application.js.map
