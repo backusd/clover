@@ -63,6 +63,7 @@ export class Application {
             size: uniformBufferSize,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
+        this.m_boxMeshGroup = new MeshGroup("Box MeshGroup", device, [], 0);
         //	// Create a vertex buffer from the cube data.
         //	this.m_verticesBuffer = device.createBuffer({
         //		label: "vertices buffer",
@@ -161,6 +162,11 @@ export class Application {
     }
     OnRButtonUp(e) {
         LOG_TRACE("OnRButtonUp");
+        // Box Mesh
+        //	let boxMesh = new Mesh();
+        //	boxMesh.CreateMeshFromRawData("Box mesh", cubeVertexArray, cubeVertexNumFloats);
+        //	this.m_boxMeshGroup.AddMesh(boxMesh);
+        this.m_boxMeshGroup.RemoveMesh("Box mesh 3");
     }
     OnPointerMove(e) {
         //LOG_TRACE(`OnPointerMove: (${e.movementX}, ${e.movementY})`);
@@ -179,11 +185,38 @@ export class Application {
         const devicePixelRatio = window.devicePixelRatio;
         canvas.width = canvas.clientWidth * devicePixelRatio;
         canvas.height = canvas.clientHeight * devicePixelRatio;
+        // Creating a 2nd box mesh
+        let cubeVertexArray_2 = new Float32Array(cubeVertexArray.length);
+        for (let row = 0; row < 36; row++) {
+            for (let col = 0; col < 10; col++) {
+                let iii = row * 10 + col;
+                if (col >= 1)
+                    cubeVertexArray_2[iii] = cubeVertexArray[iii];
+                else
+                    cubeVertexArray_2[iii] = cubeVertexArray[iii] + 3;
+            }
+        }
+        let boxMesh_2 = new Mesh();
+        boxMesh_2.CreateMeshFromRawData("Box mesh 2", cubeVertexArray_2, cubeVertexNumFloats);
+        // Creating a 2nd box mesh
+        let cubeVertexArray_3 = new Float32Array(cubeVertexArray.length);
+        for (let row = 0; row < 36; row++) {
+            for (let col = 0; col < 10; col++) {
+                let iii = row * 10 + col;
+                if (col === 1)
+                    cubeVertexArray_3[iii] = cubeVertexArray[iii] + 3;
+                else
+                    cubeVertexArray_3[iii] = cubeVertexArray[iii];
+            }
+        }
+        let boxMesh_3 = new Mesh();
+        boxMesh_3.CreateMeshFromRawData("Box mesh 3", cubeVertexArray_3, cubeVertexNumFloats);
         // Box Mesh
         let boxMesh = new Mesh();
         boxMesh.CreateMeshFromRawData("Box mesh", cubeVertexArray, cubeVertexNumFloats);
         // MeshGroup
-        let boxMeshGroup = new MeshGroup("Box MeshGroup", device, [boxMesh], 0);
+        //let boxMeshGroup = new MeshGroup("Box MeshGroup", device, [], 0);
+        this.m_boxMeshGroup.AddMeshes([boxMesh, boxMesh_2, boxMesh_3]);
         const module = device.createShaderModule({
             label: 'cube shader module',
             code: `
@@ -375,7 +408,7 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
         let renderPassDescriptor = new RenderPassDescriptor(this.m_renderPassDescriptor);
         // RenderPassLayer
         let renderPassLayer = new RenderPassLayer(this.m_pipeline);
-        renderPassLayer.AddMeshGroup(boxMeshGroup);
+        renderPassLayer.AddMeshGroup(this.m_boxMeshGroup);
         renderPassLayer.AddBindGroup(cubeLayerBindGroup);
         // RenderPass
         let renderPass = new RenderPass(renderPassDescriptor);
@@ -410,5 +443,6 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
     m_uniformBuffer;
     //	private m_verticesBuffer: GPUBuffer;
     m_uniformBindGroup;
+    m_boxMeshGroup;
 }
 //# sourceMappingURL=Application.js.map

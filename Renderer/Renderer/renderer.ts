@@ -144,6 +144,10 @@ export class MeshGroup
     }
     public AddMesh(mesh: Mesh): void
     {
+        this.AddMeshes([mesh]);
+    }
+    public AddMeshes(meshes: Mesh[]): void
+    {
         // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         // NOTE: Really brute-force approach is used here where we just create a whole new buffer from scratch.
         //       A likely better approach would be to create a new buffer of a larger size, copy the existing
@@ -152,18 +156,29 @@ export class MeshGroup
         //       but has the benefit of not sending a bunch of vertices to the GPU that already exist in a GPU buffer.
         // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+        if (meshes.length === 0)
+        {
+            LOG_CORE_WARN(`Trying to call AddMeshes() on the MeshGroup '${this.m_name}' with an empty list of meshes`);
+            return;
+        }
+
         // Make sure the new mesh is index compatible
         if (this.m_meshes.size() > 0)
         {
-            if (!this.m_meshes.get(0).IsIndexCompatible(mesh))
-                throw Error(`Mesh '${mesh.Name()}' cannot be added to the MeshGroup '${this.m_name}' because it is not index compatible`);
+            for (const mesh of meshes)
+            {
+                if (!this.m_meshes.get(0).IsIndexCompatible(mesh))
+                    throw Error(`Mesh '${mesh.Name()}' cannot be added to the MeshGroup '${this.m_name}' because it is not index compatible`);
+            }
         }
 
-        // Create an array of all meshes with the new one at the end
-        let meshes: Mesh[] = [];
+        // Create an array of all meshes with the new ones at the end
+        let newMeshes: Mesh[] = [];
         for (let iii = 0; iii < this.m_meshes.size(); iii++)
-            meshes.push(this.m_meshes.get(iii));
-        meshes.push(mesh);
+            newMeshes.push(this.m_meshes.get(iii));
+
+        for (let mesh of meshes)
+            newMeshes.push(mesh);
 
         // Rebuild the buffers
         this.RebuildBuffers(meshes);
