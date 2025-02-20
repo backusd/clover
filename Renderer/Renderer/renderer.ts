@@ -3,7 +3,8 @@ import {
     LOG_CORE_INFO,
     LOG_CORE_TRACE,
     LOG_CORE_WARN,
-    LOG_CORE_ERROR
+    LOG_CORE_ERROR,
+    LOG_TRACE
 } from "./Log.js"
 import { Camera } from "./Camera.js"
 import { HybridLookup } from "./Utils.js"
@@ -18,8 +19,6 @@ export class Mesh
         this.m_rawVertexData = rawVertexData;
         this.m_indices = indices;
         this.m_floatsPerVertex = floatsPerVertex;
-
-        LOG_CORE_TRACE(`Mesh::CreateMeshFromRawData: name = ${this.m_name} | rawVertexData.length = ${this.m_rawVertexData.length} | floatsPerVertex = ${this.m_floatsPerVertex} | ${this.m_indices}`);
     }
     public CreateMeshFromFile(file: string): void
     {
@@ -137,8 +136,6 @@ export class MeshGroup
         this.m_meshDescriptors = new HybridLookup<MeshDescriptor>();
         this.m_indexFormat = "uint32";
 
-        LOG_CORE_TRACE(`MeshGroup constructor() - name = ${name} | # meshes = ${meshes.length} | slot = ${vertexBufferSlot}`);
-
         this.RebuildBuffers(meshes);
     }
     public AddMesh(mesh: Mesh): void
@@ -161,16 +158,6 @@ export class MeshGroup
             return;
         }
 
-        // Make sure the new mesh is index compatible
-        if (this.m_meshes.size() > 0)
-        {
-            for (const mesh of meshes)
-            {
-                if (!this.m_meshes.get(0).IsIndexCompatible(mesh))
-                    throw Error(`Mesh '${mesh.Name()}' cannot be added to the MeshGroup '${this.m_name}' because it is not index compatible`);
-            }
-        }
-
         // Create an array of all meshes with the new ones at the end
         let newMeshes: Mesh[] = [];
         for (let iii = 0; iii < this.m_meshes.size(); iii++)
@@ -180,7 +167,7 @@ export class MeshGroup
             newMeshes.push(mesh);
 
         // Rebuild the buffers
-        this.RebuildBuffers(meshes);
+        this.RebuildBuffers(newMeshes);
     }
     public RemoveMesh(meshId: string | number): void
     {
@@ -214,17 +201,12 @@ export class MeshGroup
     }
     public Render(encoder: GPURenderPassEncoder): void
     {
-        LOG_CORE_TRACE(`encoder.setVertexBuffer(${this.m_vertexBufferSlot}, ${this.m_vertexBuffer});`)
-
         // Vertex Buffer
         encoder.setVertexBuffer(this.m_vertexBufferSlot, this.m_vertexBuffer);
 
         // Index Buffer
         if (this.m_indexBuffer !== null)
-        {
-            LOG_CORE_TRACE(`encoder.setIndexBuffer(${this.m_indexBuffer}, ${this.m_indexFormat});`);
             encoder.setIndexBuffer(this.m_indexBuffer, this.m_indexFormat);
-        }
 
         // Draw call
         for (let iii = 0; iii < this.m_meshDescriptors.size(); iii++)
@@ -233,14 +215,11 @@ export class MeshGroup
 
             if (md.indexCount === undefined)
             {
-                LOG_CORE_TRACE(`encoder.draw(${md.vertexCount}, ${md.instanceCount}, ${md.startVertex}, ${md.startInstance});`)
                 encoder.draw(md.vertexCount, md.instanceCount, md.startVertex, md.startInstance);
             }
             else
             {
-                LOG_CORE_TRACE(`encoder.drawIndexed(${md.indexCount});`);
-                encoder.drawIndexed(md.indexCount);
-                //encoder.drawIndexed(md.indexCount, md.instanceCount, md.startIndex, md.startVertex, md.startInstance);
+                encoder.drawIndexed(md.indexCount, md.instanceCount, md.startIndex, md.startVertex, md.startInstance);
             }
         }
     }
@@ -249,13 +228,9 @@ export class MeshGroup
         // Before creating the buffers, we first need to make sure all the meshes use the same index format
         if (meshes.length > 0)
         {
-            LOG_CORE_TRACE("Checking if indices are Uint16");
             // Index format will default to "uint32", so if they are actually Uint16, then we need to update the format
             if (meshes[0].IndicesAreUint16())
-            {
-                LOG_CORE_TRACE("Setting index format to uin16");
                 this.m_indexFormat = "uint16";
-            }
 
             if (meshes.length > 1)
             {
@@ -269,8 +244,6 @@ export class MeshGroup
     }
     private RebuildBuffers(meshes: Mesh[]): void
     {
-        LOG_CORE_TRACE(`MeshGroup::RebuildBuffers() - name = ${this.m_name} | # meshes = ${meshes.length}`);
-
         // Perform validation checks before continuing
         this.CheckIndexFormat(meshes);
 
@@ -306,8 +279,6 @@ export class MeshGroup
             totalIndexCount += mesh.IndexCount();
             totalIndexBytes += mesh.TotalIndexByteCount();
         }
-
-        LOG_CORE_TRACE(`MeshGroup::RebuildBuffers() - Total vertices = ${totalVertexCount} | Total indices = ${totalIndexCount}`);
 
         // Create an array to hold all the vertices and then append them all
         let allVertices: Float32Array = new Float32Array(totalVertexBytes);

@@ -14,8 +14,8 @@ import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
 const vertexCount = 8;
 const numFloatsPerVertex = 8;
 const vertexStride = 4 * numFloatsPerVertex;
-const positionOffset = 0;
-const colorOffset = 4;
+const positionByteOffset = 0;
+const colorByteOffset = 4 * 4;
 
 const cubeVertexArray = new Float32Array([
 	// float4 position, float4 color
@@ -26,7 +26,7 @@ const cubeVertexArray = new Float32Array([
 	-1, -1,  1,  1,     1, 0, 1, 1,    // 4: -x -y  z
 	-1,  1, -1,  1,     0, 1, 1, 1,    // 5: -x  y -z
 	 1, -1, -1,  1,     1, 1, 1, 1,    // 6:  x -y -z
-	-1, -1, -1,  1,     0.5, 0.5, 0.5, 1 // 7: -x -y -z
+	-1, -1, -1,  1,     0, 0, 0, 1	   // 7: -x -y -z
 ]);
 
 const cubeIndexArray = new Uint16Array([
@@ -61,8 +61,46 @@ export class ColorCube
 		let mesh = new Mesh();
 		mesh.CreateMeshFromRawData("color cube mesh", cubeVertexArray, numFloatsPerVertex, cubeIndexArray);
 
+
+
+
+		// Creating a 2nd cube mesh
+		let cubeVertexArray_2 = new Float32Array(cubeVertexArray.length);
+		for (let row = 0; row < 8; row++)
+		{
+			for (let col = 0; col < 8; col++)
+			{
+				let iii = row * 8 + col;
+				if (col === 0)
+					cubeVertexArray_2[iii] = cubeVertexArray[iii] + 3;
+				else
+					cubeVertexArray_2[iii] = cubeVertexArray[iii];
+			}
+		}
+
+		let mesh_2 = new Mesh();
+		mesh_2.CreateMeshFromRawData("Color cube mesh 2", cubeVertexArray_2, numFloatsPerVertex, cubeIndexArray);
+
+		// Creating a 3nd cube mesh
+		let cubeVertexArray_3 = new Float32Array(cubeVertexArray.length);
+		for (let row = 0; row < 8; row++)
+		{
+			for (let col = 0; col < 8; col++)
+			{
+				let iii = row * 8 + col;
+				if (col === 1)
+					cubeVertexArray_3[iii] = cubeVertexArray[iii] + 3;
+				else
+					cubeVertexArray_3[iii] = cubeVertexArray[iii];
+			}
+		}
+
+		let mesh_3 = new Mesh();
+		mesh_3.CreateMeshFromRawData("Color cube mesh 3", cubeVertexArray_3, numFloatsPerVertex, cubeIndexArray);
+
+
 		// MeshGroup
-		let meshGroup = new MeshGroup("color cube mesh group", device, [mesh], 0);
+		let meshGroup = new MeshGroup("color cube mesh group", device, [mesh, mesh_2, mesh_3], 0);
 
 		// Create the shaders
 		const module: GPUShaderModule = device.createShaderModule({
@@ -121,13 +159,13 @@ fn fragment_main(@location(0) color: vec4f) -> @location(0) vec4f
 							{
 								// position
 								shaderLocation: 0,
-								offset: positionOffset,
+								offset: positionByteOffset,
 								format: 'float32x4',
 							},
 							{
 								// color
 								shaderLocation: 1,
-								offset: colorOffset,
+								offset: colorByteOffset,
 								format: 'float32x4',
 							},
 						],

@@ -1,4 +1,4 @@
-import { LOG_CORE_TRACE, LOG_CORE_WARN } from "./Log.js";
+import { LOG_CORE_WARN } from "./Log.js";
 import { HybridLookup } from "./Utils.js";
 export class Mesh {
     CreateMeshFromRawData(name, rawVertexData, floatsPerVertex, indices = null) {
@@ -6,7 +6,6 @@ export class Mesh {
         this.m_rawVertexData = rawVertexData;
         this.m_indices = indices;
         this.m_floatsPerVertex = floatsPerVertex;
-        LOG_CORE_TRACE(`Mesh::CreateMeshFromRawData: name = ${this.m_name} | rawVertexData.length = ${this.m_rawVertexData.length} | floatsPerVertex = ${this.m_floatsPerVertex} | ${this.m_indices}`);
     }
     CreateMeshFromFile(file) {
         LOG_CORE_WARN("Mesh::CreateMeshFromFile not yet implemented");
@@ -95,7 +94,6 @@ export class MeshGroup {
         this.m_meshes = new HybridLookup();
         this.m_meshDescriptors = new HybridLookup();
         this.m_indexFormat = "uint32";
-        LOG_CORE_TRACE(`MeshGroup constructor() - name = ${name} | # meshes = ${meshes.length} | slot = ${vertexBufferSlot}`);
         this.RebuildBuffers(meshes);
     }
     AddMesh(mesh) {
@@ -113,13 +111,6 @@ export class MeshGroup {
             LOG_CORE_WARN(`Trying to call AddMeshes() on the MeshGroup '${this.m_name}' with an empty list of meshes`);
             return;
         }
-        // Make sure the new mesh is index compatible
-        if (this.m_meshes.size() > 0) {
-            for (const mesh of meshes) {
-                if (!this.m_meshes.get(0).IsIndexCompatible(mesh))
-                    throw Error(`Mesh '${mesh.Name()}' cannot be added to the MeshGroup '${this.m_name}' because it is not index compatible`);
-            }
-        }
         // Create an array of all meshes with the new ones at the end
         let newMeshes = [];
         for (let iii = 0; iii < this.m_meshes.size(); iii++)
@@ -127,7 +118,7 @@ export class MeshGroup {
         for (let mesh of meshes)
             newMeshes.push(mesh);
         // Rebuild the buffers
-        this.RebuildBuffers(meshes);
+        this.RebuildBuffers(newMeshes);
     }
     RemoveMesh(meshId) {
         if (typeof meshId === "string")
@@ -154,37 +145,28 @@ export class MeshGroup {
         this.RebuildBuffers(meshes);
     }
     Render(encoder) {
-        LOG_CORE_TRACE(`encoder.setVertexBuffer(${this.m_vertexBufferSlot}, ${this.m_vertexBuffer});`);
         // Vertex Buffer
         encoder.setVertexBuffer(this.m_vertexBufferSlot, this.m_vertexBuffer);
         // Index Buffer
-        if (this.m_indexBuffer !== null) {
-            LOG_CORE_TRACE(`encoder.setIndexBuffer(${this.m_indexBuffer}, ${this.m_indexFormat});`);
+        if (this.m_indexBuffer !== null)
             encoder.setIndexBuffer(this.m_indexBuffer, this.m_indexFormat);
-        }
         // Draw call
         for (let iii = 0; iii < this.m_meshDescriptors.size(); iii++) {
             let md = this.m_meshDescriptors.get(iii);
             if (md.indexCount === undefined) {
-                LOG_CORE_TRACE(`encoder.draw(${md.vertexCount}, ${md.instanceCount}, ${md.startVertex}, ${md.startInstance});`);
                 encoder.draw(md.vertexCount, md.instanceCount, md.startVertex, md.startInstance);
             }
             else {
-                LOG_CORE_TRACE(`encoder.drawIndexed(${md.indexCount});`);
-                encoder.drawIndexed(md.indexCount);
-                //encoder.drawIndexed(md.indexCount, md.instanceCount, md.startIndex, md.startVertex, md.startInstance);
+                encoder.drawIndexed(md.indexCount, md.instanceCount, md.startIndex, md.startVertex, md.startInstance);
             }
         }
     }
     CheckIndexFormat(meshes) {
         // Before creating the buffers, we first need to make sure all the meshes use the same index format
         if (meshes.length > 0) {
-            LOG_CORE_TRACE("Checking if indices are Uint16");
             // Index format will default to "uint32", so if they are actually Uint16, then we need to update the format
-            if (meshes[0].IndicesAreUint16()) {
-                LOG_CORE_TRACE("Setting index format to uin16");
+            if (meshes[0].IndicesAreUint16())
                 this.m_indexFormat = "uint16";
-            }
             if (meshes.length > 1) {
                 for (let iii = 1; iii < meshes.length; iii++) {
                     if (!meshes[0].IsIndexCompatible(meshes[iii]))
@@ -194,7 +176,6 @@ export class MeshGroup {
         }
     }
     RebuildBuffers(meshes) {
-        LOG_CORE_TRACE(`MeshGroup::RebuildBuffers() - name = ${this.m_name} | # meshes = ${meshes.length}`);
         // Perform validation checks before continuing
         this.CheckIndexFormat(meshes);
         // Clear the containers for meshes and descriptors
@@ -223,7 +204,6 @@ export class MeshGroup {
             totalIndexCount += mesh.IndexCount();
             totalIndexBytes += mesh.TotalIndexByteCount();
         }
-        LOG_CORE_TRACE(`MeshGroup::RebuildBuffers() - Total vertices = ${totalVertexCount} | Total indices = ${totalIndexCount}`);
         // Create an array to hold all the vertices and then append them all
         let allVertices = new Float32Array(totalVertexBytes);
         let offset = 0;
