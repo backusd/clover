@@ -241,8 +241,8 @@ export class Application
 		// ====== Layers ==============================
 
 		// Terrain
-		let terrain: Terrain = new Terrain(10, 10);
-		renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, mvpBindGroupLayout));
+	//	let terrain: Terrain = new Terrain(10, 10);
+	//	renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, mvpBindGroupLayout));
 
 		// Texture Cube
 		let textureCube = new TextureCube();

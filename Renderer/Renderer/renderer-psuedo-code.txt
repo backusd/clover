@@ -14,6 +14,7 @@ NOTE: A RenderPass will be described by a RenderPassDescriptor, which will requi
 - (contains) RenderPassDescriptor
 - (contains) 0+ BindGroup
 	* This is for bind groups that do NOT change across RenderPassLayers. Example: Setting the camera model-view-projection matrix
+	* Convention will be for these bind groups to use @group(0)
 - (contains) 1+ RenderPassLayers
 
 
@@ -29,21 +30,36 @@ NOTE: A RenderPass will be described by a RenderPassDescriptor, which will requi
 >> Mental Model: "A RenderPassLayer will contain pipeline updates and draw calls that share vertex/fragment shaders."
 - (contains) RenderPipeline
 - (contains) 0+ BindGroup
+	* This is for bind groups that change between RenderPassLayers, but are needed for each RenderItem in the layer
+	* Convention will be for these bind groups to use @group(1)
+		~ Example: An array of material settings that can be referenced by each RenderItem
 - (contains) 1+ MeshGroup
-
 
 ***** RenderPipeline *****
 - For now, just manually create the whole thing
 
 ***** BindGroup *****
-- (contains) index
+- (contains) [number] index
 - (contains) GPUBindGroup
 	For now, just manually create the whole thing
 
 ***** MeshGroup *****
 - (contains) 1+ VertexBuffer 
+- (contains) 0+ IndexBuffer
+- (contains) [number] vertex buffer slot
 - (contains) Should contains all metadata about how the vertices are structured
 	* This should be used when creating the RenderPipeline
+- (contains) 0+ RenderItem
+
+***** RenderItem *****
+- (contains) 0+ BindGroup
+	* This is for bind groups that change between every RenderItem
+	* Convention will be for these bind groups to use @group(2)
+		~ Example: 1 or more textures and samplers specific to a RenderItem
+- (contains) MeshDescriptor
+- (contains) [number] instance count
+- (contains) [number] start instance
+- (contains) [bool] isActive
 
 ---------------------------------------------------------------------------------------
 
@@ -71,7 +87,20 @@ RenderPassLayer::Render()
 - foreach BindGroup:
 	RenderPassEncoder::SetBindGroup(BindGroup.index, BindGroup.bindGroup)
 - foreach MeshGroup:
-	RenderPassEncoder::SetVertexBuffer(MeshGroup.VertexBuffer)
- 	RenderPassEncoder::draw(MeshGroup -> vertexcount/indexcount)
+	if (MeshGroup::HasActiveRenderItems())
+		MeshGroup::Render()
+
+
+MeshGroup::Render()
+- RenderPassEncoder::SetVertexBuffer(MeshGroup.VertexBuffer)
+- if (indexBuffer)
+	RenderPassEncoder::SetIndexBuffer(MeshGroup.IndexBuffer)
+- foreach RenderItem:
+	if (RenderItem::IsActive())
+	  RenderItem::Render()
+
+
+RenderItem::Render()
+- Issue draw or drawIndexed call
 
 

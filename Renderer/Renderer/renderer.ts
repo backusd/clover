@@ -10,7 +10,55 @@ import { Camera } from "./Camera.js"
 import { HybridLookup } from "./Utils.js"
 
 
+export class MeshDescriptor
+{
+    public vertexCount: number = 0;
+    public startVertex: number = 0;
+    public indexCount: number | undefined = undefined;
+    public startIndex: number | undefined = undefined;
+}
+export class RenderItem
+{
+    constructor(name: string, meshName: string, meshDescriptor: MeshDescriptor)
+    {
+        this.m_name = name;
+        this.m_meshName = meshName;
+        this.m_meshDescriptor = meshDescriptor;
+    }
+    public IsActive(): boolean { return this.m_isActive; }
+    public Name(): string { return this.m_name; }
+    public GetMeshName(): string { return this.m_meshName; }
+    public GetInstanceCount(): number { return this.m_instanceCount; }
+    public GetStartInstance(): number { return this.m_startInstance; }
+    public SetInstanceCount(count: number): void { this.m_instanceCount = count; }
+    public SetStartInstance(start: number): void { this.m_startInstance = start; }
+    public SetMeshDescriptor(descriptor: MeshDescriptor): void { this.m_meshDescriptor = descriptor; }
+    public IncrementInstanceCount(increment: number = 1): void { this.m_instanceCount += increment; }
+    public DecrementInstanceCount(decrement: number = 1): void { this.m_instanceCount = Math.max(0, this.m_instanceCount - decrement); }
+    public Render(encoder: GPURenderPassEncoder): void
+    {
+        LOG_TRACE(`RenderItem: '${this.m_name}' | instances: ${this.m_instanceCount}`);
 
+        if (this.m_isActive)
+        {
+            if (this.m_meshDescriptor.indexCount === undefined)
+            {
+                encoder.draw(this.m_meshDescriptor.vertexCount, this.m_instanceCount, this.m_meshDescriptor.startVertex, this.m_startInstance);
+            }
+            else
+            {
+                encoder.drawIndexed(this.m_meshDescriptor.indexCount, this.m_instanceCount, this.m_meshDescriptor.startIndex, this.m_meshDescriptor.startVertex, this.m_startInstance);
+            }
+        }
+    }
+
+    private m_name: string;
+    private m_meshName: string;
+    private m_meshDescriptor: MeshDescriptor;
+    private m_instanceCount: number = 1;
+    private m_startInstance: number = 0;
+    private m_isActive: boolean = true;
+}
 export class Mesh
 {
     public CreateMeshFromRawData(name: string, rawVertexData: Float32Array, floatsPerVertex: number, indices: Uint16Array | Uint32Array | null = null): void
@@ -116,15 +164,6 @@ export class Mesh
     private m_indices: Uint16Array | Uint32Array | null = null;
     private m_floatsPerVertex: number = 0;
 }
-class MeshDescriptor
-{
-    public vertexCount: number = 0;
-    public startVertex: number = 0;
-    public indexCount: number | undefined = undefined;
-    public startIndex: number | undefined = undefined;
-    public instanceCount: number | undefined = undefined;
-    public startInstance: number | undefined = undefined;
-}
 export class MeshGroup
 {
     constructor(name: string, device: GPUDevice, meshes: Mesh[] = [], vertexBufferSlot: number = 0)
@@ -134,13 +173,16 @@ export class MeshGroup
         this.m_vertexBufferSlot = vertexBufferSlot;
         this.m_meshes = new HybridLookup<Mesh>();
         this.m_meshDescriptors = new HybridLookup<MeshDescriptor>();
+        this.m_renderItems = new HybridLookup<RenderItem>();
         this.m_indexFormat = "uint32";
 
         this.RebuildBuffers(meshes);
     }
-    public AddMesh(mesh: Mesh): void
+    public Name(): string { return this.m_name; }
+    public AddMesh(mesh: Mesh): Mesh
     {
         this.AddMeshes([mesh]);
+        return mesh;
     }
     public AddMeshes(meshes: Mesh[]): void
     {
@@ -190,38 +232,25 @@ export class MeshGroup
         let meshes: Mesh[] = [];
         for (let iii = 0; iii < this.m_meshes.size(); iii++)
         {
-            if (iii === meshIndex)
-                continue;
+            let mesh = this.m_meshes.get(iii);
 
-            meshes.push(this.m_meshes.get(iii));
+            if (iii === meshIndex)
+            {
+                // Before removing the mesh, we must make sure there are no RenderItems still referencing the mesh
+                // If so, we must delete them (and we also log an error)
+                this.RemoveRenderItemsUsingMesh(mesh.Name());
+                continue;
+            }
+
+            meshes.push(mesh);
         }
 
         // Rebuild the buffers
         this.RebuildBuffers(meshes);
     }
-    public Render(encoder: GPURenderPassEncoder): void
+    private RemoveRenderItemsUsingMesh(meshName: string): void
     {
-        // Vertex Buffer
-        encoder.setVertexBuffer(this.m_vertexBufferSlot, this.m_vertexBuffer);
-
-        // Index Buffer
-        if (this.m_indexBuffer !== null)
-            encoder.setIndexBuffer(this.m_indexBuffer, this.m_indexFormat);
-
-        // Draw call
-        for (let iii = 0; iii < this.m_meshDescriptors.size(); iii++)
-        {
-            let md = this.m_meshDescriptors.get(iii);
-
-            if (md.indexCount === undefined)
-            {
-                encoder.draw(md.vertexCount, md.instanceCount, md.startVertex, md.startInstance);
-            }
-            else
-            {
-                encoder.drawIndexed(md.indexCount, md.instanceCount, md.startIndex, md.startVertex, md.startInstance);
-            }
-        }
+        let 
     }
     private CheckIndexFormat(meshes: Mesh[]): void
     {
@@ -342,19 +371,52 @@ export class MeshGroup
                 new Uint32Array(this.m_indexBuffer.getMappedRange()).set(allIndices);
                 this.m_indexBuffer.unmap();
             }
+
+            // Finally, update each RenderItem so that it references the correct mesh descriptor
+            this.UpdateRenderItemMeshDescriptors();
         }
         else
         {
             this.m_indexBuffer = null;
         }
     }
-    public SetInstanceCount(meshId: number | string, count: number): void
+    public Render(encoder: GPURenderPassEncoder): void
     {
-        this.m_meshDescriptors.get(meshId).instanceCount = count;
-        this.m_meshDescriptors.get(meshId).startInstance = 0;
+        if (!this.HasActiveRenderItem())
+            return;
+
+        // Vertex Buffer
+        encoder.setVertexBuffer(this.m_vertexBufferSlot, this.m_vertexBuffer);
+
+        // Index Buffer
+        if (this.m_indexBuffer !== null)
+            encoder.setIndexBuffer(this.m_indexBuffer, this.m_indexFormat);
+
+        // Draw each RenderItem
+        for (let iii = 0; iii < this.m_renderItems.size(); iii++)
+            this.m_renderItems.get(iii).Render(encoder);
     }
-
-
+    private HasActiveRenderItem(): boolean
+    {
+        for (let iii = 0; iii < this.m_renderItems.size(); iii++)
+        {
+            if (this.m_renderItems.get(iii).IsActive())
+                return true;
+        }
+        return false;
+    }
+    private UpdateRenderItemMeshDescriptors(): void
+    {
+        for (let iii = 0; iii < this.m_renderItems.size(); ++iii)
+        {
+            let renderItem = this.m_renderItems.get(iii);
+            renderItem.SetMeshDescriptor(this.m_meshDescriptors.get(renderItem.GetMeshName()));
+        }
+    }
+    public CreateRenderItem(renderItemName: string, meshName: string): RenderItem
+    {
+        return this.m_renderItems.add(renderItemName, new RenderItem(renderItemName, meshName, this.m_meshDescriptors.get(meshName)));
+    }
 
     private m_name: string;
     private m_device: GPUDevice;
@@ -364,6 +426,7 @@ export class MeshGroup
     private m_indexBuffer: GPUBuffer | null = null;
     private m_indexFormat: "uint16" | "uint32";
     private m_vertexBufferSlot: number;
+    private m_renderItems: HybridLookup<RenderItem>;
 }
 export class BindGroup
 {
@@ -386,19 +449,23 @@ export class BindGroup
 }
 export class RenderPassLayer
 {
-    constructor(pipeline: GPURenderPipeline)
+    constructor(name: string, pipeline: GPURenderPipeline)
     {
+        this.m_name = name;
         this.m_renderPipeline = pipeline;
         this.m_bindGroups = [];
-        this.m_meshGroups = [];
+        this.m_meshGroups = new HybridLookup<MeshGroup>();
     }
-    public AddBindGroup(bindGroup: BindGroup): void
+    public Name(): string { return this.m_name; }
+    public AddBindGroup(bindGroup: BindGroup): BindGroup
     {
         this.m_bindGroups.push(bindGroup);
+        return bindGroup;
     }
-    public AddMeshGroup(meshGroup: MeshGroup): void
+    public AddMeshGroup(meshGroup: MeshGroup): MeshGroup
     {
-        this.m_meshGroups.push(meshGroup);
+        this.m_meshGroups.add(meshGroup.Name(), meshGroup);
+        return meshGroup;
     }
     public Render(passEncoder: GPURenderPassEncoder): void
     {
@@ -412,12 +479,19 @@ export class RenderPassLayer
         });
 
         // Set the mesh group
-        // !!! This will make a draw call for each mesh in the group !!!
-        this.m_meshGroups.forEach(meshGroup => { meshGroup.Render(passEncoder); });
+        // !!! This will make a draw call for each RenderItem in each MeshGroup !!!
+        for (let iii = 0; iii < this.m_meshGroups.size(); iii++)
+            this.m_meshGroups.get(iii).Render(passEncoder);
     }
+    public CreateRenderItem(renderItemName: string, meshGroupName: string, meshName: string): RenderItem
+    {
+        return this.m_meshGroups.get(meshGroupName).CreateRenderItem(renderItemName, meshName);
+    }
+
+    private m_name: string;
     private m_renderPipeline: GPURenderPipeline;
     private m_bindGroups: BindGroup[];
-    private m_meshGroups: MeshGroup[];
+    private m_meshGroups: HybridLookup<MeshGroup>;
 }
 export class RenderPassDescriptor
 {
@@ -453,13 +527,15 @@ export class RenderPass
         this.m_bindGroups = [];
         this.m_layers = [];
     }
-    public AddBindGroup(bindGroup: BindGroup): void
+    public AddBindGroup(bindGroup: BindGroup): BindGroup
     {
         this.m_bindGroups.push(bindGroup);
+        return bindGroup;
     }
-    public AddRenderPassLayer(layer: RenderPassLayer): void
+    public AddRenderPassLayer(layer: RenderPassLayer): RenderPassLayer
     {
         this.m_layers.push(layer);
+        return layer;
     }
     public Render(device: GPUDevice, context: GPUCanvasContext, encoder: GPUCommandEncoder): void
     {
@@ -516,9 +592,10 @@ export class Renderer
         // Finalize the command encoder and submit it for rendering
         this.m_device.queue.submit([commandEncoder.finish()]);
     }
-    public AddRenderPass(pass: RenderPass): void
+    public AddRenderPass(pass: RenderPass): RenderPass
     {
         this.m_renderPasses.push(pass);
+        return pass;
     }
     public GetDevice(): GPUDevice
     {

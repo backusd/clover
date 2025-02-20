@@ -7,10 +7,11 @@ export class HybridLookup<T>
     private data: T[] = [];
     private indexMap: { [key: string]: number } = {};
 
-    add(key: string, item: T): void
+    add(key: string, item: T): T
     {
         this.data.push(item);
-        this.indexMap[key] = this.data.length - 1;        
+        this.indexMap[key] = this.data.length - 1;
+        return item;
     }
 
     get(indexOrKey: number | string): T
@@ -29,6 +30,11 @@ export class HybridLookup<T>
             return this.data[index];
         }
         throw Error(`HybridLookup::get() - the indexOrKey parameter was not a number or a string: ${indexOrKey}`);
+    }
+
+    containsKey(key: string): boolean
+    {
+        return this.indexMap[key] !== undefined;
     }
 
     indexOf(key: string): number
