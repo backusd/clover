@@ -12,6 +12,7 @@ import
 import { Camera } from "./Camera.js"
 import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js"
+import { ColorCube } from "./ColorCube.js"
 
 const cubeVertexNumFloats = 10;
 const cubeVertexStride = 4 * cubeVertexNumFloats; // Byte size of one cube vertex.
@@ -266,7 +267,7 @@ export class Application
 		let boxMesh_2 = new Mesh();
 		boxMesh_2.CreateMeshFromRawData("Box mesh 2", cubeVertexArray_2, cubeVertexNumFloats);
 
-		// Creating a 2nd box mesh
+		// Creating a 3rd box mesh
 		let cubeVertexArray_3 = new Float32Array(cubeVertexArray.length);
 		for (let row = 0; row < 36; row++)
 		{
@@ -283,6 +284,23 @@ export class Application
 		let boxMesh_3 = new Mesh();
 		boxMesh_3.CreateMeshFromRawData("Box mesh 3", cubeVertexArray_3, cubeVertexNumFloats);
 
+		// Creating a 4th box mesh
+		let cubeVertexArray_4 = new Float32Array(cubeVertexArray.length);
+		for (let row = 0; row < 36; row++)
+		{
+			for (let col = 0; col < 10; col++)
+			{
+				let iii = row * 10 + col;
+				if (col === 2)
+					cubeVertexArray_4[iii] = cubeVertexArray[iii] + 3;
+				else
+					cubeVertexArray_4[iii] = cubeVertexArray[iii];
+			}
+		}
+
+		let boxMesh_4 = new Mesh();
+		boxMesh_4.CreateMeshFromRawData("Box mesh 4", cubeVertexArray_4, cubeVertexNumFloats);
+
 
 		// Box Mesh
 		let boxMesh = new Mesh();
@@ -290,7 +308,7 @@ export class Application
 
 		// MeshGroup
 		//let boxMeshGroup = new MeshGroup("Box MeshGroup", device, [], 0);
-		this.m_boxMeshGroup.AddMeshes([boxMesh, boxMesh_2, boxMesh_3]);
+		this.m_boxMeshGroup.AddMeshes([boxMesh, boxMesh_2, boxMesh_3, boxMesh_4]);
 
 
 		const module: GPUShaderModule = device.createShaderModule({
@@ -517,12 +535,19 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 
 
 
+
+
 		let terrain: Terrain = new Terrain(10, 10);
 		renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, mvpBindGroupLayout));
 
 
 
-		renderPass.AddRenderPassLayer(renderPassLayer);
+		let colorCube = new ColorCube();
+		renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, mvpBindGroupLayout));
+
+
+
+	//	renderPass.AddRenderPassLayer(renderPassLayer);
 
 		this.m_renderer.AddRenderPass(renderPass);
 	}

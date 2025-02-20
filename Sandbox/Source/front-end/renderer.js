@@ -6,7 +6,7 @@ export class Mesh {
         this.m_rawVertexData = rawVertexData;
         this.m_indices = indices;
         this.m_floatsPerVertex = floatsPerVertex;
-        LOG_CORE_TRACE(`Mesh::CreateMeshFromRawData: name = ${this.m_name} | rawVertexData.length = ${this.m_rawVertexData.length} | floatsPerVertex = ${this.m_floatsPerVertex}`);
+        LOG_CORE_TRACE(`Mesh::CreateMeshFromRawData: name = ${this.m_name} | rawVertexData.length = ${this.m_rawVertexData.length} | floatsPerVertex = ${this.m_floatsPerVertex} | ${this.m_indices}`);
     }
     CreateMeshFromFile(file) {
         LOG_CORE_WARN("Mesh::CreateMeshFromFile not yet implemented");
@@ -60,9 +60,7 @@ export class Mesh {
     IndexCount() {
         if (this.m_indices === null)
             return 0;
-        if (this.m_indices instanceof Uint16Array)
-            return this.m_indices.length / 2;
-        return this.m_indices.length / 4;
+        return this.m_indices.length;
     }
     VertexStride() {
         // Each float is 4 bytes, and for 'stride' we want the total number of bytes
@@ -84,6 +82,8 @@ export class Mesh {
 class MeshDescriptor {
     vertexCount = 0;
     startVertex = 0;
+    indexCount = undefined;
+    startIndex = undefined;
     instanceCount = undefined;
     startInstance = undefined;
 }
@@ -154,26 +154,42 @@ export class MeshGroup {
         this.RebuildBuffers(meshes);
     }
     Render(encoder) {
+        LOG_CORE_TRACE(`encoder.setVertexBuffer(${this.m_vertexBufferSlot}, ${this.m_vertexBuffer});`);
         // Vertex Buffer
         encoder.setVertexBuffer(this.m_vertexBufferSlot, this.m_vertexBuffer);
         // Index Buffer
-        if (this.m_indexBuffer !== null)
+        if (this.m_indexBuffer !== null) {
+            LOG_CORE_TRACE(`encoder.setIndexBuffer(${this.m_indexBuffer}, ${this.m_indexFormat});`);
             encoder.setIndexBuffer(this.m_indexBuffer, this.m_indexFormat);
+        }
         // Draw call
         for (let iii = 0; iii < this.m_meshDescriptors.size(); iii++) {
             let md = this.m_meshDescriptors.get(iii);
-            encoder.draw(md.vertexCount, md.instanceCount, md.startVertex, md.startInstance);
+            if (md.indexCount === undefined) {
+                LOG_CORE_TRACE(`encoder.draw(${md.vertexCount}, ${md.instanceCount}, ${md.startVertex}, ${md.startInstance});`);
+                encoder.draw(md.vertexCount, md.instanceCount, md.startVertex, md.startInstance);
+            }
+            else {
+                LOG_CORE_TRACE(`encoder.drawIndexed(${md.indexCount});`);
+                encoder.drawIndexed(md.indexCount);
+                //encoder.drawIndexed(md.indexCount, md.instanceCount, md.startIndex, md.startVertex, md.startInstance);
+            }
         }
     }
     CheckIndexFormat(meshes) {
         // Before creating the buffers, we first need to make sure all the meshes use the same index format
-        if (meshes.length > 1) {
+        if (meshes.length > 0) {
+            LOG_CORE_TRACE("Checking if indices are Uint16");
             // Index format will default to "uint32", so if they are actually Uint16, then we need to update the format
-            if (meshes[0].IndicesAreUint16())
+            if (meshes[0].IndicesAreUint16()) {
+                LOG_CORE_TRACE("Setting index format to uin16");
                 this.m_indexFormat = "uint16";
-            for (let iii = 1; iii < meshes.length; iii++) {
-                if (!meshes[0].IsIndexCompatible(meshes[iii]))
-                    throw Error(`Meshes '${meshes[0].Name()}' and '${meshes[iii].Name()}' cannot be in the same MeshGroup because their indices are not compatible`);
+            }
+            if (meshes.length > 1) {
+                for (let iii = 1; iii < meshes.length; iii++) {
+                    if (!meshes[0].IsIndexCompatible(meshes[iii]))
+                        throw Error(`Meshes '${meshes[0].Name()}' and '${meshes[iii].Name()}' cannot be in the same MeshGroup because their indices are not compatible`);
+                }
             }
         }
     }
@@ -197,6 +213,10 @@ export class MeshGroup {
             let md = new MeshDescriptor();
             md.vertexCount = mesh.VertexCount();
             md.startVertex = totalVertexCount;
+            if (mesh.HasIndices()) {
+                md.indexCount = mesh.IndexCount();
+                md.startIndex = totalIndexCount;
+            }
             this.m_meshDescriptors.add(mesh.Name(), md);
             totalVertexCount += mesh.VertexCount();
             totalVertexBytes += mesh.TotalVertexByteCount();

@@ -3,6 +3,7 @@ import { Mesh, MeshGroup, BindGroup, RenderPassLayer, RenderPassDescriptor, Rend
 import { Camera } from "./Camera.js";
 import { mat4 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
+import { ColorCube } from "./ColorCube.js";
 const cubeVertexNumFloats = 10;
 const cubeVertexStride = 4 * cubeVertexNumFloats; // Byte size of one cube vertex.
 const cubePositionOffset = 0;
@@ -147,6 +148,11 @@ export class Application {
     }
     OnLButtonDown(e) {
         LOG_TRACE("OnLButtonDown");
+        // Box Mesh
+        //	let boxMesh = new Mesh();
+        //	boxMesh.CreateMeshFromRawData("Box mesh", cubeVertexArray, cubeVertexNumFloats);
+        //	this.m_boxMeshGroup.AddMesh(boxMesh);
+        //	this.m_boxMeshGroup.RemoveMesh("Box mesh 3");
     }
     OnMButtonDown(e) {
         LOG_TRACE("OnMButtonDown");
@@ -162,11 +168,6 @@ export class Application {
     }
     OnRButtonUp(e) {
         LOG_TRACE("OnRButtonUp");
-        // Box Mesh
-        //	let boxMesh = new Mesh();
-        //	boxMesh.CreateMeshFromRawData("Box mesh", cubeVertexArray, cubeVertexNumFloats);
-        //	this.m_boxMeshGroup.AddMesh(boxMesh);
-        this.m_boxMeshGroup.RemoveMesh("Box mesh 3");
     }
     OnPointerMove(e) {
         //LOG_TRACE(`OnPointerMove: (${e.movementX}, ${e.movementY})`);
@@ -198,7 +199,7 @@ export class Application {
         }
         let boxMesh_2 = new Mesh();
         boxMesh_2.CreateMeshFromRawData("Box mesh 2", cubeVertexArray_2, cubeVertexNumFloats);
-        // Creating a 2nd box mesh
+        // Creating a 3rd box mesh
         let cubeVertexArray_3 = new Float32Array(cubeVertexArray.length);
         for (let row = 0; row < 36; row++) {
             for (let col = 0; col < 10; col++) {
@@ -211,12 +212,25 @@ export class Application {
         }
         let boxMesh_3 = new Mesh();
         boxMesh_3.CreateMeshFromRawData("Box mesh 3", cubeVertexArray_3, cubeVertexNumFloats);
+        // Creating a 4th box mesh
+        let cubeVertexArray_4 = new Float32Array(cubeVertexArray.length);
+        for (let row = 0; row < 36; row++) {
+            for (let col = 0; col < 10; col++) {
+                let iii = row * 10 + col;
+                if (col === 2)
+                    cubeVertexArray_4[iii] = cubeVertexArray[iii] + 3;
+                else
+                    cubeVertexArray_4[iii] = cubeVertexArray[iii];
+            }
+        }
+        let boxMesh_4 = new Mesh();
+        boxMesh_4.CreateMeshFromRawData("Box mesh 4", cubeVertexArray_4, cubeVertexNumFloats);
         // Box Mesh
         let boxMesh = new Mesh();
         boxMesh.CreateMeshFromRawData("Box mesh", cubeVertexArray, cubeVertexNumFloats);
         // MeshGroup
         //let boxMeshGroup = new MeshGroup("Box MeshGroup", device, [], 0);
-        this.m_boxMeshGroup.AddMeshes([boxMesh, boxMesh_2, boxMesh_3]);
+        this.m_boxMeshGroup.AddMeshes([boxMesh, boxMesh_2, boxMesh_3, boxMesh_4]);
         const module = device.createShaderModule({
             label: 'cube shader module',
             code: `
@@ -415,7 +429,9 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
         renderPass.AddBindGroup(passBindGroup); // bind group for model-view-projection matrix
         let terrain = new Terrain(10, 10);
         renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, mvpBindGroupLayout));
-        renderPass.AddRenderPassLayer(renderPassLayer);
+        let colorCube = new ColorCube();
+        renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, mvpBindGroupLayout));
+        //	renderPass.AddRenderPassLayer(renderPassLayer);
         this.m_renderer.AddRenderPass(renderPass);
     }
     GetViewProjectionMatrix(deltaTime) {
