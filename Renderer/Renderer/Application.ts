@@ -13,58 +13,9 @@ import { Camera } from "./Camera.js"
 import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js"
 import { ColorCube } from "./ColorCube.js"
+import { TextureCube } from "./TextureCube.js"
 
-const cubeVertexNumFloats = 10;
-const cubeVertexStride = 4 * cubeVertexNumFloats; // Byte size of one cube vertex.
-const cubePositionOffset = 0;
-const cubeColorOffset = 4 * 4; // Byte offset of cube vertex color attribute.
-const cubeUVOffset = 4 * 8;
-const cubeVertexCount = 36;
 
-const cubeVertexArray = new Float32Array([
-	// float4 position, float4 color, float2 uv,
-	1, -1, 1, 1, 1, 0, 1, 1, 0, 1,
-	-1, -1, 1, 1, 0, 0, 1, 1, 1, 1,
-	-1, -1, -1, 1, 0, 0, 0, 1, 1, 0,
-	1, -1, -1, 1, 1, 0, 0, 1, 0, 0,
-	1, -1, 1, 1, 1, 0, 1, 1, 0, 1,
-	-1, -1, -1, 1, 0, 0, 0, 1, 1, 0,
-
-	1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
-	1, -1, 1, 1, 1, 0, 1, 1, 1, 1,
-	1, -1, -1, 1, 1, 0, 0, 1, 1, 0,
-	1, 1, -1, 1, 1, 1, 0, 1, 0, 0,
-	1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
-	1, -1, -1, 1, 1, 0, 0, 1, 1, 0,
-
-	-1, 1, 1, 1, 0, 1, 1, 1, 0, 1,
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-	1, 1, -1, 1, 1, 1, 0, 1, 1, 0,
-	-1, 1, -1, 1, 0, 1, 0, 1, 0, 0,
-	-1, 1, 1, 1, 0, 1, 1, 1, 0, 1,
-	1, 1, -1, 1, 1, 1, 0, 1, 1, 0,
-
-	-1, -1, 1, 1, 0, 0, 1, 1, 0, 1,
-	-1, 1, 1, 1, 0, 1, 1, 1, 1, 1,
-	-1, 1, -1, 1, 0, 1, 0, 1, 1, 0,
-	-1, -1, -1, 1, 0, 0, 0, 1, 0, 0,
-	-1, -1, 1, 1, 0, 0, 1, 1, 0, 1,
-	-1, 1, -1, 1, 0, 1, 0, 1, 1, 0,
-
-	1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
-	-1, 1, 1, 1, 0, 1, 1, 1, 1, 1,
-	-1, -1, 1, 1, 0, 0, 1, 1, 1, 0,
-	-1, -1, 1, 1, 0, 0, 1, 1, 1, 0,
-	1, -1, 1, 1, 1, 0, 1, 1, 0, 0,
-	1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
-
-	1, -1, -1, 1, 1, 0, 0, 1, 0, 1,
-	-1, -1, -1, 1, 0, 0, 0, 1, 1, 1,
-	-1, 1, -1, 1, 0, 1, 0, 1, 1, 0,
-	1, 1, -1, 1, 1, 1, 0, 1, 0, 0,
-	1, -1, -1, 1, 1, 0, 0, 1, 0, 1,
-	-1, 1, -1, 1, 0, 1, 0, 1, 1, 0,
-]);
 
 export class Application
 {
@@ -84,20 +35,6 @@ export class Application
 			size: uniformBufferSize,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
-
-		this.m_boxMeshGroup = new MeshGroup("Box MeshGroup", device, [], 0);
-		
-
-
-	//	// Create a vertex buffer from the cube data.
-	//	this.m_verticesBuffer = device.createBuffer({
-	//		label: "vertices buffer",
-	//		size: cubeVertexArray.byteLength,
-	//		usage: GPUBufferUsage.VERTEX,
-	//		mappedAtCreation: true,
-	//	});
-	//	new Float32Array(this.m_verticesBuffer.getMappedRange()).set(cubeVertexArray);
-	//	this.m_verticesBuffer.unmap();
 	}
 	private SetupInputCallbacks(): void
 	{
@@ -193,12 +130,6 @@ export class Application
 	private OnLButtonDown(e: PointerEvent)
 	{
 		LOG_TRACE("OnLButtonDown");
-
-		// Box Mesh
-		//	let boxMesh = new Mesh();
-		//	boxMesh.CreateMeshFromRawData("Box mesh", cubeVertexArray, cubeVertexNumFloats);
-		//	this.m_boxMeshGroup.AddMesh(boxMesh);
-	//	this.m_boxMeshGroup.RemoveMesh("Box mesh 3");
 	}
 	private OnMButtonDown(e: PointerEvent)
 	{
@@ -248,108 +179,6 @@ export class Application
 		canvas.width = canvas.clientWidth * devicePixelRatio;
 		canvas.height = canvas.clientHeight * devicePixelRatio;
 
-
-
-		// Creating a 2nd box mesh
-		let cubeVertexArray_2 = new Float32Array(cubeVertexArray.length);
-		for (let row = 0; row < 36; row++)
-		{
-			for (let col = 0; col < 10; col++)
-			{
-				let iii = row * 10 + col;
-				if (col >= 1)
-					cubeVertexArray_2[iii] = cubeVertexArray[iii];
-				else
-					cubeVertexArray_2[iii] = cubeVertexArray[iii] + 3;
-			}
-		}
-
-		let boxMesh_2 = new Mesh();
-		boxMesh_2.CreateMeshFromRawData("Box mesh 2", cubeVertexArray_2, cubeVertexNumFloats);
-
-		// Creating a 3rd box mesh
-		let cubeVertexArray_3 = new Float32Array(cubeVertexArray.length);
-		for (let row = 0; row < 36; row++)
-		{
-			for (let col = 0; col < 10; col++)
-			{
-				let iii = row * 10 + col;
-				if (col === 1)
-					cubeVertexArray_3[iii] = cubeVertexArray[iii] + 3;
-				else
-					cubeVertexArray_3[iii] = cubeVertexArray[iii];
-			}
-		}
-
-		let boxMesh_3 = new Mesh();
-		boxMesh_3.CreateMeshFromRawData("Box mesh 3", cubeVertexArray_3, cubeVertexNumFloats);
-
-		// Creating a 4th box mesh
-		let cubeVertexArray_4 = new Float32Array(cubeVertexArray.length);
-		for (let row = 0; row < 36; row++)
-		{
-			for (let col = 0; col < 10; col++)
-			{
-				let iii = row * 10 + col;
-				if (col === 2)
-					cubeVertexArray_4[iii] = cubeVertexArray[iii] + 3;
-				else
-					cubeVertexArray_4[iii] = cubeVertexArray[iii];
-			}
-		}
-
-		let boxMesh_4 = new Mesh();
-		boxMesh_4.CreateMeshFromRawData("Box mesh 4", cubeVertexArray_4, cubeVertexNumFloats);
-
-
-		// Box Mesh
-		let boxMesh = new Mesh();
-		boxMesh.CreateMeshFromRawData("Box mesh", cubeVertexArray, cubeVertexNumFloats);
-
-		// MeshGroup
-		//let boxMeshGroup = new MeshGroup("Box MeshGroup", device, [], 0);
-		this.m_boxMeshGroup.AddMeshes([boxMesh, boxMesh_2, boxMesh_3, boxMesh_4]);
-
-
-		const module: GPUShaderModule = device.createShaderModule({
-			label: 'cube shader module',
-			code: `
-struct Uniforms
-{
-  viewProjectionMatrix : mat4x4f
-}
-
-struct Vertex
-{
-  @location(0) position: vec4f,
-  @location(1) uv: vec2f
-}
-
-@group(0) @binding(0) var<uniform> uniforms : Uniforms;
-
-@group(1) @binding(0) var mySampler: sampler;
-@group(1) @binding(1) var myTexture: texture_2d<f32>;
-
-struct VertexOutput
-{
-  @builtin(position) Position : vec4f,
-  @location(0) fragUV : vec2f,
-}
-
-@vertex
-fn vertex_main(vertex: Vertex) -> VertexOutput
-{
-  return VertexOutput(uniforms.viewProjectionMatrix * vertex.position, vertex.uv);
-}
-
-@fragment
-fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
-{
-  return textureSample(myTexture, mySampler, fragUV);
-}
-`
-		});
-
 		let mvpBindGroupLayout: GPUBindGroupLayout = device.createBindGroupLayout(
 			{
 				label: "Model-View-Projection BindGroupLayout",
@@ -362,105 +191,11 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 				]
 			}
 		);
-		let cubeBindGroupLayout: GPUBindGroupLayout = device.createBindGroupLayout(
-			{
-				label: "Cube BindGroupLayout",
-				entries: [
-					{
-						binding: 0,
-						visibility: GPUShaderStage.FRAGMENT,
-						sampler: {}
-					},
-					{
-						binding: 1,
-						visibility: GPUShaderStage.FRAGMENT,
-						texture: {}
-					}
-				]
-			}
-		);
-
-		let cubePipelineLayoutDescriptor: GPUPipelineLayoutDescriptor = {
-			bindGroupLayouts: [mvpBindGroupLayout, cubeBindGroupLayout]
-		};
-		let cubePipelineLayout: GPUPipelineLayout = device.createPipelineLayout(cubePipelineLayoutDescriptor);
-		cubePipelineLayout.label = "Cube PipelineLayout";
-
-		this.m_pipeline = device.createRenderPipeline({
-			label: "main pipeline",
-			layout: cubePipelineLayout,
-			vertex: {
-				module,
-				buffers: [
-					{
-						arrayStride: cubeVertexStride,
-						attributes: [
-							{
-								// position
-								shaderLocation: 0,
-								offset: cubePositionOffset,
-								format: 'float32x4',
-							},
-							{
-								// uv
-								shaderLocation: 1,
-								offset: cubeUVOffset,
-								format: 'float32x2',
-							},
-						],
-					},
-				],
-			},
-			fragment: {
-				module,
-				targets: [
-					{
-						format: navigator.gpu.getPreferredCanvasFormat(),
-					},
-				],
-			},
-			primitive: {
-				topology: 'triangle-list',
-				cullMode: 'back',
-			},
-			depthStencil: {
-				depthWriteEnabled: true,
-				depthCompare: 'less',
-				format: 'depth24plus',
-			},
-		});
 
 		const depthTexture = device.createTexture({
 			size: [canvas.width, canvas.height],
 			format: 'depth24plus',
 			usage: GPUTextureUsage.RENDER_ATTACHMENT,
-		});
-
-		// Fetch the image and upload it into a GPUTexture.
-		let cubeTexture: GPUTexture;
-		{
-			const response = await fetch('./images/molecule.jpeg');
-			const imageBitmap = await createImageBitmap(await response.blob());
-
-			cubeTexture = device.createTexture({
-				size: [imageBitmap.width, imageBitmap.height, 1],
-				format: 'rgba8unorm',
-				usage:
-					GPUTextureUsage.TEXTURE_BINDING |
-					GPUTextureUsage.COPY_DST |
-					GPUTextureUsage.RENDER_ATTACHMENT,
-			});
-			device.queue.copyExternalImageToTexture(
-				{ source: imageBitmap },
-				{ texture: cubeTexture },
-				[imageBitmap.width, imageBitmap.height]
-			);
-		}
-
-		// Create a sampler with linear filtering for smooth interpolation.
-		const sampler = device.createSampler({
-			magFilter: 'linear',
-			minFilter: 'linear',
 		});
 
 		let mvpBindGroup = device.createBindGroup({
@@ -472,19 +207,6 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 						buffer: this.m_uniformBuffer,
 					},
 				}
-			],
-		});
-		let cubeBindGroup = device.createBindGroup({
-			layout: cubeBindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: sampler,
-				},
-				{
-					binding: 1,
-					resource: cubeTexture.createView(),
-				},
 			],
 		});
 
@@ -499,55 +221,39 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 			],
 			depthStencilAttachment: {
 				view: depthTexture.createView(),
-
 				depthClearValue: 1.0,
 				depthLoadOp: 'clear',
 				depthStoreOp: 'store',
 			},
 		};	
 
-
-		// Box MeshGroup
-	//	let boxMeshGroup: MeshGroup = new MeshGroup(this.m_verticesBuffer, 0);
-	//	let boxDescriptor: MeshDescriptor = {
-	//		vertexCount: cubeVertexCount,
-	//		startVertex: 0,
-	//		instanceCount: undefined,
-	//		startInstance: undefined
-	//	}
-	//	boxMeshGroup.AddMeshDescriptor(boxDescriptor);
-
 		// Bind Groups
 		let passBindGroup: BindGroup = new BindGroup(0, mvpBindGroup);
-		let cubeLayerBindGroup: BindGroup = new BindGroup(1, cubeBindGroup);
 
 		// RenderPassDescriptor
 		let renderPassDescriptor: RenderPassDescriptor = new RenderPassDescriptor(this.m_renderPassDescriptor);
-
-		// RenderPassLayer
-		let renderPassLayer: RenderPassLayer = new RenderPassLayer(this.m_pipeline);
-		renderPassLayer.AddMeshGroup(this.m_boxMeshGroup);
-		renderPassLayer.AddBindGroup(cubeLayerBindGroup);
 
 		// RenderPass
 		let renderPass: RenderPass = new RenderPass(renderPassDescriptor);
 		renderPass.AddBindGroup(passBindGroup); // bind group for model-view-projection matrix
 
 
+		// ====== Layers ==============================
 
-
-
+		// Terrain
 		let terrain: Terrain = new Terrain(10, 10);
 		renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, mvpBindGroupLayout));
 
+		// Texture Cube
+		let textureCube = new TextureCube();
+		renderPass.AddRenderPassLayer(await textureCube.Initialize(this.m_renderer, mvpBindGroupLayout));
+
+		// Solid Color Cube
+	//	let colorCube = new ColorCube();
+	//	renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, mvpBindGroupLayout));
 
 
-		let colorCube = new ColorCube();
-		renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, mvpBindGroupLayout));
-
-
-
-	//	renderPass.AddRenderPassLayer(renderPassLayer);
+		// ============================================
 
 		this.m_renderer.AddRenderPass(renderPass);
 	}
@@ -588,7 +294,5 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 	private m_renderPassDescriptor: GPURenderPassDescriptor | null;
 	private m_pipeline: GPURenderPipeline | null;
 	private m_uniformBuffer: GPUBuffer;
-//	private m_verticesBuffer: GPUBuffer;
 	private m_uniformBindGroup: GPUBindGroup | null;
-	private m_boxMeshGroup: MeshGroup;
 }

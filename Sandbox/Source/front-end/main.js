@@ -52,7 +52,7 @@ async function main() {
             // Note: The Application does NOT call render directly. Rather it is the responsibility of
             // the application to set up the RenderPasses, which the Renderer will loop over when rendering
             renderer.Render();
-            //    requestAnimationFrame(DoFrame);
+            requestAnimationFrame(DoFrame);
         }
         requestAnimationFrame(DoFrame);
     }
