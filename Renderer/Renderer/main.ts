@@ -14,6 +14,7 @@ import { Renderer } from "./Renderer.js";
 import { Application } from "./Application.js";
 import { Timer } from "./Timer.js"
 
+import { HybridLookup } from "./Utils.js"
 
 function fail(msg: string)
 {

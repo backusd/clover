@@ -1,5 +1,4 @@
 
-
 // HydridLookup allows you to retain a list of items and
 // look them up either via index or via string
 export class HybridLookup<T>
@@ -59,12 +58,23 @@ export class HybridLookup<T>
         let index = this.indexOfKey(key);
         this.m_indexMap.delete(key);
         this.m_data.splice(index, 1);
+        this.decrementIndexForKeys(index);
     }
 
     removeFromIndex(index: number): void
     {
         this.m_indexMap.delete(this.findKeyFromIndex(index));
         this.m_data.splice(index, 1);
+        this.decrementIndexForKeys(index);
+    }
+
+    private decrementIndexForKeys(startIndex: number)
+    {
+        for (const [key, val] of this.m_indexMap)
+        {
+            if (val >= startIndex)
+                this.m_indexMap.set(key, val - 1);
+        }
     }
 
     private findKeyFromIndex(index: number): string
@@ -90,6 +100,7 @@ export class HybridLookup<T>
             {
                 this.m_data.splice(iii, 1);
                 this.m_indexMap.delete(key);
+                this.decrementIndexForKeys(iii);
             }
         }
     }
@@ -116,5 +127,16 @@ export class HybridLookup<T>
     size(): number
     {
         return this.m_data.length;
+    }
+
+
+
+    toString(): string
+    {
+        let s: string = "[";
+        for (let iii = 0; iii < this.m_data.length; ++iii)
+            s += `(${iii}|${this.findKeyFromIndex(iii)}):${this.m_data[iii]}, `;
+        s += "]";
+        return s;
     }
 }

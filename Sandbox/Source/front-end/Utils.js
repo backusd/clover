@@ -38,10 +38,18 @@ export class HybridLookup {
         let index = this.indexOfKey(key);
         this.m_indexMap.delete(key);
         this.m_data.splice(index, 1);
+        this.decrementIndexForKeys(index);
     }
     removeFromIndex(index) {
         this.m_indexMap.delete(this.findKeyFromIndex(index));
         this.m_data.splice(index, 1);
+        this.decrementIndexForKeys(index);
+    }
+    decrementIndexForKeys(startIndex) {
+        for (const [key, val] of this.m_indexMap) {
+            if (val >= startIndex)
+                this.m_indexMap.set(key, val - 1);
+        }
     }
     findKeyFromIndex(index) {
         for (const [key, val] of this.m_indexMap) {
@@ -58,6 +66,7 @@ export class HybridLookup {
             if (predicate(this.m_data[iii], iii, key)) {
                 this.m_data.splice(iii, 1);
                 this.m_indexMap.delete(key);
+                this.decrementIndexForKeys(iii);
             }
         }
     }
@@ -76,6 +85,13 @@ export class HybridLookup {
     }
     size() {
         return this.m_data.length;
+    }
+    toString() {
+        let s = "[";
+        for (let iii = 0; iii < this.m_data.length; ++iii)
+            s += `(${iii}|${this.findKeyFromIndex(iii)}):${this.m_data[iii]}, `;
+        s += "]";
+        return s;
     }
 }
 //# sourceMappingURL=Utils.js.map
