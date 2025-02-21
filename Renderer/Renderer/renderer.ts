@@ -203,7 +203,7 @@ export class MeshGroup
         // Create an array of all meshes with the new ones at the end
         let newMeshes: Mesh[] = [];
         for (let iii = 0; iii < this.m_meshes.size(); iii++)
-            newMeshes.push(this.m_meshes.get(iii));
+            newMeshes.push(this.m_meshes.getFromIndex(iii));
 
         for (let mesh of meshes)
             newMeshes.push(mesh);
@@ -214,7 +214,7 @@ export class MeshGroup
     public RemoveMesh(meshId: string | number): void
     {
         if (typeof meshId === "string")
-            this.RemoveMeshImpl(this.m_meshes.indexOf(meshId));
+            this.RemoveMeshImpl(this.m_meshes.indexOfKey(meshId));
         else if (typeof meshId === "number")
             this.RemoveMeshImpl(meshId);
     }
@@ -232,13 +232,26 @@ export class MeshGroup
         let meshes: Mesh[] = [];
         for (let iii = 0; iii < this.m_meshes.size(); iii++)
         {
-            let mesh = this.m_meshes.get(iii);
+            let mesh = this.m_meshes.getFromIndex(iii);
 
             if (iii === meshIndex)
             {
                 // Before removing the mesh, we must make sure there are no RenderItems still referencing the mesh
                 // If so, we must delete them (and we also log an error)
-                this.RemoveRenderItemsUsingMesh(mesh.Name());
+                let pred = (renderItem: RenderItem, index: number, key: string): boolean =>
+                {
+                    return renderItem.GetMeshName() === mesh.Name();
+                };
+
+                let renderItems: RenderItem[] = this.m_renderItems.filter(pred);
+                if (renderItems.length > 0)
+                {
+                    LOG_CORE_ERROR(`MeshGroup('${this.m_name}'): Removing mesh '${mesh.Name()}', but there are still RenderItems that reference this mesh.`);
+                    LOG_CORE_ERROR(`    The following RenderItems will be removed as well:`);
+                    renderItems.forEach(ri => { LOG_CORE_ERROR(`        ${ri.Name()}`); });
+                    this.m_renderItems.removeIf(pred);
+                }
+
                 continue;
             }
 
@@ -247,10 +260,6 @@ export class MeshGroup
 
         // Rebuild the buffers
         this.RebuildBuffers(meshes);
-    }
-    private RemoveRenderItemsUsingMesh(meshName: string): void
-    {
-        let 
     }
     private CheckIndexFormat(meshes: Mesh[]): void
     {
@@ -394,13 +403,13 @@ export class MeshGroup
 
         // Draw each RenderItem
         for (let iii = 0; iii < this.m_renderItems.size(); iii++)
-            this.m_renderItems.get(iii).Render(encoder);
+            this.m_renderItems.getFromIndex(iii).Render(encoder);
     }
     private HasActiveRenderItem(): boolean
     {
         for (let iii = 0; iii < this.m_renderItems.size(); iii++)
         {
-            if (this.m_renderItems.get(iii).IsActive())
+            if (this.m_renderItems.getFromIndex(iii).IsActive())
                 return true;
         }
         return false;
@@ -409,13 +418,13 @@ export class MeshGroup
     {
         for (let iii = 0; iii < this.m_renderItems.size(); ++iii)
         {
-            let renderItem = this.m_renderItems.get(iii);
-            renderItem.SetMeshDescriptor(this.m_meshDescriptors.get(renderItem.GetMeshName()));
+            let renderItem = this.m_renderItems.getFromIndex(iii);
+            renderItem.SetMeshDescriptor(this.m_meshDescriptors.getFromKey(renderItem.GetMeshName()));
         }
     }
     public CreateRenderItem(renderItemName: string, meshName: string): RenderItem
     {
-        return this.m_renderItems.add(renderItemName, new RenderItem(renderItemName, meshName, this.m_meshDescriptors.get(meshName)));
+        return this.m_renderItems.add(renderItemName, new RenderItem(renderItemName, meshName, this.m_meshDescriptors.getFromKey(meshName)));
     }
 
     private m_name: string;
@@ -481,11 +490,11 @@ export class RenderPassLayer
         // Set the mesh group
         // !!! This will make a draw call for each RenderItem in each MeshGroup !!!
         for (let iii = 0; iii < this.m_meshGroups.size(); iii++)
-            this.m_meshGroups.get(iii).Render(passEncoder);
+            this.m_meshGroups.getFromIndex(iii).Render(passEncoder);
     }
     public CreateRenderItem(renderItemName: string, meshGroupName: string, meshName: string): RenderItem
     {
-        return this.m_meshGroups.get(meshGroupName).CreateRenderItem(renderItemName, meshName);
+        return this.m_meshGroups.getFromKey(meshGroupName).CreateRenderItem(renderItemName, meshName);
     }
 
     private m_name: string;

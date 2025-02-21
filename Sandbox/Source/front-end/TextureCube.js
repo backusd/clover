@@ -60,7 +60,7 @@ export class TextureCube {
             }
         }
         let boxMesh_2 = new Mesh();
-        boxMesh_2.CreateMeshFromRawData("Texture cube mesh 2", cubeVertexArray_2, cubeVertexNumFloats);
+        boxMesh_2.CreateMeshFromRawData("mesh_texture-cube-2", cubeVertexArray_2, cubeVertexNumFloats);
         // Creating a 3rd box mesh
         let cubeVertexArray_3 = new Float32Array(cubeVertexArray.length);
         for (let row = 0; row < 36; row++) {
@@ -73,12 +73,12 @@ export class TextureCube {
             }
         }
         let boxMesh_3 = new Mesh();
-        boxMesh_3.CreateMeshFromRawData("Texture cube mesh 3", cubeVertexArray_3, cubeVertexNumFloats);
+        boxMesh_3.CreateMeshFromRawData("mesh_texture-cube-3", cubeVertexArray_3, cubeVertexNumFloats);
         // Box Mesh
         let boxMesh = new Mesh();
-        boxMesh.CreateMeshFromRawData("Texture Cube mesh", cubeVertexArray, cubeVertexNumFloats);
+        boxMesh.CreateMeshFromRawData("mesh_texture-cube", cubeVertexArray, cubeVertexNumFloats);
         // MeshGroup
-        let cubeMeshGroup = new MeshGroup("Texture Cube MeshGroup", device, [boxMesh, boxMesh_2, boxMesh_3], 0);
+        let cubeMeshGroup = new MeshGroup("mg_texture-cube", device, [boxMesh, boxMesh_2, boxMesh_3], 0);
         const module = device.createShaderModule({
             label: 'Texture cube shader module',
             code: `
@@ -118,7 +118,7 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 `
         });
         let cubeBindGroupLayout = device.createBindGroupLayout({
-            label: "Texture cube BindGroupLayout",
+            label: "bgl_texture-cube",
             entries: [
                 {
                     binding: 0,
@@ -136,9 +136,9 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
             bindGroupLayouts: [passBindGroupLayout, cubeBindGroupLayout]
         };
         let cubePipelineLayout = device.createPipelineLayout(cubePipelineLayoutDescriptor);
-        cubePipelineLayout.label = "Texture cube PipelineLayout";
+        cubePipelineLayout.label = "pl_texture-cube";
         let pipeline = device.createRenderPipeline({
-            label: "Texture cube pipeline",
+            label: "rp_texture-cube",
             layout: cubePipelineLayout,
             vertex: {
                 module,
@@ -214,7 +214,7 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
         });
         let textureCubeLayerBindGroup = new BindGroup(1, cubeBindGroup);
         // RenderPassLayer
-        let renderPassLayer = new RenderPassLayer(pipeline);
+        let renderPassLayer = new RenderPassLayer("rpl_texture-cube", pipeline);
         renderPassLayer.AddMeshGroup(cubeMeshGroup);
         renderPassLayer.AddBindGroup(textureCubeLayerBindGroup);
         return renderPassLayer;

@@ -29,7 +29,7 @@ export class Terrain {
         vertexBuffer.unmap();
         // Create the shaders
         const module = device.createShaderModule({
-            label: 'terrain shader module',
+            label: 'sm_terrain',
             code: `
 struct Uniforms
 {
@@ -191,13 +191,16 @@ fn fragment_main(@location(0) color: vec4f) -> @location(0) vec4f
         let terrainLayerBindGroup = new BindGroup(1, instanceBindGroup);
         // Terrain MeshGroup
         let terrainMesh = new Mesh();
-        terrainMesh.CreateMeshFromRawData("Terrain Mesh", terrainVertexArray, terrainVertexNumFloats);
-        let terrainMeshGroup = new MeshGroup("Terrain MeshGroup", device, [terrainMesh], 0);
-        terrainMeshGroup.SetInstanceCount("Terrain Mesh", numInstances);
+        terrainMesh.CreateMeshFromRawData("mesh_terrain", terrainVertexArray, terrainVertexNumFloats);
+        let terrainMeshGroup = new MeshGroup("mg_terrain", device, [terrainMesh], 0);
+        //	terrainMeshGroup.SetInstanceCount("Terrain Mesh", numInstances);
         // RenderPassLayer
-        let renderPassLayer = new RenderPassLayer(pipeline);
+        let renderPassLayer = new RenderPassLayer("rpl_terrain", pipeline);
         renderPassLayer.AddMeshGroup(terrainMeshGroup);
         renderPassLayer.AddBindGroup(terrainLayerBindGroup);
+        // RenderItem
+        let renderItem = renderPassLayer.CreateRenderItem("ri_terrain", "mg_terrain", "mesh_terrain");
+        renderItem.SetInstanceCount(numInstances);
         return renderPassLayer;
     }
     m_width;

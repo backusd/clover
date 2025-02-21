@@ -41,7 +41,7 @@ export class ColorCube {
         let context = renderer.GetContext();
         // Create the Mesh
         let mesh = new Mesh();
-        mesh.CreateMeshFromRawData("color cube mesh", cubeVertexArray, numFloatsPerVertex, cubeIndexArray);
+        mesh.CreateMeshFromRawData("mesh_color-cube", cubeVertexArray, numFloatsPerVertex, cubeIndexArray);
         // Creating a 2nd cube mesh
         let cubeVertexArray_2 = new Float32Array(cubeVertexArray.length);
         for (let row = 0; row < 8; row++) {
@@ -54,7 +54,7 @@ export class ColorCube {
             }
         }
         let mesh_2 = new Mesh();
-        mesh_2.CreateMeshFromRawData("Color cube mesh 2", cubeVertexArray_2, numFloatsPerVertex, cubeIndexArray);
+        mesh_2.CreateMeshFromRawData("mesh_color-cube-2", cubeVertexArray_2, numFloatsPerVertex, cubeIndexArray);
         // Creating a 3nd cube mesh
         let cubeVertexArray_3 = new Float32Array(cubeVertexArray.length);
         for (let row = 0; row < 8; row++) {
@@ -67,9 +67,9 @@ export class ColorCube {
             }
         }
         let mesh_3 = new Mesh();
-        mesh_3.CreateMeshFromRawData("Color cube mesh 3", cubeVertexArray_3, numFloatsPerVertex, cubeIndexArray);
+        mesh_3.CreateMeshFromRawData("mesh_color-cube-3", cubeVertexArray_3, numFloatsPerVertex, cubeIndexArray);
         // MeshGroup
-        let meshGroup = new MeshGroup("color cube mesh group", device, [mesh, mesh_2, mesh_3], 0);
+        let meshGroup = new MeshGroup("mg_color-cube", device, [mesh, mesh_2, mesh_3], 0);
         // Create the shaders
         const module = device.createShaderModule({
             label: 'color cube shader module',
@@ -110,10 +110,10 @@ fn fragment_main(@location(0) color: vec4f) -> @location(0) vec4f
             bindGroupLayouts: [passBindGroupLayout]
         };
         let pipelineLayout = device.createPipelineLayout(layoutDescriptor);
-        pipelineLayout.label = "Color Cube PipelineLayout";
+        pipelineLayout.label = "pl_color-cube";
         // Create the pipeline
         let pipeline = device.createRenderPipeline({
-            label: "Color Cube Pipeline",
+            label: "rp_color-cube",
             layout: pipelineLayout,
             vertex: {
                 module,
@@ -156,7 +156,7 @@ fn fragment_main(@location(0) color: vec4f) -> @location(0) vec4f
             },
         });
         // RenderPassLayer
-        let renderPassLayer = new RenderPassLayer(pipeline);
+        let renderPassLayer = new RenderPassLayer("rpl_color-cube", pipeline);
         renderPassLayer.AddMeshGroup(meshGroup);
         return renderPassLayer;
     }

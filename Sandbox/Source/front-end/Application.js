@@ -181,7 +181,8 @@ export class Application {
         renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, mvpBindGroupLayout));
         // Texture Cube
         let textureCube = new TextureCube();
-        renderPass.AddRenderPassLayer(await textureCube.Initialize(this.m_renderer, mvpBindGroupLayout));
+        let textureCubeLayer = renderPass.AddRenderPassLayer(await textureCube.Initialize(this.m_renderer, mvpBindGroupLayout));
+        let textureCubeRI = textureCubeLayer.CreateRenderItem("ri_texture-cube", "mg_texture-cube", "mesh_texture-cube");
         // Solid Color Cube
         //	let colorCube = new ColorCube();
         //	renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, mvpBindGroupLayout));

@@ -1,74 +1,81 @@
 // HydridLookup allows you to retain a list of items and
 // look them up either via index or via string
 export class HybridLookup {
-    data = [];
-    indexMap = {};
+    m_data = [];
+    m_indexMap = new Map();
     add(key, item) {
-        this.data.push(item);
-        this.indexMap[key] = this.data.length - 1;
+        this.m_data.push(item);
+        this.m_indexMap.set(key, this.m_data.length - 1);
+        return item;
     }
-    get(indexOrKey) {
-        if (typeof indexOrKey === 'number') {
-            return this.data[indexOrKey];
-        }
-        else if (typeof indexOrKey === 'string') {
-            const index = this.indexMap[indexOrKey];
-            if (index === undefined)
-                throw Error(`HybridLookup::get() - key '${indexOrKey}' was not found`);
-            return this.data[index];
-        }
-        throw Error(`HybridLookup::get() - the indexOrKey parameter was not a number or a string: ${indexOrKey}`);
-    }
-    indexOf(key) {
-        const index = this.indexMap[key];
+    getFromKey(key) {
+        const index = this.m_indexMap.get(key);
         if (index === undefined)
-            throw Error(`HybridLookup::indexOf() - key '${key}' was not found`);
+            throw Error(`HybridLookup::getFromKey() - key '${key}' was not found`);
+        return this.m_data[index];
+    }
+    getFromIndex(index) {
+        return this.m_data[index];
+    }
+    containsKey(key) {
+        return this.m_indexMap.has(key);
+    }
+    indexOfKey(key) {
+        const index = this.m_indexMap.get(key);
+        if (index === undefined)
+            throw Error(`HybridLookup::indexOfKey() - key '${key}' was not found`);
         return index;
     }
-    update(indexOrKey, newItem) {
-        if (typeof indexOrKey === 'number') {
-            if (indexOrKey >= 0 && indexOrKey < this.data.length) {
-                this.data[indexOrKey] = newItem;
+    updateFromKey(key, newItem) {
+        this.m_data[this.indexOfKey(key)] = newItem;
+        return newItem;
+    }
+    updateFromIndex(index, newItem) {
+        this.m_data[index] = newItem;
+        return newItem;
+    }
+    removeFromKey(key) {
+        let index = this.indexOfKey(key);
+        this.m_indexMap.delete(key);
+        this.m_data.splice(index, 1);
+    }
+    removeFromIndex(index) {
+        this.m_indexMap.delete(this.findKeyFromIndex(index));
+        this.m_data.splice(index, 1);
+    }
+    findKeyFromIndex(index) {
+        for (const [key, val] of this.m_indexMap) {
+            if (val === index) {
+                return key;
             }
         }
-        else if (typeof indexOrKey === 'string') {
-            const index = this.indexMap[indexOrKey];
-            if (index !== undefined) {
-                this.data[index] = newItem;
+        throw Error(`HybridLookup::findKeyFromIndex() - key with value '${index}' was not found`);
+    }
+    removeIf(predicate) {
+        // Loop over the data in reverse and remove if the predicate evaluates to true
+        for (let iii = this.m_data.length - 1; iii >= 0; --iii) {
+            let key = this.findKeyFromIndex(iii);
+            if (predicate(this.m_data[iii], iii, key)) {
+                this.m_data.splice(iii, 1);
+                this.m_indexMap.delete(key);
             }
         }
     }
-    remove(indexOrKey) {
-        if (typeof indexOrKey === 'number') {
-            if (indexOrKey >= 0 && indexOrKey < this.data.length) {
-                this.data.splice(indexOrKey, 1);
-                this.rebuildIndexMap();
-            }
+    filter(predicate) {
+        let results = [];
+        for (let iii = 0; iii < this.m_data.length; ++iii) {
+            let key = this.findKeyFromIndex(iii);
+            if (predicate(this.m_data[iii], iii, key))
+                results.push(this.m_data[iii]);
         }
-        else if (typeof indexOrKey === 'string') {
-            const index = this.indexMap[indexOrKey];
-            if (index !== undefined) {
-                delete this.indexMap[indexOrKey];
-                this.data.splice(index, 1);
-                this.rebuildIndexMap();
-            }
-        }
+        return results;
     }
     clear() {
-        this.data.length = 0;
-        this.indexMap = {};
-    }
-    rebuildIndexMap() {
-        this.indexMap = {};
-        for (let i = 0; i < this.data.length; i++) {
-            const item = this.data[i];
-            if (item && item.key && typeof item.key === 'string') {
-                this.indexMap[item.key] = i;
-            }
-        }
+        this.m_data.length = 0;
+        this.m_indexMap.clear();
     }
     size() {
-        return this.data.length;
+        return this.m_data.length;
     }
 }
 //# sourceMappingURL=Utils.js.map

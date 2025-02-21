@@ -1,5 +1,45 @@
-import { LOG_CORE_WARN } from "./Log.js";
+import { LOG_CORE_WARN, LOG_CORE_ERROR, LOG_TRACE } from "./Log.js";
 import { HybridLookup } from "./Utils.js";
+export class MeshDescriptor {
+    vertexCount = 0;
+    startVertex = 0;
+    indexCount = undefined;
+    startIndex = undefined;
+}
+export class RenderItem {
+    constructor(name, meshName, meshDescriptor) {
+        this.m_name = name;
+        this.m_meshName = meshName;
+        this.m_meshDescriptor = meshDescriptor;
+    }
+    IsActive() { return this.m_isActive; }
+    Name() { return this.m_name; }
+    GetMeshName() { return this.m_meshName; }
+    GetInstanceCount() { return this.m_instanceCount; }
+    GetStartInstance() { return this.m_startInstance; }
+    SetInstanceCount(count) { this.m_instanceCount = count; }
+    SetStartInstance(start) { this.m_startInstance = start; }
+    SetMeshDescriptor(descriptor) { this.m_meshDescriptor = descriptor; }
+    IncrementInstanceCount(increment = 1) { this.m_instanceCount += increment; }
+    DecrementInstanceCount(decrement = 1) { this.m_instanceCount = Math.max(0, this.m_instanceCount - decrement); }
+    Render(encoder) {
+        LOG_TRACE(`RenderItem: '${this.m_name}' | instances: ${this.m_instanceCount}`);
+        if (this.m_isActive) {
+            if (this.m_meshDescriptor.indexCount === undefined) {
+                encoder.draw(this.m_meshDescriptor.vertexCount, this.m_instanceCount, this.m_meshDescriptor.startVertex, this.m_startInstance);
+            }
+            else {
+                encoder.drawIndexed(this.m_meshDescriptor.indexCount, this.m_instanceCount, this.m_meshDescriptor.startIndex, this.m_meshDescriptor.startVertex, this.m_startInstance);
+            }
+        }
+    }
+    m_name;
+    m_meshName;
+    m_meshDescriptor;
+    m_instanceCount = 1;
+    m_startInstance = 0;
+    m_isActive = true;
+}
 export class Mesh {
     CreateMeshFromRawData(name, rawVertexData, floatsPerVertex, indices = null) {
         this.m_name = name;
@@ -78,14 +118,6 @@ export class Mesh {
     m_indices = null;
     m_floatsPerVertex = 0;
 }
-class MeshDescriptor {
-    vertexCount = 0;
-    startVertex = 0;
-    indexCount = undefined;
-    startIndex = undefined;
-    instanceCount = undefined;
-    startInstance = undefined;
-}
 export class MeshGroup {
     constructor(name, device, meshes = [], vertexBufferSlot = 0) {
         this.m_name = name;
@@ -93,11 +125,14 @@ export class MeshGroup {
         this.m_vertexBufferSlot = vertexBufferSlot;
         this.m_meshes = new HybridLookup();
         this.m_meshDescriptors = new HybridLookup();
+        this.m_renderItems = new HybridLookup();
         this.m_indexFormat = "uint32";
         this.RebuildBuffers(meshes);
     }
+    Name() { return this.m_name; }
     AddMesh(mesh) {
         this.AddMeshes([mesh]);
+        return mesh;
     }
     AddMeshes(meshes) {
         // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -114,7 +149,7 @@ export class MeshGroup {
         // Create an array of all meshes with the new ones at the end
         let newMeshes = [];
         for (let iii = 0; iii < this.m_meshes.size(); iii++)
-            newMeshes.push(this.m_meshes.get(iii));
+            newMeshes.push(this.m_meshes.getFromIndex(iii));
         for (let mesh of meshes)
             newMeshes.push(mesh);
         // Rebuild the buffers
@@ -122,7 +157,7 @@ export class MeshGroup {
     }
     RemoveMesh(meshId) {
         if (typeof meshId === "string")
-            this.RemoveMeshImpl(this.m_meshes.indexOf(meshId));
+            this.RemoveMeshImpl(this.m_meshes.indexOfKey(meshId));
         else if (typeof meshId === "number")
             this.RemoveMeshImpl(meshId);
     }
@@ -137,29 +172,26 @@ export class MeshGroup {
         // Create an array of meshes, but exclude the one we are removing
         let meshes = [];
         for (let iii = 0; iii < this.m_meshes.size(); iii++) {
-            if (iii === meshIndex)
+            let mesh = this.m_meshes.getFromIndex(iii);
+            if (iii === meshIndex) {
+                // Before removing the mesh, we must make sure there are no RenderItems still referencing the mesh
+                // If so, we must delete them (and we also log an error)
+                let pred = (renderItem, index, key) => {
+                    return renderItem.GetMeshName() === mesh.Name();
+                };
+                let renderItems = this.m_renderItems.filter(pred);
+                if (renderItems.length > 0) {
+                    LOG_CORE_ERROR(`MeshGroup('${this.m_name}'): Removing mesh '${mesh.Name()}', but there are still RenderItems that reference this mesh.`);
+                    LOG_CORE_ERROR(`    The following RenderItems will be removed as well:`);
+                    renderItems.forEach(ri => { LOG_CORE_ERROR(`        ${ri.Name()}`); });
+                    this.m_renderItems.removeIf(pred);
+                }
                 continue;
-            meshes.push(this.m_meshes.get(iii));
+            }
+            meshes.push(mesh);
         }
         // Rebuild the buffers
         this.RebuildBuffers(meshes);
-    }
-    Render(encoder) {
-        // Vertex Buffer
-        encoder.setVertexBuffer(this.m_vertexBufferSlot, this.m_vertexBuffer);
-        // Index Buffer
-        if (this.m_indexBuffer !== null)
-            encoder.setIndexBuffer(this.m_indexBuffer, this.m_indexFormat);
-        // Draw call
-        for (let iii = 0; iii < this.m_meshDescriptors.size(); iii++) {
-            let md = this.m_meshDescriptors.get(iii);
-            if (md.indexCount === undefined) {
-                encoder.draw(md.vertexCount, md.instanceCount, md.startVertex, md.startInstance);
-            }
-            else {
-                encoder.drawIndexed(md.indexCount, md.instanceCount, md.startIndex, md.startVertex, md.startInstance);
-            }
-        }
     }
     CheckIndexFormat(meshes) {
         // Before creating the buffers, we first need to make sure all the meshes use the same index format
@@ -256,14 +288,40 @@ export class MeshGroup {
                 new Uint32Array(this.m_indexBuffer.getMappedRange()).set(allIndices);
                 this.m_indexBuffer.unmap();
             }
+            // Finally, update each RenderItem so that it references the correct mesh descriptor
+            this.UpdateRenderItemMeshDescriptors();
         }
         else {
             this.m_indexBuffer = null;
         }
     }
-    SetInstanceCount(meshId, count) {
-        this.m_meshDescriptors.get(meshId).instanceCount = count;
-        this.m_meshDescriptors.get(meshId).startInstance = 0;
+    Render(encoder) {
+        if (!this.HasActiveRenderItem())
+            return;
+        // Vertex Buffer
+        encoder.setVertexBuffer(this.m_vertexBufferSlot, this.m_vertexBuffer);
+        // Index Buffer
+        if (this.m_indexBuffer !== null)
+            encoder.setIndexBuffer(this.m_indexBuffer, this.m_indexFormat);
+        // Draw each RenderItem
+        for (let iii = 0; iii < this.m_renderItems.size(); iii++)
+            this.m_renderItems.getFromIndex(iii).Render(encoder);
+    }
+    HasActiveRenderItem() {
+        for (let iii = 0; iii < this.m_renderItems.size(); iii++) {
+            if (this.m_renderItems.getFromIndex(iii).IsActive())
+                return true;
+        }
+        return false;
+    }
+    UpdateRenderItemMeshDescriptors() {
+        for (let iii = 0; iii < this.m_renderItems.size(); ++iii) {
+            let renderItem = this.m_renderItems.getFromIndex(iii);
+            renderItem.SetMeshDescriptor(this.m_meshDescriptors.getFromKey(renderItem.GetMeshName()));
+        }
+    }
+    CreateRenderItem(renderItemName, meshName) {
+        return this.m_renderItems.add(renderItemName, new RenderItem(renderItemName, meshName, this.m_meshDescriptors.getFromKey(meshName)));
     }
     m_name;
     m_device;
@@ -273,6 +331,7 @@ export class MeshGroup {
     m_indexBuffer = null;
     m_indexFormat;
     m_vertexBufferSlot;
+    m_renderItems;
 }
 export class BindGroup {
     constructor(groupNumber, bindGroup) {
@@ -289,16 +348,20 @@ export class BindGroup {
     m_groupNumber;
 }
 export class RenderPassLayer {
-    constructor(pipeline) {
+    constructor(name, pipeline) {
+        this.m_name = name;
         this.m_renderPipeline = pipeline;
         this.m_bindGroups = [];
-        this.m_meshGroups = [];
+        this.m_meshGroups = new HybridLookup();
     }
+    Name() { return this.m_name; }
     AddBindGroup(bindGroup) {
         this.m_bindGroups.push(bindGroup);
+        return bindGroup;
     }
     AddMeshGroup(meshGroup) {
-        this.m_meshGroups.push(meshGroup);
+        this.m_meshGroups.add(meshGroup.Name(), meshGroup);
+        return meshGroup;
     }
     Render(passEncoder) {
         // Set the pipeline
@@ -308,9 +371,14 @@ export class RenderPassLayer {
             passEncoder.setBindGroup(bindGroup.GetGroupNumber(), bindGroup.GetBindGroup());
         });
         // Set the mesh group
-        // !!! This will make a draw call for each mesh in the group !!!
-        this.m_meshGroups.forEach(meshGroup => { meshGroup.Render(passEncoder); });
+        // !!! This will make a draw call for each RenderItem in each MeshGroup !!!
+        for (let iii = 0; iii < this.m_meshGroups.size(); iii++)
+            this.m_meshGroups.getFromIndex(iii).Render(passEncoder);
     }
+    CreateRenderItem(renderItemName, meshGroupName, meshName) {
+        return this.m_meshGroups.getFromKey(meshGroupName).CreateRenderItem(renderItemName, meshName);
+    }
+    m_name;
     m_renderPipeline;
     m_bindGroups;
     m_meshGroups;
@@ -342,9 +410,11 @@ export class RenderPass {
     }
     AddBindGroup(bindGroup) {
         this.m_bindGroups.push(bindGroup);
+        return bindGroup;
     }
     AddRenderPassLayer(layer) {
         this.m_layers.push(layer);
+        return layer;
     }
     Render(device, context, encoder) {
         // Prepare is a user-defined callback to make any final adjustments to the descriptor
@@ -387,6 +457,7 @@ export class Renderer {
     }
     AddRenderPass(pass) {
         this.m_renderPasses.push(pass);
+        return pass;
     }
     GetDevice() {
         return this.m_device;
