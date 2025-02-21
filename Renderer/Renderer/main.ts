@@ -88,8 +88,37 @@ async function main()
             // the application to set up the RenderPasses, which the Renderer will loop over when rendering
             renderer.Render();
 
-        //    requestAnimationFrame(DoFrame);
+            requestAnimationFrame(DoFrame);
         }
+
+        // Set up the ResizeObserver (see: https://webgpufundamentals.org/webgpu/lessons/webgpu-resizing-the-canvas.html)
+        const observer = new ResizeObserver(entries =>
+        {
+            for (const entry of entries)
+            {
+                const width = entry.devicePixelContentBoxSize?.[0].inlineSize ||
+                    entry.contentBoxSize[0].inlineSize * devicePixelRatio;
+                const height = entry.devicePixelContentBoxSize?.[0].blockSize ||
+                    entry.contentBoxSize[0].blockSize * devicePixelRatio;
+                const canvas = entry.target as HTMLCanvasElement;
+                canvas.width = Math.max(1, Math.min(width, device.limits.maxTextureDimension2D));
+                canvas.height = Math.max(1, Math.min(height, device.limits.maxTextureDimension2D));
+
+                // Inform the application of the resize. Depth-stencil textures will need to be resized
+                application.OnCanvasResize(canvas.width, canvas.height);
+
+                // re-render
+                requestAnimationFrame(DoFrame);
+            }
+        });
+        try
+        {
+            observer.observe(canvas, { box: 'device-pixel-content-box' });
+        } catch
+        {
+            observer.observe(canvas, { box: 'content-box' });
+        }
+
         requestAnimationFrame(DoFrame);
     }
     catch (err: unknown)

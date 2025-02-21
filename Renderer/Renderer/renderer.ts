@@ -3,8 +3,7 @@ import {
     LOG_CORE_INFO,
     LOG_CORE_TRACE,
     LOG_CORE_WARN,
-    LOG_CORE_ERROR,
-    LOG_TRACE
+    LOG_CORE_ERROR
 } from "./Log.js"
 import { Camera } from "./Camera.js"
 import { HybridLookup } from "./Utils.js"
@@ -37,8 +36,6 @@ export class RenderItem
     public DecrementInstanceCount(decrement: number = 1): void { this.m_instanceCount = Math.max(0, this.m_instanceCount - decrement); }
     public Render(encoder: GPURenderPassEncoder): void
     {
-        LOG_TRACE(`RenderItem: '${this.m_name}' | instances: ${this.m_instanceCount}`);
-
         if (this.m_isActive)
         {
             if (this.m_meshDescriptor.indexCount === undefined)
@@ -552,6 +549,23 @@ export class RenderPassDescriptor
                 break;
             }
         };
+
+        // The default OnCanvasResize behavior will be to just update all depth-stencil textures
+        this.OnCanvasResize = (device: GPUDevice, width: number, height: number) =>
+        {
+            let depthStencilAttachment = this.m_renderPassDescriptor.depthStencilAttachment;
+
+            if (depthStencilAttachment === undefined)
+                return;
+
+            const depthTexture = device.createTexture({
+                size: [width, height],
+                format: 'depth24plus',
+                usage: GPUTextureUsage.RENDER_ATTACHMENT,
+            });
+
+            depthStencilAttachment.view = depthTexture.createView();
+        };
     }
     public GetDescriptor(): GPURenderPassDescriptor
     {
@@ -559,6 +573,7 @@ export class RenderPassDescriptor
     }
 
     public Prepare: (context: GPUCanvasContext) => void;
+    public OnCanvasResize: (device: GPUDevice, width: number, height: number) => void;
     private m_renderPassDescriptor: GPURenderPassDescriptor;     
 }
 export class RenderPass
@@ -600,6 +615,10 @@ export class RenderPass
         this.m_layers.forEach(layer => { layer.Render(passEncoder); })
 
         passEncoder.end();
+    }
+    public OnCanvasResize(device: GPUDevice, width: number, height: number)
+    {
+        this.m_renderPassDescriptor.OnCanvasResize(device, width, height);
     }
 
     private m_renderPassDescriptor: RenderPassDescriptor;
@@ -646,6 +665,10 @@ export class Renderer
     public GetContext(): GPUCanvasContext
     {
         return this.m_context;
+    }
+    public OnCanvasResize(width: number, height: number)
+    {
+        this.m_renderPasses.forEach(rp => { rp.OnCanvasResize(this.m_device, width, height); })
     }
 
     private m_device:  GPUDevice;

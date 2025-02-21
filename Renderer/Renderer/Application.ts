@@ -291,6 +291,10 @@ export class Application
 			modelViewProjection.byteLength
 		);
 	}
+	public OnCanvasResize(width: number, height: number)
+	{
+		this.m_renderer.OnCanvasResize(width, height);
+	}
 
 	private m_renderer: Renderer;
 	private m_canvas: HTMLCanvasElement;

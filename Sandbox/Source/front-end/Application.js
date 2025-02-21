@@ -209,6 +209,9 @@ export class Application {
         const modelViewProjection = this.GetViewProjectionMatrix(0);
         device.queue.writeBuffer(this.m_uniformBuffer, 0, modelViewProjection.buffer, modelViewProjection.byteOffset, modelViewProjection.byteLength);
     }
+    OnCanvasResize(width, height) {
+        this.m_renderer.OnCanvasResize(width, height);
+    }
     m_renderer;
     m_canvas;
     m_camera;

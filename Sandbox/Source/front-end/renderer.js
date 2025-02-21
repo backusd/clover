@@ -1,4 +1,4 @@
-import { LOG_CORE_WARN, LOG_CORE_ERROR, LOG_TRACE } from "./Log.js";
+import { LOG_CORE_WARN, LOG_CORE_ERROR } from "./Log.js";
 import { HybridLookup } from "./Utils.js";
 export class MeshDescriptor {
     vertexCount = 0;
@@ -23,7 +23,6 @@ export class RenderItem {
     IncrementInstanceCount(increment = 1) { this.m_instanceCount += increment; }
     DecrementInstanceCount(decrement = 1) { this.m_instanceCount = Math.max(0, this.m_instanceCount - decrement); }
     Render(encoder) {
-        LOG_TRACE(`RenderItem: '${this.m_name}' | instances: ${this.m_instanceCount}`);
         if (this.m_isActive) {
             if (this.m_meshDescriptor.indexCount === undefined) {
                 encoder.draw(this.m_meshDescriptor.vertexCount, this.m_instanceCount, this.m_meshDescriptor.startVertex, this.m_startInstance);
@@ -421,11 +420,24 @@ export class RenderPassDescriptor {
                 break;
             }
         };
+        // The default OnCanvasResize behavior will be to just update all depth-stencil textures
+        this.OnCanvasResize = (device, width, height) => {
+            let depthStencilAttachment = this.m_renderPassDescriptor.depthStencilAttachment;
+            if (depthStencilAttachment === undefined)
+                return;
+            const depthTexture = device.createTexture({
+                size: [width, height],
+                format: 'depth24plus',
+                usage: GPUTextureUsage.RENDER_ATTACHMENT,
+            });
+            depthStencilAttachment.view = depthTexture.createView();
+        };
     }
     GetDescriptor() {
         return this.m_renderPassDescriptor;
     }
     Prepare;
+    OnCanvasResize;
     m_renderPassDescriptor;
 }
 export class RenderPass {
@@ -457,6 +469,9 @@ export class RenderPass {
         // Run each layer
         this.m_layers.forEach(layer => { layer.Render(passEncoder); });
         passEncoder.end();
+    }
+    OnCanvasResize(device, width, height) {
+        this.m_renderPassDescriptor.OnCanvasResize(device, width, height);
     }
     m_renderPassDescriptor;
     m_bindGroups;
@@ -490,6 +505,9 @@ export class Renderer {
     }
     GetContext() {
         return this.m_context;
+    }
+    OnCanvasResize(width, height) {
+        this.m_renderPasses.forEach(rp => { rp.OnCanvasResize(this.m_device, width, height); });
     }
     m_device;
     m_context;
