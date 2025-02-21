@@ -3,6 +3,7 @@ import { BindGroup, RenderPassDescriptor, RenderPass } from "./Renderer.js";
 import { Camera } from "./Camera.js";
 import { mat4 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
+import { ColorCube } from "./ColorCube.js";
 import { TextureCube } from "./TextureCube.js";
 export class Application {
     constructor(renderer, canvas) {
@@ -184,8 +185,10 @@ export class Application {
         let textureCubeLayer = renderPass.AddRenderPassLayer(await textureCube.Initialize(this.m_renderer, mvpBindGroupLayout));
         let textureCubeRI = textureCubeLayer.CreateRenderItem("ri_texture-cube", "mg_texture-cube", "mesh_texture-cube");
         // Solid Color Cube
-        //	let colorCube = new ColorCube();
-        //	renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, mvpBindGroupLayout));
+        let colorCube = new ColorCube();
+        let colorCubeLayer = renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, mvpBindGroupLayout));
+        let colorCubeRI_2 = colorCubeLayer.CreateRenderItem("ri_color-cube-2", "mg_color-cube", "mesh_color-cube-2");
+        let colorCubeRI_3 = colorCubeLayer.CreateRenderItem("ri_color-cube-3", "mg_color-cube", "mesh_color-cube-3");
         // ============================================
         this.m_renderer.AddRenderPass(renderPass);
     }

@@ -1,3 +1,4 @@
+import { LOG_CORE_INFO, LOG_CORE_TRACE, LOG_CORE_WARN, LOG_CORE_ERROR } from "./Log.js";
 
 // HydridLookup allows you to retain a list of items and
 // look them up either via index or via string
@@ -8,6 +9,9 @@ export class HybridLookup<T>
 
     add(key: string, item: T): T
     {
+        if (this.containsKey(key))
+            throw Error(`HybridLookup::add(): Cannot add '${key}' with value '${item}' because the key already exists`)
+
         this.m_data.push(item);
         this.m_indexMap.set(key, this.m_data.length - 1);
         return item;
@@ -25,6 +29,9 @@ export class HybridLookup<T>
 
     getFromIndex(index: number): T
     {
+        if (index < 0 || index >= this.m_data.length)
+            throw Error(`HybridLookup::getFromIndex(): Cannot get index '${index}' because the data array only has '${this.m_data.length}' elements`)
+
         return this.m_data[index];
     }
 
@@ -43,18 +50,30 @@ export class HybridLookup<T>
 
     updateFromKey(key: string, newItem: T): T
     {
+        // If it doesn't contain the key, then just call add()
+        if (!this.containsKey(key))
+        {
+            this.add(key, newItem);
+            return newItem;
+        }
         this.m_data[this.indexOfKey(key)] = newItem;
         return newItem;
     }
 
     updateFromIndex(index: number, newItem: T): T
     {
+        if (index < 0 || index >= this.m_data.length)
+            throw Error(`HybridLookup::updateFromIndex(): Cannot update value at index '${index}' because the data array only has '${this.m_data.length}' elements`)
+
         this.m_data[index] = newItem;
         return newItem;
     }
 
     removeFromKey(key: string): void
     {
+        if (!this.containsKey(key))
+            throw Error(`HybridLookup::removeFromKey(): Cannot remove value with key '${key}' because the key does not exist`);
+
         let index = this.indexOfKey(key);
         this.m_indexMap.delete(key);
         this.m_data.splice(index, 1);
@@ -63,6 +82,9 @@ export class HybridLookup<T>
 
     removeFromIndex(index: number): void
     {
+        if (index < 0 || index >= this.m_data.length)
+            throw Error(`HybridLookup::removeFromIndex(): Cannot remove value at index '${index}' because the data array only has '${this.m_data.length}' elements`)
+
         this.m_indexMap.delete(this.findKeyFromIndex(index));
         this.m_data.splice(index, 1);
         this.decrementIndexForKeys(index);
@@ -128,8 +150,6 @@ export class HybridLookup<T>
     {
         return this.m_data.length;
     }
-
-
 
     toString(): string
     {

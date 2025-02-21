@@ -323,6 +323,17 @@ export class MeshGroup {
     CreateRenderItem(renderItemName, meshName) {
         return this.m_renderItems.add(renderItemName, new RenderItem(renderItemName, meshName, this.m_meshDescriptors.getFromKey(meshName)));
     }
+    RemoveRenderItem(renderItemName) {
+        this.m_renderItems.removeFromKey(renderItemName);
+    }
+    InformRemoval() {
+        if (this.m_renderItems.size() > 0) {
+            LOG_CORE_ERROR(`MeshGroup('${this.m_name}'): This entire mesh group is being removed, but there are still outstanding RenderItems`);
+            LOG_CORE_ERROR(`    The following RenderItems will be removed as well:`);
+            for (let iii = 0; iii < this.m_renderItems.size(); ++iii)
+                LOG_CORE_ERROR(`        ${this.m_renderItems.getFromIndex(iii).Name()}`);
+        }
+    }
     m_name;
     m_device;
     m_meshes;
@@ -363,6 +374,24 @@ export class RenderPassLayer {
         this.m_meshGroups.add(meshGroup.Name(), meshGroup);
         return meshGroup;
     }
+    RemoveMeshGroup(meshGroupName) {
+        // Inform the mesh group that it is about to be removed, because
+        // we want to issue warnings if there are any outstanding RenderItems
+        this.m_meshGroups.getFromKey(meshGroupName).InformRemoval();
+        this.m_meshGroups.removeFromKey(meshGroupName);
+    }
+    GetMeshGroup(meshGroupName) {
+        return this.m_meshGroups.getFromKey(meshGroupName);
+    }
+    RemoveMesh(meshName, meshGroupName) {
+        this.m_meshGroups.getFromKey(meshGroupName).RemoveMesh(meshName);
+    }
+    CreateRenderItem(renderItemName, meshGroupName, meshName) {
+        return this.m_meshGroups.getFromKey(meshGroupName).CreateRenderItem(renderItemName, meshName);
+    }
+    RemoveRenderItem(renderItemName, meshGroupName) {
+        this.m_meshGroups.getFromKey(meshGroupName).RemoveRenderItem(renderItemName);
+    }
     Render(passEncoder) {
         // Set the pipeline
         passEncoder.setPipeline(this.m_renderPipeline);
@@ -374,9 +403,6 @@ export class RenderPassLayer {
         // !!! This will make a draw call for each RenderItem in each MeshGroup !!!
         for (let iii = 0; iii < this.m_meshGroups.size(); iii++)
             this.m_meshGroups.getFromIndex(iii).Render(passEncoder);
-    }
-    CreateRenderItem(renderItemName, meshGroupName, meshName) {
-        return this.m_meshGroups.getFromKey(meshGroupName).CreateRenderItem(renderItemName, meshName);
     }
     m_name;
     m_renderPipeline;

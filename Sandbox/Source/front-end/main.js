@@ -1,8 +1,7 @@
-import { LOG_CORE_ERROR, LOG_INFO, } from "./Log.js";
+import { LOG_CORE_ERROR, } from "./Log.js";
 import { Renderer } from "./Renderer.js";
 import { Application } from "./Application.js";
 import { Timer } from "./Timer.js";
-import { HybridLookup } from "./Utils.js";
 function fail(msg) {
     // eslint-disable-next-line no-alert
     alert(msg);
@@ -70,44 +69,4 @@ async function main() {
     }
 }
 main();
-let a = new HybridLookup();
-LOG_INFO(`Empty list: ${a.toString()}`);
-a.add("first", 1);
-a.add("second", 2);
-a.add("third", 3);
-a.add("forth", 4);
-LOG_INFO(`Several items: ${a.toString()}`);
-LOG_INFO(`Value at 'second': ${a.getFromKey('second')}`);
-LOG_INFO(`Value at index 3: ${a.getFromIndex(3)}`);
-LOG_INFO(`Contains key 'forth': ${a.containsKey('forth')}`);
-LOG_INFO(`Contains key 'fifth': ${a.containsKey('fifth')}`);
-LOG_INFO(`Index of key 'third': ${a.indexOfKey('third')}`);
-a.updateFromKey("forth", 44);
-a.updateFromIndex(2, 33);
-LOG_INFO(`Values after updating: ${a.toString()}`);
-a.removeFromKey("first");
-LOG_INFO(`Removed key 'first': ${a.toString()}`);
-a.removeFromIndex(2);
-LOG_INFO(`Removed index 2: ${a.toString()}`);
-a.clear();
-LOG_INFO(`Cleared: ${a.toString()}`);
-a.add("first", 1);
-a.add("second", 2);
-a.add("third", 3);
-a.add("forth", 4);
-a.add("fifth", 5);
-a.add("sixth", 6);
-a.add("seventh", 7);
-a.add("eighth", 8);
-a.add("ninth", 9);
-a.add("tenth", 10);
-LOG_INFO(`Added 10 elements: ${a.toString()}`);
-let top5 = a.filter((value, index, key) => {
-    return value > 5;
-});
-LOG_INFO(`>5 : ${top5}`);
-a.removeIf((value, index, key) => {
-    return value === 3 || value === 7 || key === "tenth";
-});
-LOG_INFO(`Removed 3, 7, 10: ${a.toString()}`);
 //# sourceMappingURL=main.js.map
