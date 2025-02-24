@@ -74,8 +74,9 @@ async function main() {
                 canvas.height = Math.max(1, Math.min(height, device.limits.maxTextureDimension2D));
                 // Inform the application of the resize. Depth-stencil textures will need to be resized
                 application.OnCanvasResize(canvas.width, canvas.height);
-                // re-render
-                requestAnimationFrame(DoFrame);
+                // NOTE: Do NOT call 'requestAnimationFrame' here. It seems to run the render loop
+                // at least 2x as much as it should and will somehow cause a extremely small delta 
+                // times when using the Timer which are invalid.
             }
         });
         try {

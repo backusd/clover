@@ -28,8 +28,8 @@ export class Timer
 	}
 	public Tick(): number
 	{
-		let now: number = this.GetCurrentTimeInSeconds();
-		let delta: number = now - this.m_mostRecentTime;
+		let now = this.GetCurrentTimeInSeconds();
+		let delta = now - this.m_mostRecentTime;
 		this.m_mostRecentTime = now;
 		return delta;
 	}
@@ -37,15 +37,14 @@ export class Timer
 	{
 		return this.GetCurrentTimeInSeconds() - this.m_startTime;
 	}
-	private GetCurrentTimeInSeconds(): number
+	private GetCurrentTimeInSeconds(): DOMHighResTimeStamp
 	{
 		// now() returns in total number of milliseconds, but we want the units to be seconds
 		return performance.now() * 0.001;
 	}
 
-
 	private m_started: boolean;
-	private m_startTime: number;
-	private m_mostRecentTime: number;
+	private m_startTime: DOMHighResTimeStamp;
+	private m_mostRecentTime: DOMHighResTimeStamp;
 	private m_timerName: string;
 }

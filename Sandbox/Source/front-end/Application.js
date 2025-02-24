@@ -96,7 +96,6 @@ export class Application {
     }
     OnLButtonDown(e) {
         LOG_TRACE("OnLButtonDown");
-        this.m_timingUI.Print();
     }
     OnMButtonDown(e) {
         LOG_TRACE("OnMButtonDown");
@@ -214,23 +213,6 @@ export class Application {
         let device = this.m_renderer.GetDevice();
         const modelViewProjection = this.GetViewProjectionMatrix(0);
         device.queue.writeBuffer(this.m_uniformBuffer, 0, modelViewProjection.buffer, modelViewProjection.byteOffset, modelViewProjection.byteLength);
-        // Update the time deltas
-        //		this.m_jsTimeDeltas[this.m_frameIndex] = timeDelta;
-        //		this.m_gpuTimeDeltas[this.m_frameIndex] = this.m_renderer.GetRenderPass(0).GetLastGPUTimeMeasurement();
-        //		++this.m_frameIndex;
-        //		if (this.m_frameIndex === 10)
-        //		{
-        //			this.m_frameIndex = 0;
-        //			let jsAvgDelta = this.m_jsTimeDeltas.reduce((a, b) => a + b) / this.m_jsTimeDeltas.length;
-        //			let gpuAvgDelta = this.m_gpuTimeDeltas.reduce((a, b) => a + b) / this.m_gpuTimeDeltas.length;
-        //
-        //			let infoElem = document.getElementById("info") as HTMLPreElement;
-        //			infoElem.textContent = `\
-        //fps: ${(1 / jsAvgDelta).toFixed(1)}
-        //js: ${jsAvgDelta.toFixed(1)}ms
-        //gpu: ${(gpuAvgDelta / 1000).toFixed(1)}�s
-        //`;
-        //		}
     }
     EndFrame() {
         // When each frame is done being rendered, inform the timing UI

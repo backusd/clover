@@ -1,4 +1,4 @@
-import { LOG_TRACE, LOG_WARN } from "./Log.js";
+import { LOG_WARN } from "./Log.js";
 export class TimingUI {
     constructor(countsLength, renderer) {
         let elem = document.getElementById("frame-timing-info");
@@ -68,10 +68,6 @@ export class TimingUI {
                     this.m_uiElement.textContent += `\n${name}: ${(avgDelta / 1000).toFixed(1)}us`;
             });
         }
-    }
-    Print() {
-        let avg = this.m_jsTimeDeltas.reduce((a, b) => a + b) / this.m_jsTimeDeltas.length;
-        LOG_TRACE(`AVG: ${avg} -> ${this.m_jsTimeDeltas}`);
     }
     m_jsStart = 0;
     m_fpsTimeDeltas;

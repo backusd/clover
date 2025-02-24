@@ -108,12 +108,6 @@ export class TimingUI
 		}
 	}
 
-	public Print(): void
-	{
-		let avg = this.m_jsTimeDeltas.reduce((a, b) => a + b) / this.m_jsTimeDeltas.length;
-		LOG_TRACE(`AVG: ${avg} -> ${this.m_jsTimeDeltas}`);
-	}
-
 	private m_jsStart: DOMHighResTimeStamp = 0;
 	private m_fpsTimeDeltas: number[];
 	private m_jsTimeDeltas: number[];
