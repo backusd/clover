@@ -174,7 +174,8 @@ export class Application {
         // RenderPassDescriptor
         let renderPassDescriptor = new RenderPassDescriptor(this.m_renderPassDescriptor);
         // RenderPass
-        let renderPass = new RenderPass(renderPassDescriptor);
+        let renderPass = new RenderPass("rp_main", device, renderPassDescriptor);
+        renderPass.EnableGPUTiming();
         renderPass.AddBindGroup(passBindGroup); // bind group for model-view-projection matrix
         // ====== Layers ==============================
         // Terrain
@@ -208,6 +209,21 @@ export class Application {
         let device = this.m_renderer.GetDevice();
         const modelViewProjection = this.GetViewProjectionMatrix(0);
         device.queue.writeBuffer(this.m_uniformBuffer, 0, modelViewProjection.buffer, modelViewProjection.byteOffset, modelViewProjection.byteLength);
+        // Update the time deltas
+        this.m_jsTimeDeltas[this.m_frameIndex] = timeDelta;
+        this.m_gpuTimeDeltas[this.m_frameIndex] = this.m_renderer.GetRenderPass(0).GetLastGPUTimeMeasurement();
+        ++this.m_frameIndex;
+        if (this.m_frameIndex === 10) {
+            this.m_frameIndex = 0;
+            let jsAvgDelta = this.m_jsTimeDeltas.reduce((a, b) => a + b) / this.m_jsTimeDeltas.length;
+            let gpuAvgDelta = this.m_gpuTimeDeltas.reduce((a, b) => a + b) / this.m_gpuTimeDeltas.length;
+            let infoElem = document.getElementById("info");
+            infoElem.textContent = `\
+fps: ${(1 / jsAvgDelta).toFixed(1)}
+js: ${jsAvgDelta.toFixed(1)}ms
+gpu: ${gpuAvgDelta.toFixed(1)}ms
+`;
+        }
     }
     OnCanvasResize(width, height) {
         this.m_renderer.OnCanvasResize(width, height);
@@ -219,5 +235,9 @@ export class Application {
     m_pipeline;
     m_uniformBuffer;
     m_uniformBindGroup;
+    // Frame timing data
+    m_jsTimeDeltas = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    m_gpuTimeDeltas = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    m_frameIndex = 0;
 }
 //# sourceMappingURL=Application.js.map

@@ -28,7 +28,7 @@ export class Timer {
     }
     GetCurrentTimeInSeconds() {
         // now() returns in total number of milliseconds, but we want the units to be seconds
-        return Date.now() / 1000;
+        return performance.now() / 1000;
     }
     m_started;
     m_startTime;

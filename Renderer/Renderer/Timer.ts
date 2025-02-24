@@ -40,7 +40,7 @@ export class Timer
 	private GetCurrentTimeInSeconds(): number
 	{
 		// now() returns in total number of milliseconds, but we want the units to be seconds
-		return Date.now() / 1000;
+		return performance.now() / 1000;
 	}
 
 

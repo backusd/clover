@@ -234,7 +234,8 @@ export class Application
 		let renderPassDescriptor: RenderPassDescriptor = new RenderPassDescriptor(this.m_renderPassDescriptor);
 
 		// RenderPass
-		let renderPass: RenderPass = new RenderPass(renderPassDescriptor);
+		let renderPass: RenderPass = new RenderPass("rp_main", device, renderPassDescriptor);
+		renderPass.EnableGPUTiming();
 		renderPass.AddBindGroup(passBindGroup); // bind group for model-view-projection matrix
 
 
@@ -290,6 +291,25 @@ export class Application
 			modelViewProjection.byteOffset,
 			modelViewProjection.byteLength
 		);
+
+
+		// Update the time deltas
+		this.m_jsTimeDeltas[this.m_frameIndex] = timeDelta;
+		this.m_gpuTimeDeltas[this.m_frameIndex] = this.m_renderer.GetRenderPass(0).GetLastGPUTimeMeasurement();
+		++this.m_frameIndex;
+		if (this.m_frameIndex === 10)
+		{
+			this.m_frameIndex = 0;
+			let jsAvgDelta = this.m_jsTimeDeltas.reduce((a, b) => a + b) / this.m_jsTimeDeltas.length;
+			let gpuAvgDelta = this.m_gpuTimeDeltas.reduce((a, b) => a + b) / this.m_gpuTimeDeltas.length;
+
+			let infoElem = document.getElementById("info") as HTMLPreElement;
+			infoElem.textContent = `\
+fps: ${(1 / jsAvgDelta).toFixed(1)}
+js: ${jsAvgDelta.toFixed(1)}ms
+gpu: ${gpuAvgDelta.toFixed(1)}ms
+`;
+		}
 	}
 	public OnCanvasResize(width: number, height: number)
 	{
@@ -303,4 +323,9 @@ export class Application
 	private m_pipeline: GPURenderPipeline | null;
 	private m_uniformBuffer: GPUBuffer;
 	private m_uniformBindGroup: GPUBindGroup | null;
+
+	// Frame timing data
+	private m_jsTimeDeltas: number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+	private m_gpuTimeDeltas: number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+	private m_frameIndex: number = 0;
 }

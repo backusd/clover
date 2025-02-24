@@ -39,16 +39,16 @@ function GetCanvas(canvasId: string): HTMLCanvasElement
 
     return canvas;
 }
-async function GetDeviceAndContext(canvas: HTMLCanvasElement)
+async function GetAdapterDeviceAndContext(canvas: HTMLCanvasElement)
 {
-    let gpuAdapter: GPUAdapter | null = await navigator.gpu.requestAdapter();
-    if (!gpuAdapter)
+    let adapter: GPUAdapter | null = await navigator.gpu.requestAdapter();
+    if (!adapter)
     {
         fail('Failed to get GPUAdapter');
         throw new Error("Failed to get GPUAdapter");
     }
 
-    let device: GPUDevice = await gpuAdapter.requestDevice();
+    let device: GPUDevice = await adapter.requestDevice();
 
     const context: GPUCanvasContext | null = canvas.getContext('webgpu');
     if (!context)
@@ -57,7 +57,7 @@ async function GetDeviceAndContext(canvas: HTMLCanvasElement)
         throw new Error("Failed to get the webgpu context from the canvas");
     }
 
-    return { device, context };
+    return { adapter, device, context };
 }
 
 async function main()
@@ -68,10 +68,10 @@ async function main()
         let canvas: HTMLCanvasElement = GetCanvas("main-canvas");
 
         // Asynchronously get the device and context
-        let { device, context } = await GetDeviceAndContext(canvas);
+        let { adapter, device, context } = await GetAdapterDeviceAndContext(canvas);
 
         // Create the Renderer
-        let renderer: Renderer = new Renderer(device, context);
+        let renderer: Renderer = new Renderer(adapter, device, context);
 
         // Load the application (input handling, game logic, scene, etc)
         let application: Application = new Application(renderer, canvas);
