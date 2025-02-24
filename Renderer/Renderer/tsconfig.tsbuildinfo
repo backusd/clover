@@ -1,1 +1,1 @@
-{"root":["./application.ts","./camera.ts","./colorcube.ts","./input.ts","./log.ts","./renderer.ts","./terrain.ts","./texturecube.ts","./timer.ts","./utils.ts","./main.ts"],"version":"5.7.3"}
+{"root":["./application.ts","./camera.ts","./colorcube.ts","./input.ts","./log.ts","./renderer.ts","./terrain.ts","./texturecube.ts","./timer.ts","./timingui.ts","./utils.ts","./main.ts"],"version":"5.7.3"}

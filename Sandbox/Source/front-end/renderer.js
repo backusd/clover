@@ -446,19 +446,6 @@ export class RenderPass {
         this.m_renderPassDescriptor = descriptor;
         this.m_bindGroups = [];
         this.m_layers = [];
-        // Initialize the data necessary to time render passes
-        this.m_querySet = device.createQuerySet({
-            type: 'timestamp',
-            count: 2,
-        });
-        this.m_resolveBuffer = device.createBuffer({
-            size: this.m_querySet.count * 8,
-            usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
-        });
-        this.m_resultBuffer = device.createBuffer({
-            size: this.m_resolveBuffer.size,
-            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-        });
     }
     Name() { return this.m_name; }
     AddBindGroup(bindGroup) {
@@ -486,32 +473,56 @@ export class RenderPass {
         passEncoder.end();
         // If we are computing timestamps, now is the time we resolve the query
         if (this.m_isComputingGPUTimestamp) {
+            if (this.m_querySet === null || this.m_resolveBuffer === null)
+                return;
             encoder.resolveQuerySet(this.m_querySet, 0, this.m_querySet.count, this.m_resolveBuffer, 0);
-            if (this.m_resultBuffer.mapState === 'unmapped') {
+            if (this.m_resultBuffer === null)
+                return;
+            if (this.m_resultBuffer.mapState === 'unmapped')
                 encoder.copyBufferToBuffer(this.m_resolveBuffer, 0, this.m_resultBuffer, 0, this.m_resultBuffer.size);
-            }
         }
     }
     OnCanvasResize(device, width, height) {
         this.m_renderPassDescriptor.OnCanvasResize(device, width, height);
     }
-    EnableGPUTiming() {
-        this.m_isComputingGPUTimestamp = true;
-        // Update the render pass descriptor
-        let desc = this.m_renderPassDescriptor.GetDescriptor();
-        desc.timestampWrites = {
-            querySet: this.m_querySet,
-            beginningOfPassWriteIndex: 0,
-            endOfPassWriteIndex: 1,
-        };
+    EnableGPUTiming(device) {
+        if (!this.m_isComputingGPUTimestamp) {
+            this.m_isComputingGPUTimestamp = true;
+            // Initialize the data necessary to time render passes
+            this.m_querySet = device.createQuerySet({
+                type: 'timestamp',
+                count: 2,
+            });
+            this.m_resolveBuffer = device.createBuffer({
+                size: this.m_querySet.count * 8,
+                usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
+            });
+            this.m_resultBuffer = device.createBuffer({
+                size: this.m_resolveBuffer.size,
+                usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+            });
+            // Update the render pass descriptor
+            let desc = this.m_renderPassDescriptor.GetDescriptor();
+            desc.timestampWrites = {
+                querySet: this.m_querySet,
+                beginningOfPassWriteIndex: 0,
+                endOfPassWriteIndex: 1,
+            };
+        }
     }
     EndOfRender() {
         if (this.m_isComputingGPUTimestamp) {
-            this.m_resultBuffer.mapAsync(GPUMapMode.READ).then(() => {
-                const times = new BigInt64Array(this.m_resultBuffer.getMappedRange());
-                this.m_lastGPUTime = Number(times[1] - times[0]);
-                this.m_resultBuffer.unmap();
-            });
+            if (this.m_resultBuffer === null)
+                return;
+            if (this.m_resultBuffer.mapState === 'unmapped') {
+                this.m_resultBuffer.mapAsync(GPUMapMode.READ).then(() => {
+                    if (this.m_resultBuffer === null)
+                        return;
+                    const times = new BigInt64Array(this.m_resultBuffer.getMappedRange());
+                    this.m_lastGPUTime = Number(times[1] - times[0]);
+                    this.m_resultBuffer.unmap();
+                });
+            }
         }
     }
     GetLastGPUTimeMeasurement() { return this.m_lastGPUTime; }
@@ -521,9 +532,9 @@ export class RenderPass {
     m_layers;
     // GPU Timing data
     m_isComputingGPUTimestamp = false;
-    m_querySet;
-    m_resolveBuffer;
-    m_resultBuffer;
+    m_querySet = null;
+    m_resolveBuffer = null;
+    m_resultBuffer = null;
     m_lastGPUTime = 0;
 }
 export class Renderer {
@@ -554,6 +565,8 @@ export class Renderer {
     }
     AddRenderPass(pass) {
         this.m_renderPasses.add(pass.Name(), pass);
+        if (this.m_isComputingTimestamps)
+            pass.EnableGPUTiming(this.m_device);
         return pass;
     }
     GetRenderPass(nameOrIndex) {
@@ -561,6 +574,8 @@ export class Renderer {
             return this.m_renderPasses.getFromKey(nameOrIndex);
         return this.m_renderPasses.getFromIndex(nameOrIndex);
     }
+    NumberOfRenderPasses() { return this.m_renderPasses.size(); }
+    HasRenderPass(key) { return this.m_renderPasses.containsKey(key); }
     GetAdapter() { return this.m_adapter; }
     GetDevice() { return this.m_device; }
     GetContext() { return this.m_context; }
@@ -571,10 +586,21 @@ export class Renderer {
     CanComputeGPUTimestamps() {
         return this.m_canComputeTimestamps;
     }
+    EnableGPUTiming() {
+        if (!this.m_canComputeTimestamps) {
+            LOG_CORE_WARN("Renderer: Unable to enable GPU timing. Your device's adpater does not support the feature 'timestamp-query'");
+            return;
+        }
+        this.m_isComputingTimestamps = true;
+        for (let iii = 0; iii < this.m_renderPasses.size(); ++iii)
+            this.m_renderPasses.getFromIndex(iii).EnableGPUTiming(this.m_device);
+    }
     m_adapter;
     m_device;
     m_context;
     m_renderPasses;
+    // GPU Timing state
     m_canComputeTimestamps;
+    m_isComputingTimestamps = false;
 }
 //# sourceMappingURL=Renderer.js.map

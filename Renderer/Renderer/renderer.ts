@@ -584,22 +584,6 @@ export class RenderPass
         this.m_renderPassDescriptor = descriptor;
         this.m_bindGroups = [];
         this.m_layers = [];
-
-        // Initialize the data necessary to time render passes
-        this.m_querySet = device.createQuerySet({
-            type: 'timestamp',
-            count: 2,
-        });
-
-        this.m_resolveBuffer = device.createBuffer({
-            size: this.m_querySet.count * 8,
-            usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
-        });
-
-        this.m_resultBuffer = device.createBuffer({
-            size: this.m_resolveBuffer.size,
-            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-        });
     }
     public Name(): string { return this.m_name; }
     public AddBindGroup(bindGroup: BindGroup): BindGroup
@@ -637,39 +621,72 @@ export class RenderPass
         // If we are computing timestamps, now is the time we resolve the query
         if (this.m_isComputingGPUTimestamp)
         {
+            if (this.m_querySet === null || this.m_resolveBuffer === null)
+                return;
+
             encoder.resolveQuerySet(this.m_querySet, 0, this.m_querySet.count, this.m_resolveBuffer, 0);
+
+            if (this.m_resultBuffer === null)
+                return;
+
             if (this.m_resultBuffer.mapState === 'unmapped')
-            {
                 encoder.copyBufferToBuffer(this.m_resolveBuffer, 0, this.m_resultBuffer, 0, this.m_resultBuffer.size);
-            }
         }
     }
     public OnCanvasResize(device: GPUDevice, width: number, height: number)
     {
         this.m_renderPassDescriptor.OnCanvasResize(device, width, height);
     }
-    public EnableGPUTiming(): void
+    public EnableGPUTiming(device: GPUDevice): void
     {
-        this.m_isComputingGPUTimestamp = true;
+        if (!this.m_isComputingGPUTimestamp)
+        {
+            this.m_isComputingGPUTimestamp = true;
 
-        // Update the render pass descriptor
-        let desc: GPURenderPassDescriptor = this.m_renderPassDescriptor.GetDescriptor();
-        desc.timestampWrites = {
-            querySet: this.m_querySet,
-            beginningOfPassWriteIndex: 0,
-            endOfPassWriteIndex: 1,
-        };
+            // Initialize the data necessary to time render passes
+            this.m_querySet = device.createQuerySet({
+                type: 'timestamp',
+                count: 2,
+            });
+
+            this.m_resolveBuffer = device.createBuffer({
+                size: this.m_querySet.count * 8,
+                usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
+            });
+
+            this.m_resultBuffer = device.createBuffer({
+                size: this.m_resolveBuffer.size,
+                usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+            });
+
+            // Update the render pass descriptor
+            let desc: GPURenderPassDescriptor = this.m_renderPassDescriptor.GetDescriptor();
+            desc.timestampWrites = {
+                querySet: this.m_querySet,
+                beginningOfPassWriteIndex: 0,
+                endOfPassWriteIndex: 1,
+            };
+        }
     }
     public EndOfRender(): void
     {
         if (this.m_isComputingGPUTimestamp)
         {
-            this.m_resultBuffer.mapAsync(GPUMapMode.READ).then(() =>
+            if (this.m_resultBuffer === null)
+                return;
+
+            if (this.m_resultBuffer.mapState === 'unmapped')
             {
-                const times = new BigInt64Array(this.m_resultBuffer.getMappedRange());
-                this.m_lastGPUTime = Number(times[1] - times[0]);
-                this.m_resultBuffer.unmap();
-            });
+                this.m_resultBuffer.mapAsync(GPUMapMode.READ).then(() =>
+                {
+                    if (this.m_resultBuffer === null)
+                        return;
+
+                    const times = new BigInt64Array(this.m_resultBuffer.getMappedRange());
+                    this.m_lastGPUTime = Number(times[1] - times[0]);
+                    this.m_resultBuffer.unmap();
+                });
+            }
         }
     }
     public GetLastGPUTimeMeasurement(): number { return this.m_lastGPUTime; }
@@ -681,9 +698,9 @@ export class RenderPass
 
     // GPU Timing data
     private m_isComputingGPUTimestamp: boolean = false;
-    private m_querySet: GPUQuerySet;
-    private m_resolveBuffer: GPUBuffer;
-    private m_resultBuffer: GPUBuffer;
+    private m_querySet: GPUQuerySet | null = null;
+    private m_resolveBuffer: GPUBuffer | null = null;
+    private m_resultBuffer: GPUBuffer | null = null;
     private m_lastGPUTime: number = 0;
 }
 export class Renderer
@@ -723,6 +740,10 @@ export class Renderer
     public AddRenderPass(pass: RenderPass): RenderPass
     {
         this.m_renderPasses.add(pass.Name(), pass);
+
+        if (this.m_isComputingTimestamps)
+            pass.EnableGPUTiming(this.m_device);
+
         return pass;
     }
     public GetRenderPass(nameOrIndex: string | number): RenderPass
@@ -732,6 +753,8 @@ export class Renderer
 
         return this.m_renderPasses.getFromIndex(nameOrIndex);
     }
+    public NumberOfRenderPasses(): number { return this.m_renderPasses.size(); }
+    public HasRenderPass(key: string): boolean { return this.m_renderPasses.containsKey(key); }
     public GetAdapter(): GPUAdapter { return this.m_adapter; }
     public GetDevice(): GPUDevice { return this.m_device; }
     public GetContext(): GPUCanvasContext { return this.m_context; }
@@ -744,11 +767,25 @@ export class Renderer
     {
         return this.m_canComputeTimestamps;
     }
+    public EnableGPUTiming(): void
+    {
+        if (!this.m_canComputeTimestamps)
+        {
+            LOG_CORE_WARN("Renderer: Unable to enable GPU timing. Your device's adpater does not support the feature 'timestamp-query'");
+            return;
+        }
+
+        this.m_isComputingTimestamps = true;
+        for (let iii = 0; iii < this.m_renderPasses.size(); ++iii)
+            this.m_renderPasses.getFromIndex(iii).EnableGPUTiming(this.m_device);
+    }
 
     private m_adapter: GPUAdapter;
     private m_device:  GPUDevice;
     private m_context: GPUCanvasContext;
     private m_renderPasses: HybridLookup<RenderPass>;
 
+    // GPU Timing state
     private m_canComputeTimestamps: boolean;
+    private m_isComputingTimestamps: boolean = false;
 }

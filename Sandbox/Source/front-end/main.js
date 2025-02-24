@@ -25,7 +25,12 @@ async function GetAdapterDeviceAndContext(canvas) {
         fail('Failed to get GPUAdapter');
         throw new Error("Failed to get GPUAdapter");
     }
-    let device = await adapter.requestDevice();
+    let features = [];
+    if (adapter.features.has('timestamp-query'))
+        features.push("timestamp-query");
+    let device = await adapter.requestDevice({
+        requiredFeatures: features
+    });
     const context = canvas.getContext('webgpu');
     if (!context) {
         fail('Failed to get the webgpu context from the canvas');
@@ -52,6 +57,9 @@ async function main() {
             // Note: The Application does NOT call render directly. Rather it is the responsibility of
             // the application to set up the RenderPasses, which the Renderer will loop over when rendering
             renderer.Render();
+            // Inform the application the frame has been rendered. This is necessary
+            // for taking timing measurements
+            application.EndFrame();
             requestAnimationFrame(DoFrame);
         }
         // Set up the ResizeObserver (see: https://webgpufundamentals.org/webgpu/lessons/webgpu-resizing-the-canvas.html)

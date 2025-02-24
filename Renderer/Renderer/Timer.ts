@@ -35,12 +35,12 @@ export class Timer
 	}
 	public TotalTime(): number
 	{
-		return this.m_mostRecentTime - this.m_startTime;
+		return this.GetCurrentTimeInSeconds() - this.m_startTime;
 	}
 	private GetCurrentTimeInSeconds(): number
 	{
 		// now() returns in total number of milliseconds, but we want the units to be seconds
-		return performance.now() / 1000;
+		return performance.now() * 0.001;
 	}
 
 

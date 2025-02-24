@@ -24,11 +24,11 @@ export class Timer {
         return delta;
     }
     TotalTime() {
-        return this.m_mostRecentTime - this.m_startTime;
+        return this.GetCurrentTimeInSeconds() - this.m_startTime;
     }
     GetCurrentTimeInSeconds() {
         // now() returns in total number of milliseconds, but we want the units to be seconds
-        return performance.now() / 1000;
+        return performance.now() * 0.001;
     }
     m_started;
     m_startTime;

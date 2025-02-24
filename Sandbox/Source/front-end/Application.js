@@ -5,6 +5,7 @@ import { mat4 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
 import { ColorCube } from "./ColorCube.js";
 import { TextureCube } from "./TextureCube.js";
+import { TimingUI } from "./TimingUI.js";
 export class Application {
     constructor(renderer, canvas) {
         this.m_pipeline = null;
@@ -20,6 +21,7 @@ export class Application {
             size: uniformBufferSize,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
+        this.m_timingUI = new TimingUI(20, renderer);
     }
     SetupInputCallbacks() {
         window.addEventListener('keydown', (e) => this.OnKeyDown(e));
@@ -94,6 +96,7 @@ export class Application {
     }
     OnLButtonDown(e) {
         LOG_TRACE("OnLButtonDown");
+        this.m_timingUI.Print();
     }
     OnMButtonDown(e) {
         LOG_TRACE("OnMButtonDown");
@@ -175,7 +178,6 @@ export class Application {
         let renderPassDescriptor = new RenderPassDescriptor(this.m_renderPassDescriptor);
         // RenderPass
         let renderPass = new RenderPass("rp_main", device, renderPassDescriptor);
-        renderPass.EnableGPUTiming();
         renderPass.AddBindGroup(passBindGroup); // bind group for model-view-projection matrix
         // ====== Layers ==============================
         // Terrain
@@ -192,6 +194,7 @@ export class Application {
         let colorCubeRI_3 = colorCubeLayer.CreateRenderItem("ri_color-cube-3", "mg_color-cube", "mesh_color-cube-3");
         // ============================================
         this.m_renderer.AddRenderPass(renderPass);
+        this.m_renderer.EnableGPUTiming();
     }
     GetViewProjectionMatrix(deltaTime) {
         let context = this.m_renderer.GetContext();
@@ -206,24 +209,32 @@ export class Application {
         return modelViewProjectionMatrix;
     }
     Update(timeDelta) {
+        // Inform the timing UI a new frame is starting
+        this.m_timingUI.Update(timeDelta);
         let device = this.m_renderer.GetDevice();
         const modelViewProjection = this.GetViewProjectionMatrix(0);
         device.queue.writeBuffer(this.m_uniformBuffer, 0, modelViewProjection.buffer, modelViewProjection.byteOffset, modelViewProjection.byteLength);
         // Update the time deltas
-        this.m_jsTimeDeltas[this.m_frameIndex] = timeDelta;
-        this.m_gpuTimeDeltas[this.m_frameIndex] = this.m_renderer.GetRenderPass(0).GetLastGPUTimeMeasurement();
-        ++this.m_frameIndex;
-        if (this.m_frameIndex === 10) {
-            this.m_frameIndex = 0;
-            let jsAvgDelta = this.m_jsTimeDeltas.reduce((a, b) => a + b) / this.m_jsTimeDeltas.length;
-            let gpuAvgDelta = this.m_gpuTimeDeltas.reduce((a, b) => a + b) / this.m_gpuTimeDeltas.length;
-            let infoElem = document.getElementById("info");
-            infoElem.textContent = `\
-fps: ${(1 / jsAvgDelta).toFixed(1)}
-js: ${jsAvgDelta.toFixed(1)}ms
-gpu: ${gpuAvgDelta.toFixed(1)}ms
-`;
-        }
+        //		this.m_jsTimeDeltas[this.m_frameIndex] = timeDelta;
+        //		this.m_gpuTimeDeltas[this.m_frameIndex] = this.m_renderer.GetRenderPass(0).GetLastGPUTimeMeasurement();
+        //		++this.m_frameIndex;
+        //		if (this.m_frameIndex === 10)
+        //		{
+        //			this.m_frameIndex = 0;
+        //			let jsAvgDelta = this.m_jsTimeDeltas.reduce((a, b) => a + b) / this.m_jsTimeDeltas.length;
+        //			let gpuAvgDelta = this.m_gpuTimeDeltas.reduce((a, b) => a + b) / this.m_gpuTimeDeltas.length;
+        //
+        //			let infoElem = document.getElementById("info") as HTMLPreElement;
+        //			infoElem.textContent = `\
+        //fps: ${(1 / jsAvgDelta).toFixed(1)}
+        //js: ${jsAvgDelta.toFixed(1)}ms
+        //gpu: ${(gpuAvgDelta / 1000).toFixed(1)}�s
+        //`;
+        //		}
+    }
+    EndFrame() {
+        // When each frame is done being rendered, inform the timing UI
+        this.m_timingUI.EndFrame(this.m_renderer);
     }
     OnCanvasResize(width, height) {
         this.m_renderer.OnCanvasResize(width, height);
@@ -235,9 +246,6 @@ gpu: ${gpuAvgDelta.toFixed(1)}ms
     m_pipeline;
     m_uniformBuffer;
     m_uniformBindGroup;
-    // Frame timing data
-    m_jsTimeDeltas = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    m_gpuTimeDeltas = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    m_frameIndex = 0;
+    m_timingUI;
 }
 //# sourceMappingURL=Application.js.map

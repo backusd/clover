@@ -9,7 +9,7 @@ canvas {
 	height: 100%;
 }
 
-#info {
+#frame-timing-info {
 	position: absolute;
 	top: 0;
 	left: 0;
