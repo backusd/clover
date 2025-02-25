@@ -9,13 +9,17 @@ export class Camera {
     }
     UpdateViewMatrix() {
         mat4.lookAt(this.m_eye, this.m_at, this.m_up, this.m_viewMatrix);
+        this.m_viewHasChanged = true;
     }
     GetViewMatrix() {
         return this.m_viewMatrix;
     }
+    ViewHasChanged() { return this.m_viewHasChanged; }
+    ResetViewHasChanged() { this.m_viewHasChanged = false; }
     m_eye;
     m_at;
     m_up;
     m_viewMatrix;
+    m_viewHasChanged = false;
 }
 //# sourceMappingURL=Camera.js.map

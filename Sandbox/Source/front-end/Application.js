@@ -1,27 +1,22 @@
 import { LOG_TRACE } from "./Log.js";
 import { BindGroup, RenderPassDescriptor, RenderPass } from "./Renderer.js";
-import { Camera } from "./Camera.js";
+import { Scene } from "./Scene.js";
 import { mat4 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
 import { ColorCube } from "./ColorCube.js";
 import { TextureCube } from "./TextureCube.js";
 import { TimingUI } from "./TimingUI.js";
+import { RenderState } from "./RenderState.js";
 export class Application {
     constructor(renderer, canvas) {
-        this.m_pipeline = null;
-        this.m_renderPassDescriptor = null;
-        this.m_uniformBindGroup = null;
         this.m_renderer = renderer;
         this.m_canvas = canvas;
-        this.m_camera = new Camera();
-        this.SetupInputCallbacks();
-        let device = this.m_renderer.GetDevice();
-        const uniformBufferSize = 4 * 16; // 2x 4x4 matrix
-        this.m_uniformBuffer = device.createBuffer({
-            size: uniformBufferSize,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        });
+        this.m_scene = new Scene();
+        this.m_renderState = new RenderState();
+        this.m_renderState.UpdateProjectionMatrix(canvas.width, canvas.height);
+        // Create the TimingUI. Have it cache timing measurements from 20 frames before computing averages
         this.m_timingUI = new TimingUI(20, renderer);
+        this.SetupInputCallbacks();
     }
     SetupInputCallbacks() {
         window.addEventListener('keydown', (e) => this.OnKeyDown(e));
@@ -129,7 +124,7 @@ export class Application {
         const devicePixelRatio = window.devicePixelRatio;
         canvas.width = canvas.clientWidth * devicePixelRatio;
         canvas.height = canvas.clientHeight * devicePixelRatio;
-        let mvpBindGroupLayout = device.createBindGroupLayout({
+        let viewProjBindGroupLayout = device.createBindGroupLayout({
             label: "Model-View-Projection BindGroupLayout",
             entries: [
                 {
@@ -144,18 +139,24 @@ export class Application {
             format: 'depth24plus',
             usage: GPUTextureUsage.RENDER_ATTACHMENT,
         });
-        let mvpBindGroup = device.createBindGroup({
-            layout: mvpBindGroupLayout,
+        // View-projection matrix buffer
+        const viewProjBufferSize = 4 * 16; // 4x4 matrix (sizeof(float) * 16 elements)
+        let viewProjBuffer = device.createBuffer({
+            size: viewProjBufferSize,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+        let viewProjBindGroup = device.createBindGroup({
+            layout: viewProjBindGroupLayout,
             entries: [
                 {
                     binding: 0,
                     resource: {
-                        buffer: this.m_uniformBuffer,
+                        buffer: viewProjBuffer,
                     },
                 }
             ],
         });
-        this.m_renderPassDescriptor = {
+        let rpDescriptor = {
             colorAttachments: [
                 {
                     view: context.getCurrentTexture().createView(),
@@ -172,62 +173,68 @@ export class Application {
             },
         };
         // Bind Groups
-        let passBindGroup = new BindGroup(0, mvpBindGroup);
+        let passBindGroup = new BindGroup(0, viewProjBindGroup);
         // RenderPassDescriptor
-        let renderPassDescriptor = new RenderPassDescriptor(this.m_renderPassDescriptor);
+        let renderPassDescriptor = new RenderPassDescriptor(rpDescriptor);
         // RenderPass
         let renderPass = new RenderPass("rp_main", device, renderPassDescriptor);
         renderPass.AddBindGroup(passBindGroup); // bind group for model-view-projection matrix
+        renderPass.AddBuffer("viewProj-buffer", viewProjBuffer);
+        renderPass.Update = (timeDelta, renderPass, state, scene) => {
+            if (state.projectionMatrixHasChanged || scene.GetCamera().ViewHasChanged()) {
+                const viewProjectionMatrix = mat4.create();
+                const viewMatrix = scene.GetCamera().GetViewMatrix();
+                mat4.multiply(state.projectionMatrix, viewMatrix, viewProjectionMatrix);
+                device.queue.writeBuffer(renderPass.GetBuffer("viewProj-buffer"), 0, viewProjectionMatrix.buffer, viewProjectionMatrix.byteOffset, viewProjectionMatrix.byteLength);
+                LOG_TRACE("viewProj-buffer updating...");
+            }
+        };
         // ====== Layers ==============================
         // Terrain
         let terrain = new Terrain(10, 10);
-        renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, mvpBindGroupLayout));
+        renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, viewProjBindGroupLayout));
         // Texture Cube
         let textureCube = new TextureCube();
-        let textureCubeLayer = renderPass.AddRenderPassLayer(await textureCube.Initialize(this.m_renderer, mvpBindGroupLayout));
+        let textureCubeLayer = renderPass.AddRenderPassLayer(await textureCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
         let textureCubeRI = textureCubeLayer.CreateRenderItem("ri_texture-cube", "mg_texture-cube", "mesh_texture-cube");
         // Solid Color Cube
         let colorCube = new ColorCube();
-        let colorCubeLayer = renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, mvpBindGroupLayout));
+        let colorCubeLayer = renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
         let colorCubeRI_2 = colorCubeLayer.CreateRenderItem("ri_color-cube-2", "mg_color-cube", "mesh_color-cube-2");
         let colorCubeRI_3 = colorCubeLayer.CreateRenderItem("ri_color-cube-3", "mg_color-cube", "mesh_color-cube-3");
         // ============================================
         this.m_renderer.AddRenderPass(renderPass);
+        // DEBUG_ONLY
         this.m_renderer.EnableGPUTiming();
-    }
-    GetViewProjectionMatrix(deltaTime) {
-        let context = this.m_renderer.GetContext();
-        let canvas = context.canvas;
-        if (canvas instanceof OffscreenCanvas)
-            throw Error("Cannot GetModelViewProjectionMatrix. canvas is instanceof OffscreenCanvas - not sure how to handle that");
-        const aspect = canvas.width / canvas.height;
-        const projectionMatrix = mat4.perspective((2 * Math.PI) / 5, aspect, 1, 100.0);
-        const modelViewProjectionMatrix = mat4.create();
-        const viewMatrix = this.m_camera.GetViewMatrix();
-        mat4.multiply(projectionMatrix, viewMatrix, modelViewProjectionMatrix);
-        return modelViewProjectionMatrix;
     }
     Update(timeDelta) {
         // Inform the timing UI a new frame is starting
         this.m_timingUI.Update(timeDelta);
-        let device = this.m_renderer.GetDevice();
-        const modelViewProjection = this.GetViewProjectionMatrix(0);
-        device.queue.writeBuffer(this.m_uniformBuffer, 0, modelViewProjection.buffer, modelViewProjection.byteOffset, modelViewProjection.byteLength);
+        // Update the scene
+        this.m_scene.Update(timeDelta);
+        // Update the renderer
+        this.m_renderer.Update(timeDelta, this.m_renderState, this.m_scene);
     }
     EndFrame() {
         // When each frame is done being rendered, inform the timing UI
         this.m_timingUI.EndFrame(this.m_renderer);
+        //
+        // Reset all state that may have changed that may be actively tracked 
+        //
+        // Reset the projectionMatrixHasChanged back to false
+        this.m_renderState.projectionMatrixHasChanged = false;
+        // Reset the cameraViewHasChanged back to false
+        this.m_scene.GetCamera().ResetViewHasChanged();
     }
     OnCanvasResize(width, height) {
         this.m_renderer.OnCanvasResize(width, height);
+        this.m_renderState.UpdateProjectionMatrix(width, height);
     }
     m_renderer;
     m_canvas;
-    m_camera;
-    m_renderPassDescriptor;
-    m_pipeline;
-    m_uniformBuffer;
-    m_uniformBindGroup;
+    //	private m_renderPassDescriptor: GPURenderPassDescriptor | null;
     m_timingUI;
+    m_scene;
+    m_renderState;
 }
 //# sourceMappingURL=Application.js.map

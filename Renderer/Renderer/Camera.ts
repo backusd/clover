@@ -16,16 +16,19 @@ export class Camera
 	private UpdateViewMatrix(): void
 	{
 		mat4.lookAt(this.m_eye, this.m_at, this.m_up, this.m_viewMatrix);
+		this.m_viewHasChanged = true;
 	}
 	public GetViewMatrix(): Mat4
 	{
 		return this.m_viewMatrix;
 	}
-
+	public ViewHasChanged(): boolean { return this.m_viewHasChanged; }
+	public ResetViewHasChanged(): void { this.m_viewHasChanged = false; }
 
 
 	private m_eye: Vec3;
 	private m_at: Vec3;
 	private m_up: Vec3;
 	private m_viewMatrix: Mat4;
+	private m_viewHasChanged = false;
 }
