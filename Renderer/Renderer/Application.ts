@@ -22,6 +22,7 @@ import { RenderState } from "./RenderState.js"
 class KeyBoardState
 {
 	shiftIsDown: boolean = false;
+	LButtonIsDown: boolean = false;
 }
 export class Application
 {
@@ -185,6 +186,8 @@ export class Application
 	private OnLButtonDown(e: PointerEvent)
 	{
 		LOG_TRACE("OnLButtonDown");
+		this.m_keyboardState.LButtonIsDown = true;
+		this.m_scene.GetCamera().StartMouseDragging();
 	}
 	private OnMButtonDown(e: PointerEvent)
 	{
@@ -199,7 +202,8 @@ export class Application
 	private OnLButtonUp(e: PointerEvent)
 	{
 		LOG_TRACE("OnLButtonUp");
-
+		this.m_keyboardState.LButtonIsDown = false;
+		this.m_scene.GetCamera().StopMouseDragging();
 	}
 	private OnMButtonUp(e: PointerEvent)
 	{
@@ -212,11 +216,20 @@ export class Application
 	}
 	private OnPointerMove(e: PointerEvent)
 	{
-		//LOG_TRACE(`OnPointerMove: (${e.movementX}, ${e.movementY})`);
+		// LOG_TRACE(`OnPointerMove: (${e.movementX}, ${e.movementY}) | (${e.x}, ${e.y}) | ${this.m_canvas.width}, ${this.m_canvas.height}`);
+
+		if (this.m_keyboardState.LButtonIsDown)
+			this.m_scene.GetCamera().MouseDrag(e.movementX, e.movementY);
 	}
 	private OnWheel(e: WheelEvent)
 	{
 		LOG_TRACE(`OnWheel: ${e.deltaX}, ${e.deltaY} (${e.deltaMode})`);
+
+		if (e.deltaY < 0)
+			this.m_scene.GetCamera().ZoomIn();
+		else
+			this.m_scene.GetCamera().ZoomOut();
+			
 		e.preventDefault();
 		e.stopPropagation();
 	}

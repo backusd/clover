@@ -9,6 +9,7 @@ import { TimingUI } from "./TimingUI.js";
 import { RenderState } from "./RenderState.js";
 class KeyBoardState {
     shiftIsDown = false;
+    LButtonIsDown = false;
 }
 export class Application {
     constructor(renderer, canvas) {
@@ -143,6 +144,8 @@ export class Application {
     }
     OnLButtonDown(e) {
         LOG_TRACE("OnLButtonDown");
+        this.m_keyboardState.LButtonIsDown = true;
+        this.m_scene.GetCamera().StartMouseDragging();
     }
     OnMButtonDown(e) {
         LOG_TRACE("OnMButtonDown");
@@ -152,6 +155,8 @@ export class Application {
     }
     OnLButtonUp(e) {
         LOG_TRACE("OnLButtonUp");
+        this.m_keyboardState.LButtonIsDown = false;
+        this.m_scene.GetCamera().StopMouseDragging();
     }
     OnMButtonUp(e) {
         LOG_TRACE("OnMButtonUp");
@@ -160,10 +165,16 @@ export class Application {
         LOG_TRACE("OnRButtonUp");
     }
     OnPointerMove(e) {
-        //LOG_TRACE(`OnPointerMove: (${e.movementX}, ${e.movementY})`);
+        // LOG_TRACE(`OnPointerMove: (${e.movementX}, ${e.movementY}) | (${e.x}, ${e.y}) | ${this.m_canvas.width}, ${this.m_canvas.height}`);
+        if (this.m_keyboardState.LButtonIsDown)
+            this.m_scene.GetCamera().MouseDrag(e.movementX, e.movementY);
     }
     OnWheel(e) {
         LOG_TRACE(`OnWheel: ${e.deltaX}, ${e.deltaY} (${e.deltaMode})`);
+        if (e.deltaY < 0)
+            this.m_scene.GetCamera().ZoomIn();
+        else
+            this.m_scene.GetCamera().ZoomOut();
         e.preventDefault();
         e.stopPropagation();
     }
