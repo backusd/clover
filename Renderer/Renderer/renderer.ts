@@ -7,6 +7,8 @@ import {
 } from "./Log.js"
 import { Camera } from "./Camera.js"
 import { HybridLookup } from "./Utils.js"
+import { RenderState } from "./RenderState.js"
+import { Scene } from "./Scene.js"
 
 
 export class MeshDescriptor
@@ -475,6 +477,7 @@ export class RenderPassLayer
         this.m_renderPipeline = pipeline;
         this.m_bindGroups = [];
         this.m_meshGroups = new HybridLookup<MeshGroup>();
+        this.Update = (timeDelta: number, renderPassLayer: RenderPassLayer, state: RenderState, scene: Scene) => { };
     }
     public Name(): string { return this.m_name; }
     public AddBindGroup(bindGroup: BindGroup): BindGroup
@@ -526,6 +529,14 @@ export class RenderPassLayer
         for (let iii = 0; iii < this.m_meshGroups.size(); iii++)
             this.m_meshGroups.getFromIndex(iii).Render(passEncoder);
     }
+    public UpdateImpl(timeDelta: number, state: RenderState, scene: Scene): void
+    {
+        // We use UpdateImpl here in case we need to eventually do more, but for right now, all we need to
+        // do is cal the user supplied Update function
+        this.Update(timeDelta, this, state, scene);
+    }
+    public Update: (timeDelta: number, renderPassLayer: RenderPassLayer, state: RenderState, scene: Scene) => void;
+
 
     private m_name: string;
     private m_renderPipeline: GPURenderPipeline;
@@ -583,7 +594,9 @@ export class RenderPass
         this.m_name = name;
         this.m_renderPassDescriptor = descriptor;
         this.m_bindGroups = [];
-        this.m_layers = [];
+        this.m_layers = []; 
+        this.m_buffers = new HybridLookup<GPUBuffer>();
+        this.Update = (timeDelta: number, renderPass: RenderPass, state: RenderState, scene: Scene) => { };
     }
     public Name(): string { return this.m_name; }
     public AddBindGroup(bindGroup: BindGroup): BindGroup
@@ -605,7 +618,7 @@ export class RenderPass
 
         // Create the encoder for this render pass
         const passEncoder = encoder.beginRenderPass(this.m_renderPassDescriptor.GetDescriptor());
-        passEncoder.label = "Basic RenderPassEncoder";
+        passEncoder.label = `RenderPassEncoder: ${this.m_name}`;
 
         // Set the BindGroups that will be used for the entire render pass
         this.m_bindGroups.forEach(bindGroup =>
@@ -690,11 +703,28 @@ export class RenderPass
         }
     }
     public GetLastGPUTimeMeasurement(): number { return this.m_lastGPUTime; }
+    public AddBuffer(name: string, buffer: GPUBuffer): GPUBuffer
+    {
+        return this.m_buffers.add(name, buffer);
+    }
+    public GetBuffer(name: string): GPUBuffer
+    {
+        return this.m_buffers.getFromKey(name);
+    }
+    public UpdateImpl(timeDelta: number, state: RenderState, scene: Scene)
+    {
+        // Call the user supplied Update function and then update the layers
+        this.Update(timeDelta, this, state, scene);
+
+        this.m_layers.forEach(layer => { layer.UpdateImpl(timeDelta, state, scene); })
+    }
+    public Update: (timeDelta: number, renderPass: RenderPass, state: RenderState, scene: Scene) => void;
 
     private m_name: string;
     private m_renderPassDescriptor: RenderPassDescriptor;
     private m_bindGroups: BindGroup[];
     private m_layers: RenderPassLayer[];
+    private m_buffers: HybridLookup<GPUBuffer>;
 
     // GPU Timing data
     private m_isComputingGPUTimestamp: boolean = false;
@@ -736,6 +766,14 @@ export class Renderer
         // The main reason for doing this right now is to collect GPU render times for each pass
         for (let iii = 0; iii < this.m_renderPasses.size(); ++iii)
             this.m_renderPasses.getFromIndex(iii).EndOfRender();
+    }
+    public Update(timeDelta: number, state: RenderState, scene: Scene): void
+    {
+        for (let iii = 0; iii < this.m_renderPasses.size(); ++iii)
+        {
+            let rp = this.m_renderPasses.getFromIndex(iii);
+            rp.UpdateImpl(timeDelta, state, scene);
+        }
     }
     public AddRenderPass(pass: RenderPass): RenderPass
     {

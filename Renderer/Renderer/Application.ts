@@ -9,12 +9,14 @@ import
 	RenderPass,
 	Renderer
 } from "./Renderer.js";
-import { Camera } from "./Camera.js"
+import { Scene } from "./Scene.js";
+import { Camera } from "./Camera.js";
 import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
-import { Terrain } from "./Terrain.js"
-import { ColorCube } from "./ColorCube.js"
-import { TextureCube } from "./TextureCube.js"
-import { TimingUI } from "./TimingUI.js"
+import { Terrain } from "./Terrain.js";
+import { ColorCube } from "./ColorCube.js";
+import { TextureCube } from "./TextureCube.js";
+import { TimingUI } from "./TimingUI.js";
+import { RenderState } from "./RenderState.js"
 
 
 
@@ -22,22 +24,19 @@ export class Application
 {
 	constructor(renderer: Renderer, canvas: HTMLCanvasElement)
 	{
-		this.m_pipeline = null;
+	//	this.m_pipeline = null;
 		this.m_renderPassDescriptor = null;
-		this.m_uniformBindGroup = null;
 		this.m_renderer = renderer;
 		this.m_canvas = canvas;
-		this.m_camera = new Camera();
-		this.SetupInputCallbacks();
+	//	this.m_camera = new Camera();
+		this.m_scene = new Scene();
+		this.m_renderState = new RenderState();
+		this.m_renderState.UpdateProjectionMatrix(canvas.width, canvas.height);
 
-		let device = this.m_renderer.GetDevice();
-		const uniformBufferSize = 4 * 16; // 2x 4x4 matrix
-		this.m_uniformBuffer = device.createBuffer({
-			size: uniformBufferSize,
-			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-		});
-
+		// Create the TimingUI. Have it cache timing measurements from 20 frames before computing averages
 		this.m_timingUI = new TimingUI(20, renderer);
+
+		this.SetupInputCallbacks();
 	}
 	private SetupInputCallbacks(): void
 	{
@@ -201,13 +200,21 @@ export class Application
 			usage: GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 
-		let mvpBindGroup = device.createBindGroup({
+
+		// View-projection matrix buffer
+		const viewProjBufferSize = 4 * 16; // 4x4 matrix (sizeof(float) * 16 elements)
+		let viewProjBuffer = device.createBuffer({
+			size: viewProjBufferSize,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		});
+
+		let viewProjBindGroup = device.createBindGroup({
 			layout: mvpBindGroupLayout,
 			entries: [
 				{
 					binding: 0,
 					resource: {
-						buffer: this.m_uniformBuffer,
+						buffer: viewProjBuffer,
 					},
 				}
 			],
@@ -228,10 +235,10 @@ export class Application
 				depthLoadOp: 'clear',
 				depthStoreOp: 'store',
 			},
-		};	
+		};
 
 		// Bind Groups
-		let passBindGroup: BindGroup = new BindGroup(0, mvpBindGroup);
+		let passBindGroup: BindGroup = new BindGroup(0, viewProjBindGroup);
 
 		// RenderPassDescriptor
 		let renderPassDescriptor: RenderPassDescriptor = new RenderPassDescriptor(this.m_renderPassDescriptor);
@@ -239,7 +246,24 @@ export class Application
 		// RenderPass
 		let renderPass: RenderPass = new RenderPass("rp_main", device, renderPassDescriptor);
 		renderPass.AddBindGroup(passBindGroup); // bind group for model-view-projection matrix
+		renderPass.AddBuffer("viewProj-buffer", viewProjBuffer);
+		renderPass.Update = (timeDelta: number, renderPass: RenderPass, state: RenderState, scene: Scene) =>
+		{
+			if (state.projectionMatrixHasChanged || scene.GetCamera().ViewMatrixHasChanged())
+			{
+				const viewProjectionMatrix = mat4.create();
+				const viewMatrix = scene.GetCamera().GetViewMatrix();
+				mat4.multiply(state.projectionMatrix, viewMatrix, viewProjectionMatrix);
 
+				device.queue.writeBuffer(
+					renderPass.GetBuffer("viewProj-buffer"),
+					0,
+					viewProjectionMatrix.buffer,
+					viewProjectionMatrix.byteOffset,
+					viewProjectionMatrix.byteLength
+				);
+			}
+		};
 
 		// ====== Layers ==============================
 
@@ -263,59 +287,71 @@ export class Application
 		// ============================================
 
 		this.m_renderer.AddRenderPass(renderPass);
+
+		// DEBUG_ONLY
 		this.m_renderer.EnableGPUTiming();
 	}
 
-	private GetViewProjectionMatrix(deltaTime: number)
-	{
-		let context = this.m_renderer.GetContext();
-
-		let canvas: HTMLCanvasElement | OffscreenCanvas = context.canvas;
-		if (canvas instanceof OffscreenCanvas)
-			throw Error("Cannot GetModelViewProjectionMatrix. canvas is instanceof OffscreenCanvas - not sure how to handle that");
-
-		const aspect = canvas.width / canvas.height;
-		const projectionMatrix = mat4.perspective((2 * Math.PI) / 5, aspect, 1, 100.0);
-
-		const modelViewProjectionMatrix = mat4.create();
-		const viewMatrix = this.m_camera.GetViewMatrix();
-		mat4.multiply(projectionMatrix, viewMatrix, modelViewProjectionMatrix);
-		return modelViewProjectionMatrix;
-	}
+//	private GetViewProjectionMatrix(deltaTime: number)
+//	{
+//		let context = this.m_renderer.GetContext();
+//
+//		let canvas: HTMLCanvasElement | OffscreenCanvas = context.canvas;
+//		if (canvas instanceof OffscreenCanvas)
+//			throw Error("Cannot GetModelViewProjectionMatrix. canvas is instanceof OffscreenCanvas - not sure how to handle that");
+//
+//		const aspect = canvas.width / canvas.height;
+//		const projectionMatrix = mat4.perspective((2 * Math.PI) / 5, aspect, 1, 100.0);
+//
+//		const modelViewProjectionMatrix = mat4.create();
+//		const viewMatrix = this.m_camera.GetViewMatrix();
+//		mat4.multiply(projectionMatrix, viewMatrix, modelViewProjectionMatrix);
+//		return modelViewProjectionMatrix;
+//	}
 
 	public Update(timeDelta: number): void
 	{
 		// Inform the timing UI a new frame is starting
 		this.m_timingUI.Update(timeDelta);
 
+		// Update the scene
+		this.m_scene.Update(timeDelta);
 
 
-		let device = this.m_renderer.GetDevice();
-		const modelViewProjection = this.GetViewProjectionMatrix(0);
-		device.queue.writeBuffer(
-			this.m_uniformBuffer,
-			0,
-			modelViewProjection.buffer,
-			modelViewProjection.byteOffset,
-			modelViewProjection.byteLength
-		);
+
+
+	//	let device = this.m_renderer.GetDevice();
+	//	const modelViewProjection = this.GetViewProjectionMatrix(0);
+	//	device.queue.writeBuffer(
+	//		this.m_uniformBuffer,
+	//		0,
+	//		modelViewProjection.buffer,
+	//		modelViewProjection.byteOffset,
+	//		modelViewProjection.byteLength
+	//	);
 	}
 	public EndFrame(): void
 	{
 		// When each frame is done being rendered, inform the timing UI
 		this.m_timingUI.EndFrame(this.m_renderer);
+
+		// Reset the projectionMatrixHasChanged back to false
+		...
 	}
-	public OnCanvasResize(width: number, height: number)
+	public OnCanvasResize(width: number, height: number): void
 	{
 		this.m_renderer.OnCanvasResize(width, height);
+		this.m_renderState.UpdateProjectionMatrix(width, height);
 	}
 
 	private m_renderer: Renderer;
 	private m_canvas: HTMLCanvasElement;
-	private m_camera: Camera;
+//	private m_camera: Camera;
 	private m_renderPassDescriptor: GPURenderPassDescriptor | null;
-	private m_pipeline: GPURenderPipeline | null;
-	private m_uniformBuffer: GPUBuffer;
-	private m_uniformBindGroup: GPUBindGroup | null;
+//	private m_pipeline: GPURenderPipeline | null;
+//	private m_uniformBuffer: GPUBuffer;
+//	private m_uniformBindGroup: GPUBindGroup | null;
 	private m_timingUI: TimingUI;
+	private m_scene: Scene;
+	private m_renderState: RenderState;
 }
