@@ -59,7 +59,7 @@ export class Scene
 	public Update(timeDelta: number): void
 	{
 		// Update the Camera
-
+		this.m_camera.Update(timeDelta);
 
 		// Update the game objects
 		let numObjects = this.m_gameObjects.size();

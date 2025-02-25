@@ -29,6 +29,7 @@ export class Scene {
     }
     Update(timeDelta) {
         // Update the Camera
+        this.m_camera.Update(timeDelta);
         // Update the game objects
         let numObjects = this.m_gameObjects.size();
         for (let iii = 0; iii < numObjects; ++iii)

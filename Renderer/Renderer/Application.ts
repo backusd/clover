@@ -19,11 +19,15 @@ import { TimingUI } from "./TimingUI.js";
 import { RenderState } from "./RenderState.js"
 
 
-
+class KeyBoardState
+{
+	shiftIsDown: boolean = false;
+}
 export class Application
 {
 	constructor(renderer: Renderer, canvas: HTMLCanvasElement)
 	{
+		this.m_keyboardState = new KeyBoardState();
 		this.m_renderer = renderer;
 		this.m_canvas = canvas;
 		this.m_scene = new Scene();
@@ -81,8 +85,37 @@ export class Application
 			case 'Space': break;
 
 			case 'ShiftLeft':
+			case 'ShiftRight':
+				this.m_keyboardState.shiftIsDown = true;
+				break;
+
 			case 'ControlLeft':
 			case 'KeyC':
+				break;
+
+			case 'ArrowUp':
+				if (this.m_keyboardState.shiftIsDown)
+					this.m_scene.GetCamera().StartRotatingUpward();
+				else
+					this.m_scene.GetCamera().StartMovingForward();
+				break;
+			case 'ArrowDown':
+				if (this.m_keyboardState.shiftIsDown)
+					this.m_scene.GetCamera().StartRotatingDownward();
+				else
+					this.m_scene.GetCamera().StartMovingBackward();
+				break;
+			case 'ArrowLeft':
+				if (this.m_keyboardState.shiftIsDown)
+					this.m_scene.GetCamera().StartRotatingLeft();
+				else
+					this.m_scene.GetCamera().StartMovingLeft();
+				break;
+			case 'ArrowRight':
+				if (this.m_keyboardState.shiftIsDown)
+					this.m_scene.GetCamera().StartRotatingRight();
+				else
+					this.m_scene.GetCamera().StartMovingRight();
 				break;
 
 			default:
@@ -111,8 +144,31 @@ export class Application
 			case 'Space': break;
 
 			case 'ShiftLeft':
+			case 'ShiftRight':
+				this.m_keyboardState.shiftIsDown = false;
+				break;
+
 			case 'ControlLeft':
 			case 'KeyC':
+				break;
+
+			case 'ArrowUp':
+				// Because we don't know if the Shift key was down when the ArrowUp was pressed
+				// we need to stop both types of motion that could have been started
+				this.m_scene.GetCamera().StopMovingForward();
+				this.m_scene.GetCamera().StopRotatingUpward();
+				break;
+			case 'ArrowDown':
+				this.m_scene.GetCamera().StopMovingBackward();
+				this.m_scene.GetCamera().StopRotatingDownward();
+				break;
+			case 'ArrowLeft':
+				this.m_scene.GetCamera().StopMovingLeft();
+				this.m_scene.GetCamera().StopRotatingLeft();
+				break;
+			case 'ArrowRight':
+				this.m_scene.GetCamera().StopMovingRight();
+				this.m_scene.GetCamera().StopRotatingRight();
 				break;
 
 			default:
@@ -259,8 +315,6 @@ export class Application
 					viewProjectionMatrix.byteOffset,
 					viewProjectionMatrix.byteLength
 				);
-
-				LOG_TRACE("viewProj-buffer updating...");
 			}
 		};
 
@@ -297,6 +351,9 @@ export class Application
 		this.m_timingUI.Update(timeDelta);
 
 		// Update the scene
+		// NOTE: This MUST come before calling Update on the Renderer because this update
+		//       can cause the camera to update in which case the view matrix will change
+		//       which require buffer updates that are performed in the Renderer update.
 		this.m_scene.Update(timeDelta);
 
 		// Update the renderer
@@ -322,6 +379,7 @@ export class Application
 		this.m_renderState.UpdateProjectionMatrix(width, height);
 	}
 
+	private m_keyboardState: KeyBoardState;
 	private m_renderer: Renderer;
 	private m_canvas: HTMLCanvasElement;
 	private m_timingUI: TimingUI;
