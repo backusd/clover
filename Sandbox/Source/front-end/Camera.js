@@ -182,39 +182,9 @@ export class Camera {
         // need to move the m_eye vector along the arc of a circle so it keeps the same distance to m_at
         if (this.m_isRotatingUpward) {
             this.RotateVertically(this.m_rotationRadPerSec * timeDelta);
-            //		let angle = this.m_rotationRadPerSec * timeDelta;
-            //		let eyeToAt = vec3.subtract(this.m_eye, this.m_at);
-            //		let xzProjection = vec3.create(eyeToAt[0], 0, eyeToAt[2]);
-            //
-            //		// Don't update the angle if it would make m_eye go beyond vertical
-            //		if (vec3.angle(eyeToAt, xzProjection) + angle < Math.PI / 2 - 0.1)
-            //		{
-            //			let rotationAxis = vec3.cross(eyeToAt, this.m_up);
-            //			let rotationMatrix = mat4.axisRotation(rotationAxis, angle);
-            //
-            //			vec3.transformMat4(eyeToAt, rotationMatrix, eyeToAt);
-            //			vec3.add(eyeToAt, this.m_at, this.m_eye);
-            //
-            //			this.UpdateViewMatrix();
-            //		}
         }
         else if (this.m_isRotatingDownward) {
             this.RotateVertically(-1 * this.m_rotationRadPerSec * timeDelta);
-            //		let angle = -1 * this.m_rotationRadPerSec * timeDelta;
-            //		let eyeToAt = vec3.subtract(this.m_eye, this.m_at);
-            //		let xzProjection = vec3.create(eyeToAt[0], 0, eyeToAt[2]);
-            //
-            //		// Don't update the angle if it would make m_eye go below the xz-plane
-            //		if (vec3.angle(eyeToAt, xzProjection) + angle > 0)
-            //		{
-            //			let rotationAxis = vec3.cross(eyeToAt, this.m_up);
-            //			let rotationMatrix = mat4.axisRotation(rotationAxis, angle);
-            //
-            //			vec3.transformMat4(eyeToAt, rotationMatrix, eyeToAt);
-            //			vec3.add(eyeToAt, this.m_at, this.m_eye);
-            //
-            //			this.UpdateViewMatrix();
-            //		}
         }
         // If we are rotating right or left, we want to always keep m_at and m_up the same. We just
         // need to rotate m_eye vector around the y-axis that goes through m_at

@@ -9,7 +9,11 @@ import
 	RenderPass,
 	Renderer
 } from "./Renderer.js";
-import { Scene } from "./Scene.js";
+import
+{
+	Scene,
+	GameCube
+} from "./Scene.js";
 import { Camera } from "./Camera.js";
 import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
@@ -340,7 +344,7 @@ export class Application
 		// Texture Cube
 		let textureCube = new TextureCube();
 		let textureCubeLayer = renderPass.AddRenderPassLayer(await textureCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
-		let textureCubeRI = textureCubeLayer.CreateRenderItem("ri_texture-cube", "mg_texture-cube", "mesh_texture-cube");
+	//	let textureCubeRI = textureCubeLayer.CreateRenderItem("ri_texture-cube", "mg_texture-cube", "mesh_texture-cube");
 
 
 		// Solid Color Cube
@@ -356,6 +360,14 @@ export class Application
 
 		// DEBUG_ONLY
 		this.m_renderer.EnableGPUTiming();
+
+
+
+
+
+		// Create the scene
+		let cube = new GameCube("game-cube", this.m_renderer);
+		this.m_scene.AddGameObject(cube);
 	}
 
 	public Update(timeDelta: number): void

@@ -11,6 +11,7 @@ export class RenderItem {
         this.m_name = name;
         this.m_meshName = meshName;
         this.m_meshDescriptor = meshDescriptor;
+        this.Update = (timeDelta, renderitem, state, scene) => { };
     }
     IsActive() { return this.m_isActive; }
     Name() { return this.m_name; }
@@ -32,6 +33,10 @@ export class RenderItem {
             }
         }
     }
+    UpdateImpl(timeDelta, state, scene) {
+        this.Update(timeDelta, this, state, scene);
+    }
+    Update;
     m_name;
     m_meshName;
     m_meshDescriptor;
@@ -333,6 +338,12 @@ export class MeshGroup {
                 LOG_CORE_ERROR(`        ${this.m_renderItems.getFromIndex(iii).Name()}`);
         }
     }
+    Update(timeDelta, state, scene) {
+        // Mesh groups don't need to do anything during Update, so this is just a pass
+        // through to update all render items
+        for (let iii = 0; iii < this.m_renderItems.size(); iii++)
+            this.m_renderItems.getFromIndex(iii).UpdateImpl(timeDelta, state, scene);
+    }
     m_name;
     m_device;
     m_meshes;
@@ -405,9 +416,10 @@ export class RenderPassLayer {
             this.m_meshGroups.getFromIndex(iii).Render(passEncoder);
     }
     UpdateImpl(timeDelta, state, scene) {
-        // We use UpdateImpl here in case we need to eventually do more, but for right now, all we need to
-        // do is cal the user supplied Update function
+        // Call the user supplied Update function and then update the mesh groups
         this.Update(timeDelta, this, state, scene);
+        for (let iii = 0; iii < this.m_meshGroups.size(); iii++)
+            this.m_meshGroups.getFromIndex(iii).Update(timeDelta, state, scene);
     }
     Update;
     m_name;
@@ -452,7 +464,7 @@ export class RenderPass {
         this.m_name = name;
         this.m_renderPassDescriptor = descriptor;
         this.m_bindGroups = [];
-        this.m_layers = [];
+        this.m_layers = new HybridLookup();
         this.m_buffers = new HybridLookup();
         this.Update = (timeDelta, renderPass, state, scene) => { };
     }
@@ -462,8 +474,12 @@ export class RenderPass {
         return bindGroup;
     }
     AddRenderPassLayer(layer) {
-        this.m_layers.push(layer);
-        return layer;
+        return this.m_layers.add(layer.Name(), layer);
+    }
+    GetRenderPassLayer(nameOrIndex) {
+        if (typeof nameOrIndex === "string")
+            return this.m_layers.getFromKey(nameOrIndex);
+        return this.m_layers.getFromIndex(nameOrIndex);
     }
     Render(device, context, encoder) {
         // Prepare is a user-defined callback to make any final adjustments to the descriptor
@@ -478,7 +494,8 @@ export class RenderPass {
             passEncoder.setBindGroup(bindGroup.GetGroupNumber(), bindGroup.GetBindGroup());
         });
         // Run each layer
-        this.m_layers.forEach(layer => { layer.Render(passEncoder); });
+        for (let iii = 0; iii < this.m_layers.size(); ++iii)
+            this.m_layers.getFromIndex(iii).Render(passEncoder);
         passEncoder.end();
         // If we are computing timestamps, now is the time we resolve the query
         if (this.m_isComputingGPUTimestamp) {
@@ -544,7 +561,8 @@ export class RenderPass {
     UpdateImpl(timeDelta, state, scene) {
         // Call the user supplied Update function and then update the layers
         this.Update(timeDelta, this, state, scene);
-        this.m_layers.forEach(layer => { layer.UpdateImpl(timeDelta, state, scene); });
+        for (let iii = 0; iii < this.m_layers.size(); ++iii)
+            this.m_layers.getFromIndex(iii).UpdateImpl(timeDelta, state, scene);
     }
     Update;
     m_name;

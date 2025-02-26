@@ -25,6 +25,7 @@ export class RenderItem
         this.m_name = name;
         this.m_meshName = meshName;
         this.m_meshDescriptor = meshDescriptor;
+        this.Update = (timeDelta: number, renderitem: RenderItem, state: RenderState, scene: Scene) => { };
     }
     public IsActive(): boolean { return this.m_isActive; }
     public Name(): string { return this.m_name; }
@@ -50,6 +51,11 @@ export class RenderItem
             }
         }
     }
+    public UpdateImpl(timeDelta: number, state: RenderState, scene: Scene): void
+    {
+        this.Update(timeDelta, this, state, scene);
+    }
+    public Update: (timeDelta: number, renderitem: RenderItem, state: RenderState, scene: Scene) => void;
 
     private m_name: string;
     private m_meshName: string;
@@ -439,6 +445,13 @@ export class MeshGroup
                 LOG_CORE_ERROR(`        ${this.m_renderItems.getFromIndex(iii).Name()}`);
         }
     }
+    public Update(timeDelta: number, state: RenderState, scene: Scene): void
+    {
+        // Mesh groups don't need to do anything during Update, so this is just a pass
+        // through to update all render items
+        for (let iii = 0; iii < this.m_renderItems.size(); iii++)
+            this.m_renderItems.getFromIndex(iii).UpdateImpl(timeDelta, state, scene);
+    }
 
     private m_name: string;
     private m_device: GPUDevice;
@@ -531,9 +544,11 @@ export class RenderPassLayer
     }
     public UpdateImpl(timeDelta: number, state: RenderState, scene: Scene): void
     {
-        // We use UpdateImpl here in case we need to eventually do more, but for right now, all we need to
-        // do is cal the user supplied Update function
+        // Call the user supplied Update function and then update the mesh groups
         this.Update(timeDelta, this, state, scene);
+
+        for (let iii = 0; iii < this.m_meshGroups.size(); iii++)
+            this.m_meshGroups.getFromIndex(iii).Update(timeDelta, state, scene);
     }
     public Update: (timeDelta: number, renderPassLayer: RenderPassLayer, state: RenderState, scene: Scene) => void;
 
@@ -594,7 +609,7 @@ export class RenderPass
         this.m_name = name;
         this.m_renderPassDescriptor = descriptor;
         this.m_bindGroups = [];
-        this.m_layers = []; 
+        this.m_layers = new HybridLookup<RenderPassLayer>();
         this.m_buffers = new HybridLookup<GPUBuffer>();
         this.Update = (timeDelta: number, renderPass: RenderPass, state: RenderState, scene: Scene) => { };
     }
@@ -606,8 +621,14 @@ export class RenderPass
     }
     public AddRenderPassLayer(layer: RenderPassLayer): RenderPassLayer
     {
-        this.m_layers.push(layer);
-        return layer;
+        return this.m_layers.add(layer.Name(), layer);
+    }
+    public GetRenderPassLayer(nameOrIndex: string | number): RenderPassLayer
+    {
+        if (typeof nameOrIndex === "string")
+            return this.m_layers.getFromKey(nameOrIndex);
+
+        return this.m_layers.getFromIndex(nameOrIndex);
     }
     public Render(device: GPUDevice, context: GPUCanvasContext, encoder: GPUCommandEncoder): void
     {
@@ -627,7 +648,8 @@ export class RenderPass
         });
 
         // Run each layer
-        this.m_layers.forEach(layer => { layer.Render(passEncoder); })
+        for (let iii = 0; iii < this.m_layers.size(); ++iii)
+            this.m_layers.getFromIndex(iii).Render(passEncoder);
 
         passEncoder.end();
 
@@ -716,14 +738,15 @@ export class RenderPass
         // Call the user supplied Update function and then update the layers
         this.Update(timeDelta, this, state, scene);
 
-        this.m_layers.forEach(layer => { layer.UpdateImpl(timeDelta, state, scene); })
+        for (let iii = 0; iii < this.m_layers.size(); ++iii)
+            this.m_layers.getFromIndex(iii).UpdateImpl(timeDelta, state, scene);
     }
     public Update: (timeDelta: number, renderPass: RenderPass, state: RenderState, scene: Scene) => void;
 
     private m_name: string;
     private m_renderPassDescriptor: RenderPassDescriptor;
     private m_bindGroups: BindGroup[];
-    private m_layers: RenderPassLayer[];
+    private m_layers: HybridLookup<RenderPassLayer>;
     private m_buffers: HybridLookup<GPUBuffer>;
 
     // GPU Timing data

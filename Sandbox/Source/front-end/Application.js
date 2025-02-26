@@ -1,6 +1,6 @@
 import { LOG_TRACE } from "./Log.js";
 import { BindGroup, RenderPassDescriptor, RenderPass } from "./Renderer.js";
-import { Scene } from "./Scene.js";
+import { Scene, GameCube } from "./Scene.js";
 import { mat4 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
 import { ColorCube } from "./ColorCube.js";
@@ -258,7 +258,7 @@ export class Application {
         // Texture Cube
         let textureCube = new TextureCube();
         let textureCubeLayer = renderPass.AddRenderPassLayer(await textureCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
-        let textureCubeRI = textureCubeLayer.CreateRenderItem("ri_texture-cube", "mg_texture-cube", "mesh_texture-cube");
+        //	let textureCubeRI = textureCubeLayer.CreateRenderItem("ri_texture-cube", "mg_texture-cube", "mesh_texture-cube");
         // Solid Color Cube
         let colorCube = new ColorCube();
         let colorCubeLayer = renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
@@ -268,6 +268,9 @@ export class Application {
         this.m_renderer.AddRenderPass(renderPass);
         // DEBUG_ONLY
         this.m_renderer.EnableGPUTiming();
+        // Create the scene
+        let cube = new GameCube("game-cube", this.m_renderer);
+        this.m_scene.AddGameObject(cube);
     }
     Update(timeDelta) {
         // Inform the timing UI a new frame is starting
