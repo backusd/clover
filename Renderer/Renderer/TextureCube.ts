@@ -68,43 +68,41 @@ export class TextureCube
 	public async Initialize(renderer: Renderer, passBindGroupLayout: GPUBindGroupLayout): Promise<RenderPassLayer>
 	{
 		let device = renderer.GetDevice();
-		let context = renderer.GetContext();
-
 		
 
-		// Creating a 2nd box mesh
-		let cubeVertexArray_2 = new Float32Array(cubeVertexArray.length);
-		for (let row = 0; row < 36; row++)
-		{
-			for (let col = 0; col < 10; col++)
-			{
-				let iii = row * 10 + col;
-				if (col >= 1)
-					cubeVertexArray_2[iii] = cubeVertexArray[iii];
-				else
-					cubeVertexArray_2[iii] = cubeVertexArray[iii] + 3;
-			}
-		}
-
-		let boxMesh_2 = new Mesh();
-		boxMesh_2.CreateMeshFromRawData("mesh_texture-cube-2", cubeVertexArray_2, cubeVertexNumFloats);
-
-		// Creating a 3rd box mesh
-		let cubeVertexArray_3 = new Float32Array(cubeVertexArray.length);
-		for (let row = 0; row < 36; row++)
-		{
-			for (let col = 0; col < 10; col++)
-			{
-				let iii = row * 10 + col;
-				if (col === 1)
-					cubeVertexArray_3[iii] = cubeVertexArray[iii] + 3;
-				else
-					cubeVertexArray_3[iii] = cubeVertexArray[iii];
-			}
-		}
-
-		let boxMesh_3 = new Mesh();
-		boxMesh_3.CreateMeshFromRawData("mesh_texture-cube-3", cubeVertexArray_3, cubeVertexNumFloats);
+	//	// Creating a 2nd box mesh
+	//	let cubeVertexArray_2 = new Float32Array(cubeVertexArray.length);
+	//	for (let row = 0; row < 36; row++)
+	//	{
+	//		for (let col = 0; col < 10; col++)
+	//		{
+	//			let iii = row * 10 + col;
+	//			if (col >= 1)
+	//				cubeVertexArray_2[iii] = cubeVertexArray[iii];
+	//			else
+	//				cubeVertexArray_2[iii] = cubeVertexArray[iii] + 3;
+	//		}
+	//	}
+	//
+	//	let boxMesh_2 = new Mesh();
+	//	boxMesh_2.CreateMeshFromRawData("mesh_texture-cube-2", cubeVertexArray_2, cubeVertexNumFloats);
+	//
+	//	// Creating a 3rd box mesh
+	//	let cubeVertexArray_3 = new Float32Array(cubeVertexArray.length);
+	//	for (let row = 0; row < 36; row++)
+	//	{
+	//		for (let col = 0; col < 10; col++)
+	//		{
+	//			let iii = row * 10 + col;
+	//			if (col === 1)
+	//				cubeVertexArray_3[iii] = cubeVertexArray[iii] + 3;
+	//			else
+	//				cubeVertexArray_3[iii] = cubeVertexArray[iii];
+	//		}
+	//	}
+	//
+	//	let boxMesh_3 = new Mesh();
+	//	boxMesh_3.CreateMeshFromRawData("mesh_texture-cube-3", cubeVertexArray_3, cubeVertexNumFloats);
 
 
 		// Box Mesh
@@ -112,8 +110,9 @@ export class TextureCube
 		boxMesh.CreateMeshFromRawData("mesh_texture-cube", cubeVertexArray, cubeVertexNumFloats);
 
 		// MeshGroup
-		let cubeMeshGroup = new MeshGroup("mg_texture-cube", device, [boxMesh, boxMesh_2, boxMesh_3], 0);
+		let cubeMeshGroup = new MeshGroup("mg_texture-cube", device, [boxMesh], 0);
 
+		// Shader Module
 		const module: GPUShaderModule = device.createShaderModule({
 			label: 'Texture cube shader module',
 			code: `
@@ -155,24 +154,7 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 `
 		});
 
-
-		//let cubeBindGroupLayout: GPUBindGroupLayout = device.createBindGroupLayout(
-		//	{
-		//		label: "bgl_texture-cube",
-		//		entries: [
-		//			{
-		//				binding: 0,
-		//				visibility: GPUShaderStage.FRAGMENT,
-		//				sampler: {}
-		//			},
-		//			{
-		//				binding: 1,
-		//				visibility: GPUShaderStage.FRAGMENT,
-		//				texture: {}
-		//			}
-		//		]
-		//	}
-		//);
+		// Bind group layout for the RenderItem
 		let cubeBindGroupLayout: GPUBindGroupLayout = device.createBindGroupLayout(
 			{
 				label: "bgl_game-cube",
@@ -195,6 +177,9 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 				]
 			}
 		);
+
+		// There is no bind group for the layer, so the bind group for the RenderItem will be at index 1
+		let cubeBindGroupLayoutGroupNumber = 1;
 
 		let cubePipelineLayoutDescriptor: GPUPipelineLayoutDescriptor = {
 			bindGroupLayouts: [passBindGroupLayout, cubeBindGroupLayout]
@@ -246,54 +231,9 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 			},
 		});
 
-		// Fetch the image and upload it into a GPUTexture.
-	//	let cubeTexture: GPUTexture;
-	//	{
-	//		const response = await fetch('./images/molecule.jpeg');
-	//		const imageBitmap = await createImageBitmap(await response.blob());
-	//
-	//		cubeTexture = device.createTexture({
-	//			size: [imageBitmap.width, imageBitmap.height, 1],
-	//			format: 'rgba8unorm',
-	//			usage:
-	//				GPUTextureUsage.TEXTURE_BINDING |
-	//				GPUTextureUsage.COPY_DST |
-	//				GPUTextureUsage.RENDER_ATTACHMENT,
-	//		});
-	//		device.queue.copyExternalImageToTexture(
-	//			{ source: imageBitmap },
-	//			{ texture: cubeTexture },
-	//			[imageBitmap.width, imageBitmap.height]
-	//		);
-	//	}
-
-		// Create a sampler with linear filtering for smooth interpolation.
-	//	const sampler = device.createSampler({
-	//		magFilter: 'linear',
-	//		minFilter: 'linear',
-	//	});
-
-	//	let cubeBindGroup = device.createBindGroup({
-	//		layout: cubeBindGroupLayout,
-	//		entries: [
-	//			{
-	//				binding: 0,
-	//				resource: sampler,
-	//			},
-	//			{
-	//				binding: 1,
-	//				resource: cubeTexture.createView(),
-	//			},
-	//		],
-	//	});
-	//	let textureCubeLayerBindGroup: BindGroup = new BindGroup(1, cubeBindGroup);
-
-
 		// RenderPassLayer
-		let renderPassLayer: RenderPassLayer = new RenderPassLayer("rpl_texture-cube", pipeline, cubeBindGroupLayout);
+		let renderPassLayer: RenderPassLayer = new RenderPassLayer("rpl_texture-cube", pipeline, cubeBindGroupLayout, cubeBindGroupLayoutGroupNumber);
 		renderPassLayer.AddMeshGroup(cubeMeshGroup);
-
-	//	renderPassLayer.AddBindGroup(textureCubeLayerBindGroup);
 
 		return renderPassLayer;
 	}

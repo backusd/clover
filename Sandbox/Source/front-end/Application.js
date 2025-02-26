@@ -1,9 +1,8 @@
 import { LOG_TRACE } from "./Log.js";
 import { BindGroup, RenderPassDescriptor, RenderPass } from "./Renderer.js";
-import { Scene, GameCube } from "./Scene.js";
+import { Scene, GameCube, GameCube2 } from "./Scene.js";
 import { mat4 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
-import { ColorCube } from "./ColorCube.js";
 import { TextureCube } from "./TextureCube.js";
 import { TimingUI } from "./TimingUI.js";
 import { RenderState } from "./RenderState.js";
@@ -260,10 +259,10 @@ export class Application {
         let textureCubeLayer = renderPass.AddRenderPassLayer(await textureCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
         //	let textureCubeRI = textureCubeLayer.CreateRenderItem("ri_texture-cube", "mg_texture-cube", "mesh_texture-cube");
         // Solid Color Cube
-        let colorCube = new ColorCube();
-        let colorCubeLayer = renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
-        let colorCubeRI_2 = colorCubeLayer.CreateRenderItem("ri_color-cube-2", "mg_color-cube", "mesh_color-cube-2");
-        let colorCubeRI_3 = colorCubeLayer.CreateRenderItem("ri_color-cube-3", "mg_color-cube", "mesh_color-cube-3");
+        //		let colorCube = new ColorCube();
+        //		let colorCubeLayer = renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
+        //		let colorCubeRI_2 = colorCubeLayer.CreateRenderItem("ri_color-cube-2", "mg_color-cube", "mesh_color-cube-2");
+        //		let colorCubeRI_3 = colorCubeLayer.CreateRenderItem("ri_color-cube-3", "mg_color-cube", "mesh_color-cube-3");
         // ============================================
         this.m_renderer.AddRenderPass(renderPass);
         // DEBUG_ONLY
@@ -271,6 +270,11 @@ export class Application {
         // Create the scene
         let cube = new GameCube("game-cube", this.m_renderer);
         await cube.InitializeAsync();
+        let cube2 = new GameCube2("game-cube-2", this.m_renderer);
+        await cube2.InitializeAsync();
+        cube2.SetPosition([0, 2, 0]);
+        cube2.SetScaling([0.5, 0.5, 0.5]);
+        cube.AddChild(cube2);
         this.m_scene.AddGameObject(cube);
     }
     Update(timeDelta) {

@@ -12,7 +12,8 @@ import
 import
 {
 	Scene,
-	GameCube
+	GameCube,
+	GameCube2
 } from "./Scene.js";
 import { Camera } from "./Camera.js";
 import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
@@ -348,10 +349,10 @@ export class Application
 
 
 		// Solid Color Cube
-		let colorCube = new ColorCube();
-		let colorCubeLayer = renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
-		let colorCubeRI_2 = colorCubeLayer.CreateRenderItem("ri_color-cube-2", "mg_color-cube", "mesh_color-cube-2");
-		let colorCubeRI_3 = colorCubeLayer.CreateRenderItem("ri_color-cube-3", "mg_color-cube", "mesh_color-cube-3");
+//		let colorCube = new ColorCube();
+//		let colorCubeLayer = renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
+//		let colorCubeRI_2 = colorCubeLayer.CreateRenderItem("ri_color-cube-2", "mg_color-cube", "mesh_color-cube-2");
+//		let colorCubeRI_3 = colorCubeLayer.CreateRenderItem("ri_color-cube-3", "mg_color-cube", "mesh_color-cube-3");
 
 
 		// ============================================
@@ -368,6 +369,13 @@ export class Application
 		// Create the scene
 		let cube = new GameCube("game-cube", this.m_renderer);
 		await cube.InitializeAsync();
+
+		let cube2 = new GameCube2("game-cube-2", this.m_renderer);
+		await cube2.InitializeAsync();
+		cube2.SetPosition([0, 2, 0]);
+		cube2.SetScaling([0.5, 0.5, 0.5]);
+
+		cube.AddChild(cube2);
 
 		this.m_scene.AddGameObject(cube);
 	}

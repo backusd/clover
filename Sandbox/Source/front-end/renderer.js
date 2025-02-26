@@ -380,10 +380,11 @@ export class MeshGroup {
     m_renderItems;
 }
 export class RenderPassLayer {
-    constructor(name, pipeline, renderItemBindGroupLayout = null) {
+    constructor(name, pipeline, renderItemBindGroupLayout = null, renderItemBindGroupLayoutGroupNumber = 2) {
         this.m_name = name;
         this.m_renderPipeline = pipeline;
         this.m_renderItemBindGroupLayout = renderItemBindGroupLayout;
+        this.m_renderItemBindGroupLayoutGroupNumber = renderItemBindGroupLayoutGroupNumber;
         this.m_bindGroups = [];
         this.m_meshGroups = new HybridLookup();
         this.Update = (timeDelta, renderPassLayer, state, scene) => { };
@@ -417,6 +418,9 @@ export class RenderPassLayer {
     }
     GetRenderItemBindGroupLayout() {
         return this.m_renderItemBindGroupLayout;
+    }
+    GetRenderItemBindGroupLayoutGroupNumber() {
+        return this.m_renderItemBindGroupLayoutGroupNumber;
     }
     Render(passEncoder) {
         // Set the pipeline
@@ -452,6 +456,7 @@ export class RenderPassLayer {
     // bind groups that they will use and therefore, need to be able to lookup the layout they
     // must use.
     m_renderItemBindGroupLayout = null;
+    m_renderItemBindGroupLayoutGroupNumber = 2;
 }
 export class RenderPassDescriptor {
     constructor(descriptor) {

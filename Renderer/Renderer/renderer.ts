@@ -499,11 +499,12 @@ export class MeshGroup
 }
 export class RenderPassLayer
 {
-    constructor(name: string, pipeline: GPURenderPipeline, renderItemBindGroupLayout: GPUBindGroupLayout | null = null)
+    constructor(name: string, pipeline: GPURenderPipeline, renderItemBindGroupLayout: GPUBindGroupLayout | null = null, renderItemBindGroupLayoutGroupNumber: number = 2)
     {
         this.m_name = name;
         this.m_renderPipeline = pipeline;
         this.m_renderItemBindGroupLayout = renderItemBindGroupLayout;
+        this.m_renderItemBindGroupLayoutGroupNumber = renderItemBindGroupLayoutGroupNumber;
         this.m_bindGroups = [];
         this.m_meshGroups = new HybridLookup<MeshGroup>();
         this.Update = (timeDelta: number, renderPassLayer: RenderPassLayer, state: RenderState, scene: Scene) => { };
@@ -545,6 +546,10 @@ export class RenderPassLayer
     public GetRenderItemBindGroupLayout(): GPUBindGroupLayout | null
     {
         return this.m_renderItemBindGroupLayout;
+    }
+    public GetRenderItemBindGroupLayoutGroupNumber(): number
+    {
+        return this.m_renderItemBindGroupLayoutGroupNumber;
     }
     public Render(passEncoder: GPURenderPassEncoder): void
     {
@@ -589,6 +594,7 @@ export class RenderPassLayer
     // bind groups that they will use and therefore, need to be able to lookup the layout they
     // must use.
     private m_renderItemBindGroupLayout: GPUBindGroupLayout | null = null;
+    private m_renderItemBindGroupLayoutGroupNumber: number = 2;
 }
 export class RenderPassDescriptor
 {
