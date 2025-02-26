@@ -1,4 +1,4 @@
-import { Mesh, MeshGroup, BindGroup, RenderPassLayer } from "./Renderer.js";
+import { Mesh, MeshGroup, RenderPassLayer } from "./Renderer.js";
 const cubeVertexNumFloats = 10;
 const cubeVertexStride = 4 * cubeVertexNumFloats; // Byte size of one cube vertex.
 const cubePositionOffset = 0;
@@ -95,8 +95,9 @@ struct Vertex
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 
-@group(1) @binding(0) var mySampler: sampler;
-@group(1) @binding(1) var myTexture: texture_2d<f32>;
+@group(1) @binding(0) var<uniform> modelMatrix: mat4x4f;
+@group(1) @binding(1) var mySampler: sampler;
+@group(1) @binding(2) var myTexture: texture_2d<f32>;
 
 struct VertexOutput
 {
@@ -107,26 +108,49 @@ struct VertexOutput
 @vertex
 fn vertex_main(vertex: Vertex) -> VertexOutput
 {
-  return VertexOutput(uniforms.viewProjectionMatrix * vertex.position, vertex.uv);
+	let mvp = uniforms.viewProjectionMatrix * modelMatrix;
+	return VertexOutput(mvp * vertex.position, vertex.uv);
 }
 
 @fragment
 fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 {
-  return textureSample(myTexture, mySampler, fragUV);
+	return textureSample(myTexture, mySampler, fragUV);
 }
 `
         });
+        //let cubeBindGroupLayout: GPUBindGroupLayout = device.createBindGroupLayout(
+        //	{
+        //		label: "bgl_texture-cube",
+        //		entries: [
+        //			{
+        //				binding: 0,
+        //				visibility: GPUShaderStage.FRAGMENT,
+        //				sampler: {}
+        //			},
+        //			{
+        //				binding: 1,
+        //				visibility: GPUShaderStage.FRAGMENT,
+        //				texture: {}
+        //			}
+        //		]
+        //	}
+        //);
         let cubeBindGroupLayout = device.createBindGroupLayout({
-            label: "bgl_texture-cube",
+            label: "bgl_game-cube",
             entries: [
                 {
                     binding: 0,
+                    visibility: GPUShaderStage.VERTEX,
+                    buffer: { type: "uniform" }
+                },
+                {
+                    binding: 1,
                     visibility: GPUShaderStage.FRAGMENT,
                     sampler: {}
                 },
                 {
-                    binding: 1,
+                    binding: 2,
                     visibility: GPUShaderStage.FRAGMENT,
                     texture: {}
                 }
@@ -181,42 +205,48 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
             },
         });
         // Fetch the image and upload it into a GPUTexture.
-        let cubeTexture;
-        {
-            const response = await fetch('./images/molecule.jpeg');
-            const imageBitmap = await createImageBitmap(await response.blob());
-            cubeTexture = device.createTexture({
-                size: [imageBitmap.width, imageBitmap.height, 1],
-                format: 'rgba8unorm',
-                usage: GPUTextureUsage.TEXTURE_BINDING |
-                    GPUTextureUsage.COPY_DST |
-                    GPUTextureUsage.RENDER_ATTACHMENT,
-            });
-            device.queue.copyExternalImageToTexture({ source: imageBitmap }, { texture: cubeTexture }, [imageBitmap.width, imageBitmap.height]);
-        }
+        //	let cubeTexture: GPUTexture;
+        //	{
+        //		const response = await fetch('./images/molecule.jpeg');
+        //		const imageBitmap = await createImageBitmap(await response.blob());
+        //
+        //		cubeTexture = device.createTexture({
+        //			size: [imageBitmap.width, imageBitmap.height, 1],
+        //			format: 'rgba8unorm',
+        //			usage:
+        //				GPUTextureUsage.TEXTURE_BINDING |
+        //				GPUTextureUsage.COPY_DST |
+        //				GPUTextureUsage.RENDER_ATTACHMENT,
+        //		});
+        //		device.queue.copyExternalImageToTexture(
+        //			{ source: imageBitmap },
+        //			{ texture: cubeTexture },
+        //			[imageBitmap.width, imageBitmap.height]
+        //		);
+        //	}
         // Create a sampler with linear filtering for smooth interpolation.
-        const sampler = device.createSampler({
-            magFilter: 'linear',
-            minFilter: 'linear',
-        });
-        let cubeBindGroup = device.createBindGroup({
-            layout: cubeBindGroupLayout,
-            entries: [
-                {
-                    binding: 0,
-                    resource: sampler,
-                },
-                {
-                    binding: 1,
-                    resource: cubeTexture.createView(),
-                },
-            ],
-        });
-        let textureCubeLayerBindGroup = new BindGroup(1, cubeBindGroup);
+        //	const sampler = device.createSampler({
+        //		magFilter: 'linear',
+        //		minFilter: 'linear',
+        //	});
+        //	let cubeBindGroup = device.createBindGroup({
+        //		layout: cubeBindGroupLayout,
+        //		entries: [
+        //			{
+        //				binding: 0,
+        //				resource: sampler,
+        //			},
+        //			{
+        //				binding: 1,
+        //				resource: cubeTexture.createView(),
+        //			},
+        //		],
+        //	});
+        //	let textureCubeLayerBindGroup: BindGroup = new BindGroup(1, cubeBindGroup);
         // RenderPassLayer
-        let renderPassLayer = new RenderPassLayer("rpl_texture-cube", pipeline);
+        let renderPassLayer = new RenderPassLayer("rpl_texture-cube", pipeline, cubeBindGroupLayout);
         renderPassLayer.AddMeshGroup(cubeMeshGroup);
-        renderPassLayer.AddBindGroup(textureCubeLayerBindGroup);
+        //	renderPassLayer.AddBindGroup(textureCubeLayerBindGroup);
         return renderPassLayer;
     }
 }

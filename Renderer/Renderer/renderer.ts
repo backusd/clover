@@ -11,6 +11,26 @@ import { RenderState } from "./RenderState.js"
 import { Scene } from "./Scene.js"
 
 
+
+export class BindGroup
+{
+    constructor(groupNumber: number, bindGroup: GPUBindGroup)
+    {
+        this.m_groupNumber = groupNumber;
+        this.m_bindGroup = bindGroup;
+    }
+    public GetGroupNumber(): number
+    {
+        return this.m_groupNumber;
+    }
+    public GetBindGroup(): GPUBindGroup
+    {
+        return this.m_bindGroup;
+    }
+
+    private m_bindGroup: GPUBindGroup;
+    private m_groupNumber: number;
+}
 export class MeshDescriptor
 {
     public vertexCount: number = 0;
@@ -25,6 +45,7 @@ export class RenderItem
         this.m_name = name;
         this.m_meshName = meshName;
         this.m_meshDescriptor = meshDescriptor;
+        this.m_bindGroups = new HybridLookup<BindGroup>();
         this.Update = (timeDelta: number, renderitem: RenderItem, state: RenderState, scene: Scene) => { };
     }
     public IsActive(): boolean { return this.m_isActive; }
@@ -37,10 +58,22 @@ export class RenderItem
     public SetMeshDescriptor(descriptor: MeshDescriptor): void { this.m_meshDescriptor = descriptor; }
     public IncrementInstanceCount(increment: number = 1): void { this.m_instanceCount += increment; }
     public DecrementInstanceCount(decrement: number = 1): void { this.m_instanceCount = Math.max(0, this.m_instanceCount - decrement); }
+    public AddBindGroup(name: string, bindGroup: BindGroup): BindGroup
+    {
+        return this.m_bindGroups.add(name, bindGroup);
+    }
     public Render(encoder: GPURenderPassEncoder): void
     {
         if (this.m_isActive)
         {
+            // Set all RenderItem specific bind groups
+            // These should likely used the convention @group(2)
+            for (let iii = 0; iii < this.m_bindGroups.size(); ++iii)
+            {
+                let bg = this.m_bindGroups.getFromIndex(iii);
+                encoder.setBindGroup(bg.GetGroupNumber(), bg.GetBindGroup());
+            }
+
             if (this.m_meshDescriptor.indexCount === undefined)
             {
                 encoder.draw(this.m_meshDescriptor.vertexCount, this.m_instanceCount, this.m_meshDescriptor.startVertex, this.m_startInstance);
@@ -63,6 +96,7 @@ export class RenderItem
     private m_instanceCount: number = 1;
     private m_startInstance: number = 0;
     private m_isActive: boolean = true;
+    private m_bindGroups: HybridLookup<BindGroup>;
 }
 export class Mesh
 {
@@ -463,31 +497,13 @@ export class MeshGroup
     private m_vertexBufferSlot: number;
     private m_renderItems: HybridLookup<RenderItem>;
 }
-export class BindGroup
-{
-    constructor(groupNumber: number, bindGroup: GPUBindGroup)
-    {
-        this.m_groupNumber = groupNumber;
-        this.m_bindGroup = bindGroup;
-    }
-    public GetGroupNumber(): number
-    {
-        return this.m_groupNumber;
-    }
-    public GetBindGroup(): GPUBindGroup
-    {
-        return this.m_bindGroup;
-    }
-
-    private m_bindGroup: GPUBindGroup;
-    private m_groupNumber: number;
-}
 export class RenderPassLayer
 {
-    constructor(name: string, pipeline: GPURenderPipeline)
+    constructor(name: string, pipeline: GPURenderPipeline, renderItemBindGroupLayout: GPUBindGroupLayout | null = null)
     {
         this.m_name = name;
         this.m_renderPipeline = pipeline;
+        this.m_renderItemBindGroupLayout = renderItemBindGroupLayout;
         this.m_bindGroups = [];
         this.m_meshGroups = new HybridLookup<MeshGroup>();
         this.Update = (timeDelta: number, renderPassLayer: RenderPassLayer, state: RenderState, scene: Scene) => { };
@@ -526,6 +542,10 @@ export class RenderPassLayer
     {
         this.m_meshGroups.getFromKey(meshGroupName).RemoveRenderItem(renderItemName);
     }
+    public GetRenderItemBindGroupLayout(): GPUBindGroupLayout | null
+    {
+        return this.m_renderItemBindGroupLayout;
+    }
     public Render(passEncoder: GPURenderPassEncoder): void
     {
         // Set the pipeline
@@ -557,6 +577,18 @@ export class RenderPassLayer
     private m_renderPipeline: GPURenderPipeline;
     private m_bindGroups: BindGroup[];
     private m_meshGroups: HybridLookup<MeshGroup>;
+
+    // The fundamental idea behind a RenderPassLayer is that we create a new layer for every
+    // shader program. So each layer is tied to exactly one shader program. We must specify
+    // the bind group layout for the shader and we are currently using the following convention:
+    //      @group(0) - things that are bound in each render pass
+    //      @group(1) - things that are bound in each render layer
+    //      @group(2) - things that are bound by each render item
+    // The bind group layout for each of these must be fully specified at the point of layer
+    // construction. However, at a future point in time, render items will need to create the 
+    // bind groups that they will use and therefore, need to be able to lookup the layout they
+    // must use.
+    private m_renderItemBindGroupLayout: GPUBindGroupLayout | null = null;
 }
 export class RenderPassDescriptor
 {

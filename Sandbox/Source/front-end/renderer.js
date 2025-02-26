@@ -1,5 +1,19 @@
 import { LOG_CORE_WARN, LOG_CORE_ERROR } from "./Log.js";
 import { HybridLookup } from "./Utils.js";
+export class BindGroup {
+    constructor(groupNumber, bindGroup) {
+        this.m_groupNumber = groupNumber;
+        this.m_bindGroup = bindGroup;
+    }
+    GetGroupNumber() {
+        return this.m_groupNumber;
+    }
+    GetBindGroup() {
+        return this.m_bindGroup;
+    }
+    m_bindGroup;
+    m_groupNumber;
+}
 export class MeshDescriptor {
     vertexCount = 0;
     startVertex = 0;
@@ -11,6 +25,7 @@ export class RenderItem {
         this.m_name = name;
         this.m_meshName = meshName;
         this.m_meshDescriptor = meshDescriptor;
+        this.m_bindGroups = new HybridLookup();
         this.Update = (timeDelta, renderitem, state, scene) => { };
     }
     IsActive() { return this.m_isActive; }
@@ -23,8 +38,17 @@ export class RenderItem {
     SetMeshDescriptor(descriptor) { this.m_meshDescriptor = descriptor; }
     IncrementInstanceCount(increment = 1) { this.m_instanceCount += increment; }
     DecrementInstanceCount(decrement = 1) { this.m_instanceCount = Math.max(0, this.m_instanceCount - decrement); }
+    AddBindGroup(name, bindGroup) {
+        return this.m_bindGroups.add(name, bindGroup);
+    }
     Render(encoder) {
         if (this.m_isActive) {
+            // Set all RenderItem specific bind groups
+            // These should likely used the convention @group(2)
+            for (let iii = 0; iii < this.m_bindGroups.size(); ++iii) {
+                let bg = this.m_bindGroups.getFromIndex(iii);
+                encoder.setBindGroup(bg.GetGroupNumber(), bg.GetBindGroup());
+            }
             if (this.m_meshDescriptor.indexCount === undefined) {
                 encoder.draw(this.m_meshDescriptor.vertexCount, this.m_instanceCount, this.m_meshDescriptor.startVertex, this.m_startInstance);
             }
@@ -43,6 +67,7 @@ export class RenderItem {
     m_instanceCount = 1;
     m_startInstance = 0;
     m_isActive = true;
+    m_bindGroups;
 }
 export class Mesh {
     CreateMeshFromRawData(name, rawVertexData, floatsPerVertex, indices = null) {
@@ -354,24 +379,11 @@ export class MeshGroup {
     m_vertexBufferSlot;
     m_renderItems;
 }
-export class BindGroup {
-    constructor(groupNumber, bindGroup) {
-        this.m_groupNumber = groupNumber;
-        this.m_bindGroup = bindGroup;
-    }
-    GetGroupNumber() {
-        return this.m_groupNumber;
-    }
-    GetBindGroup() {
-        return this.m_bindGroup;
-    }
-    m_bindGroup;
-    m_groupNumber;
-}
 export class RenderPassLayer {
-    constructor(name, pipeline) {
+    constructor(name, pipeline, renderItemBindGroupLayout = null) {
         this.m_name = name;
         this.m_renderPipeline = pipeline;
+        this.m_renderItemBindGroupLayout = renderItemBindGroupLayout;
         this.m_bindGroups = [];
         this.m_meshGroups = new HybridLookup();
         this.Update = (timeDelta, renderPassLayer, state, scene) => { };
@@ -403,6 +415,9 @@ export class RenderPassLayer {
     RemoveRenderItem(renderItemName, meshGroupName) {
         this.m_meshGroups.getFromKey(meshGroupName).RemoveRenderItem(renderItemName);
     }
+    GetRenderItemBindGroupLayout() {
+        return this.m_renderItemBindGroupLayout;
+    }
     Render(passEncoder) {
         // Set the pipeline
         passEncoder.setPipeline(this.m_renderPipeline);
@@ -426,6 +441,17 @@ export class RenderPassLayer {
     m_renderPipeline;
     m_bindGroups;
     m_meshGroups;
+    // The fundamental idea behind a RenderPassLayer is that we create a new layer for every
+    // shader program. So each layer is tied to exactly one shader program. We must specify
+    // the bind group layout for the shader and we are currently using the following convention:
+    //      @group(0) - things that are bound in each render pass
+    //      @group(1) - things that are bound in each render layer
+    //      @group(2) - things that are bound by each render item
+    // The bind group layout for each of these must be fully specified at the point of layer
+    // construction. However, at a future point in time, render items will need to create the 
+    // bind groups that they will use and therefore, need to be able to lookup the layout they
+    // must use.
+    m_renderItemBindGroupLayout = null;
 }
 export class RenderPassDescriptor {
     constructor(descriptor) {

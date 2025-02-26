@@ -367,6 +367,8 @@ export class Application
 
 		// Create the scene
 		let cube = new GameCube("game-cube", this.m_renderer);
+		await cube.InitializeAsync();
+
 		this.m_scene.AddGameObject(cube);
 	}
 

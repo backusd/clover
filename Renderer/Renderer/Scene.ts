@@ -24,6 +24,7 @@ export abstract class GameObject
 		this.m_renderer = renderer;
 		this.m_subObjects = new HybridLookup<GameObject>();
 	}
+	public abstract InitializeAsync(): Promise<void>;
 	public abstract Update(timeDelta: number): void;
 	public Name(): string { return this.m_name; }
 	public ModelMatrix(): Mat4
@@ -57,16 +58,105 @@ export class GameCube extends GameObject
 	{
 		super(name, renderer);
 
+		// Create a render item for the cube
 		let layer = renderer.GetRenderPass("rp_main").GetRenderPassLayer("rpl_texture-cube");
 		this.m_renderItem = layer.CreateRenderItem("ri_game-cube", "mg_texture-cube", "mesh_texture-cube");
+
+		// Create the model buffer
+		this.m_modelMatrixBuffer = this.m_renderer.GetDevice().createBuffer({
+			label: 'buffer_game-cube-model-matrix',
+			size: 4 * 16, // sizeof(float) * floats per matrix
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		});
+	}
+	public async InitializeAsync(): Promise<void>
+	{
+		let device = this.m_renderer.GetDevice();
+
+		// Get the bind group layout that all render items in this layer will use
+		let layer = this.m_renderer.GetRenderPass("rp_main").GetRenderPassLayer("rpl_texture-cube");
+		let bindGroupLayout = layer.GetRenderItemBindGroupLayout();
+		if (bindGroupLayout === null)
+		{
+			let msg = "GameCube::InitializeAsync() failed because layer.GetRenderItemBindGroupLayout() returned null";
+			LOG_ERROR(msg);
+			throw Error(msg);
+		}
+
+		// Fetch the image and upload it into a GPUTexture.
+		let cubeTexture: GPUTexture;
+		{
+			const response = await fetch('./images/molecule.jpeg');
+			const imageBitmap = await createImageBitmap(await response.blob());
+
+			cubeTexture = device.createTexture({
+				size: [imageBitmap.width, imageBitmap.height, 1],
+				format: 'rgba8unorm',
+				usage:
+					GPUTextureUsage.TEXTURE_BINDING |
+					GPUTextureUsage.COPY_DST |
+					GPUTextureUsage.RENDER_ATTACHMENT,
+			});
+			device.queue.copyExternalImageToTexture(
+				{ source: imageBitmap },
+				{ texture: cubeTexture },
+				[imageBitmap.width, imageBitmap.height]
+			);
+		}
+
+		// Create the sampler
+		const sampler = device.createSampler({
+			magFilter: 'linear',
+			minFilter: 'linear',
+		});
+
+
+		let cubeBindGroup = device.createBindGroup({
+			layout: bindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: {
+						buffer: this.m_modelMatrixBuffer,
+					}
+				},
+				{
+					binding: 1,
+					resource: sampler,
+				},
+				{
+					binding: 2,
+					resource: cubeTexture.createView(),
+				},
+			],
+		});
+
+		this.m_renderItem.AddBindGroup("bg_game-cube", new BindGroup(1, cubeBindGroup));
 	}
 	public Update(timeDelta: number): void
 	{
 	//	... make the cube spin ... this is going to require changes to the shader
-	//		don't forget to use @group(2) for RenderItem bindings'
+		//		don't forget to use @group(2) for RenderItem bindings'
+
+		this.m_rotation[1] += timeDelta;
+		if (this.m_rotation[1] > 2 * Math.PI)
+			this.m_rotation[1] -= 2 * Math.PI;
+
+		let model = this.ModelMatrix();
+
+		// Update the GPUBuffer
+		let device = this.m_renderer.GetDevice();
+		device.queue.writeBuffer(
+			this.m_modelMatrixBuffer,
+			0,
+			model.buffer,
+			model.byteOffset,
+			model.byteLength
+		);
 	}
 
 	private m_renderItem: RenderItem;
+	private m_modelMatrixBuffer: GPUBuffer;
 }
 
 export class Scene
