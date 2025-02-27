@@ -19,14 +19,8 @@ export class BindGroup
         this.m_groupNumber = groupNumber;
         this.m_bindGroup = bindGroup;
     }
-    public GetGroupNumber(): number
-    {
-        return this.m_groupNumber;
-    }
-    public GetBindGroup(): GPUBindGroup
-    {
-        return this.m_bindGroup;
-    }
+    public GetGroupNumber(): number { return this.m_groupNumber; }
+    public GetBindGroup(): GPUBindGroup { return this.m_bindGroup; }
 
     private m_bindGroup: GPUBindGroup;
     private m_groupNumber: number;
@@ -60,7 +54,13 @@ export class RenderItem
     public DecrementInstanceCount(decrement: number = 1): void { this.m_instanceCount = Math.max(0, this.m_instanceCount - decrement); }
     public AddBindGroup(name: string, bindGroup: BindGroup): BindGroup
     {
+        bindGroup.GetBindGroup().label = name;
         return this.m_bindGroups.add(name, bindGroup);
+    }
+    public UpdateBindGroup(name: string, bindGroup: BindGroup): BindGroup
+    {
+        bindGroup.GetBindGroup().label = name;
+        return this.m_bindGroups.updateFromKey(name, bindGroup);
     }
     public Render(encoder: GPURenderPassEncoder): void
     {
@@ -487,6 +487,28 @@ export class MeshGroup
             this.m_renderItems.getFromIndex(iii).UpdateImpl(timeDelta, state, scene);
     }
 
+
+
+
+    public GetRenderItemBindGroupLayout(): GPUBindGroupLayout | null
+    {
+        return this.m_renderItemBindGroupLayout;
+    }
+    public GetRenderItemBindGroupLayoutGroupNumber(): number
+    {
+        return this.m_renderItemBindGroupLayoutGroupNumber;
+    }
+    public SetRenderItemBindGroupLayout(layout: GPUBindGroupLayout | null): void
+    {
+        this.m_renderItemBindGroupLayout = layout;
+    }
+    public SetRenderItemBindGroupLayoutGroupNumber(groupNumber: number): void
+    {
+        this.m_renderItemBindGroupLayoutGroupNumber = groupNumber;;
+    }
+
+
+
     private m_name: string;
     private m_device: GPUDevice;
     private m_meshes: HybridLookup<Mesh>;
@@ -496,12 +518,22 @@ export class MeshGroup
     private m_indexFormat: "uint16" | "uint32";
     private m_vertexBufferSlot: number;
     private m_renderItems: HybridLookup<RenderItem>;
+
+    // Each RenderPassLayer is responsible for keeping track of the GPUBindGroupLayout
+    // that each RenderItem should use. However, when instantiating a new game object, the
+    // object is not going to know which layer(s) it will belong to (and will likely belong
+    // to several layers). Instead, the GameObject will know which Mesh/MeshGroup it represents.
+    // Therefore, when a MeshGroup is added to a RenderPassLayer, the layer will tell the 
+    // MeshGroup what the BindGroupLayout so that it can be looked up by each GameObject.
+    private m_renderItemBindGroupLayout: GPUBindGroupLayout | null = null;
+    private m_renderItemBindGroupLayoutGroupNumber: number = 2;
 }
 export class RenderPassLayer
 {
-    constructor(name: string, pipeline: GPURenderPipeline, renderItemBindGroupLayout: GPUBindGroupLayout | null = null, renderItemBindGroupLayoutGroupNumber: number = 2)
+    constructor(name: string, renderer: Renderer, pipeline: GPURenderPipeline, renderItemBindGroupLayout: GPUBindGroupLayout | null = null, renderItemBindGroupLayoutGroupNumber: number = 2)
     {
         this.m_name = name;
+        this.m_renderer = renderer;
         this.m_renderPipeline = pipeline;
         this.m_renderItemBindGroupLayout = renderItemBindGroupLayout;
         this.m_renderItemBindGroupLayoutGroupNumber = renderItemBindGroupLayoutGroupNumber;
@@ -515,16 +547,18 @@ export class RenderPassLayer
         this.m_bindGroups.push(bindGroup);
         return bindGroup;
     }
-    public AddMeshGroup(meshGroup: MeshGroup): MeshGroup
+    public AddMeshGroup(meshGroupName: string): MeshGroup
     {
-        this.m_meshGroups.add(meshGroup.Name(), meshGroup);
-        return meshGroup;
+        let meshGroup = this.m_renderer.GetMeshGroup(meshGroupName);
+
+        // Inform the meshgroup about what the expected render item BindGroupLayout is
+        meshGroup.SetRenderItemBindGroupLayout(this.m_renderItemBindGroupLayout);
+        meshGroup.SetRenderItemBindGroupLayoutGroupNumber(this.m_renderItemBindGroupLayoutGroupNumber);
+
+        return this.m_meshGroups.add(meshGroup.Name(), meshGroup);
     }
     public RemoveMeshGroup(meshGroupName: string): void
     {
-        // Inform the mesh group that it is about to be removed, because
-        // we want to issue warnings if there are any outstanding RenderItems
-        this.m_meshGroups.getFromKey(meshGroupName).InformRemoval();
         this.m_meshGroups.removeFromKey(meshGroupName);
     }
     public GetMeshGroup(meshGroupName: string): MeshGroup
@@ -534,14 +568,6 @@ export class RenderPassLayer
     public RemoveMesh(meshName: string, meshGroupName: string): void
     {
         this.m_meshGroups.getFromKey(meshGroupName).RemoveMesh(meshName);
-    }
-    public CreateRenderItem(renderItemName: string, meshGroupName: string, meshName: string): RenderItem
-    {
-        return this.m_meshGroups.getFromKey(meshGroupName).CreateRenderItem(renderItemName, meshName);
-    }
-    public RemoveRenderItem(renderItemName: string, meshGroupName: string): void
-    {
-        this.m_meshGroups.getFromKey(meshGroupName).RemoveRenderItem(renderItemName);
     }
     public GetRenderItemBindGroupLayout(): GPUBindGroupLayout | null
     {
@@ -579,6 +605,7 @@ export class RenderPassLayer
 
 
     private m_name: string;
+    private m_renderer: Renderer;
     private m_renderPipeline: GPURenderPipeline;
     private m_bindGroups: BindGroup[];
     private m_meshGroups: HybridLookup<MeshGroup>;
@@ -642,7 +669,7 @@ export class RenderPassDescriptor
 }
 export class RenderPass
 {
-    constructor(name: string, device: GPUDevice, descriptor: RenderPassDescriptor)
+    constructor(name: string, descriptor: RenderPassDescriptor)
     {
         this.m_name = name;
         this.m_renderPassDescriptor = descriptor;
@@ -809,6 +836,9 @@ export class Renderer
 
         this.m_renderPasses = new HybridLookup<RenderPass>();
         this.m_canComputeTimestamps = this.m_adapter.features.has('timestamp-query');
+
+        this.m_meshGroups = new HybridLookup<MeshGroup>();
+        this.m_textures = new HybridLookup<GPUTexture>();
     }
     public Render(): void
     {
@@ -879,10 +909,83 @@ export class Renderer
             this.m_renderPasses.getFromIndex(iii).EnableGPUTiming(this.m_device);
     }
 
+    public AddMeshGroup(meshGroup: MeshGroup): MeshGroup
+    {
+        return this.m_meshGroups.add(meshGroup.Name(), meshGroup);
+    }
+    public RemoveMeshGroup(meshGroupName: string): void
+    {
+        // Inform the mesh group that it is about to be removed, because
+        // we want to issue warnings if there are any outstanding RenderItems
+        this.m_meshGroups.getFromKey(meshGroupName).InformRemoval();
+        this.m_meshGroups.removeFromKey(meshGroupName);
+    }
+    public GetMeshGroup(nameOrIndex: string | number): MeshGroup
+    {
+        if (typeof nameOrIndex === "string")
+            return this.m_meshGroups.getFromKey(nameOrIndex);
+
+        return this.m_meshGroups.getFromIndex(nameOrIndex);
+    }
+    public CreateRenderItem(renderItemName: string, meshGroupName: string, meshName: string): RenderItem
+    {
+        return this.m_meshGroups.getFromKey(meshGroupName).CreateRenderItem(renderItemName, meshName);
+    }
+    public RemoveRenderItem(renderItemName: string, meshGroupName: string): void
+    {
+        this.m_meshGroups.getFromKey(meshGroupName).RemoveRenderItem(renderItemName);
+    }
+
+    public async AddTextureFromFile(name: string, imageFile: string): Promise<GPUTexture>
+    {
+        // Fetch the image and upload it into a GPUTexture.
+        let texture: GPUTexture;
+        const response = await fetch(imageFile);
+        const imageBitmap = await createImageBitmap(await response.blob());
+
+        texture = this.m_device.createTexture({
+            size: [imageBitmap.width, imageBitmap.height, 1],
+            format: 'rgba8unorm',
+            usage:
+                GPUTextureUsage.TEXTURE_BINDING |
+                GPUTextureUsage.COPY_DST |
+                GPUTextureUsage.RENDER_ATTACHMENT,
+        });
+        this.m_device.queue.copyExternalImageToTexture(
+            { source: imageBitmap },
+            { texture: texture },
+            [imageBitmap.width, imageBitmap.height]
+        );     
+
+        return this.m_textures.add(name, texture);
+    }
+    public GetTexture(nameOrIndex: string | number): GPUTexture
+    {
+        if (typeof nameOrIndex === "string")
+            return this.m_textures.getFromKey(nameOrIndex);
+
+        return this.m_textures.getFromIndex(nameOrIndex);
+    }
+    public RemoveTexture(nameOrIndex: string | number): void
+    {
+        if (typeof nameOrIndex === "string")
+            this.m_textures.removeFromKey(nameOrIndex);
+        else
+            this.m_textures.removeFromIndex(nameOrIndex);
+    }
+
+
     private m_adapter: GPUAdapter;
     private m_device:  GPUDevice;
     private m_context: GPUCanvasContext;
     private m_renderPasses: HybridLookup<RenderPass>;
+
+    // The renderer holds all mesh groups so that they may be referenced across multiple passes
+    private m_meshGroups: HybridLookup<MeshGroup>;
+
+    // The renderer holds all textures so that they can be loaded at program launch
+    // and referenced later by 1+ render items
+    private m_textures: HybridLookup<GPUTexture>;
 
     // GPU Timing state
     private m_canComputeTimestamps: boolean;

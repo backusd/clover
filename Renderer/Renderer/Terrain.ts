@@ -235,16 +235,23 @@ fn fragment_main(@location(0) color: vec4f) -> @location(0) vec4f
 		terrainMesh.CreateMeshFromRawData("mesh_terrain", terrainVertexArray, terrainVertexNumFloats);
 
 		let terrainMeshGroup = new MeshGroup("mg_terrain", device, [terrainMesh], 0);
-	//	terrainMeshGroup.SetInstanceCount("Terrain Mesh", numInstances);
+		let renderItem = terrainMeshGroup.CreateRenderItem("ri_terrain", "mesh_terrain");
+		renderItem.SetInstanceCount(numInstances);
+
+
+		// Mesh groups may be used across multiple layers so we add them to the renderer first
+		// and then must add them by name to a layer
+		renderer.AddMeshGroup(terrainMeshGroup);
+
 
 		// RenderPassLayer
-		let renderPassLayer: RenderPassLayer = new RenderPassLayer("rpl_terrain", pipeline);
-		renderPassLayer.AddMeshGroup(terrainMeshGroup);
+		let renderPassLayer: RenderPassLayer = new RenderPassLayer("rpl_terrain", renderer, pipeline);
+		renderPassLayer.AddMeshGroup(terrainMeshGroup.Name());
 		renderPassLayer.AddBindGroup(terrainLayerBindGroup);
 
-		// RenderItem
-		let renderItem = renderPassLayer.CreateRenderItem("ri_terrain", "mg_terrain", "mesh_terrain");
-		renderItem.SetInstanceCount(numInstances);
+	//	// RenderItem
+	//	let renderItem = renderPassLayer.CreateRenderItem("ri_terrain", "mg_terrain", "mesh_terrain");
+	//	renderItem.SetInstanceCount(numInstances);
 
 		return renderPassLayer;
 	}

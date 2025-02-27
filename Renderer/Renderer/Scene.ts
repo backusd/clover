@@ -18,20 +18,28 @@ import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
 
 export class InstanceManager<T>
 {
-	constructor(className: string, bytesPerInstance: number, device: GPUDevice, renderItems: RenderItem[], numberOfInstancesToAllocateFor: number = 2)
+	constructor(className: string, bytesPerInstance: number, renderer: Renderer, renderItemName: string,
+		meshGroupName: string, meshName: string, numberOfInstancesToAllocateFor: number = 2,
+		renderItemInitializationCallback: (renderer: Renderer, renderItem: RenderItem, instanceDataBuffer: GPUBuffer) => void = () => { },
+		onBufferChangedCallback: (renderer: Renderer, renderItem: RenderItem, buffer: GPUBuffer) => void = () => { }
+	)
 	{
 		this.m_className = className;
 		this.m_bytesPerInstance = bytesPerInstance;
-		this.m_device = device;
-		this.m_renderItems = renderItems;
+		this.m_renderer = renderer;
+		this.m_device = renderer.GetDevice();
+		this.m_renderItem = renderer.CreateRenderItem(renderItemName, meshGroupName, meshName);
+		this.OnBufferChanged = onBufferChangedCallback;
 
 		this.m_bytesInBuffer = bytesPerInstance * numberOfInstancesToAllocateFor;
 
-		this.m_buffer = device.createBuffer({
+		this.m_buffer = this.m_device.createBuffer({
 			label: `Buffer for InstanceManager<${this.m_className}>`,
 			size: this.m_bytesInBuffer,
-			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
+
+		renderItemInitializationCallback(renderer, this.m_renderItem, this.m_buffer);
 	}
 	public AddInstance(instance: T): number
 	{
@@ -39,7 +47,7 @@ export class InstanceManager<T>
 		this.m_instances.push(instance);
 
 		// Update the render item's instance count
-		this.m_renderItems.forEach(ri => { ri.IncrementInstanceCount(1); });
+		this.m_renderItem.IncrementInstanceCount(1);
 
 		// Increase the buffer capacity if necessary
 		if (this.m_instances.length * this.m_bytesPerInstance > this.m_bytesInBuffer)
@@ -54,8 +62,13 @@ export class InstanceManager<T>
 		this.m_buffer = this.m_device.createBuffer({
 			label: `Buffer for InstanceManager<${this.m_className}>`,
 			size: this.m_bytesInBuffer,
-			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
+
+		// Because we are creating a brand new GPUBuffer, there will likely be updates
+		// needed by the RenderItem to reference this new buffer. However, this may be
+		// different for different GameObjects, so it needs to be a user provided callback
+		this.OnBufferChanged(this.m_renderer, this.m_renderItem, this.m_buffer);
 	}
 	public WriteToBuffer(instanceNumber: number, data: BufferSource | SharedArrayBuffer, dataOffset: GPUSize64, size: GPUSize64)
 	{
@@ -67,16 +80,20 @@ export class InstanceManager<T>
 			size										// Total number of bytes to write
 		);
 	}
+	public GetInstanceDataBuffer(): GPUBuffer { return this.m_buffer; }
 
 	private m_className: string;
 	private m_instances: T[] = [];
 	private m_bytesPerInstance: number;
 
+	private m_renderer: Renderer;
 	private m_device: GPUDevice;
 	private m_buffer: GPUBuffer;
 	private m_bytesInBuffer: number;
 
-	private m_renderItems: RenderItem[];
+	private m_renderItem: RenderItem;
+
+	private OnBufferChanged: (renderer: Renderer, renderItem: RenderItem, buffer: GPUBuffer) => void;
 }
 
 export abstract class GameObject
@@ -87,7 +104,6 @@ export abstract class GameObject
 		this.m_renderer = renderer;
 		this.m_childObjects = new HybridLookup<GameObject>();
 	}
-	public abstract InitializeAsync(): Promise<void>;
 	public abstract Update(timeDelta: number, parentModelMatrix: Mat4): void;
 	public UpdateImpl(timeDelta: number, parentModelMatrix: Mat4): void
 	{
@@ -141,16 +157,16 @@ export abstract class GameObject
 	protected m_scaling = vec3.create(1, 1, 1);
 	protected m_modelMatrix = mat4.identity();
 }
-
 export class GameCube extends GameObject
 {
 	constructor(name: string, renderer: Renderer)
 	{
 		super(name, renderer);
 
+		let device = this.m_renderer.GetDevice();
+
 		// Create a render item for the cube
-		let layer = renderer.GetRenderPass("rp_main").GetRenderPassLayer("rpl_texture-cube");
-		this.m_renderItem = layer.CreateRenderItem("ri_game-cube", "mg_texture-cube", "mesh_texture-cube");
+		this.m_renderItem = renderer.CreateRenderItem("ri_game-cube", "mg_texture-cube", "mesh_texture-cube");
 
 		// Create the model buffer
 		this.m_modelMatrixBuffer = this.m_renderer.GetDevice().createBuffer({
@@ -158,42 +174,20 @@ export class GameCube extends GameObject
 			size: 4 * 16, // sizeof(float) * floats per matrix
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
-	}
-	public async InitializeAsync(): Promise<void>
-	{
-		let device = this.m_renderer.GetDevice();
 
-		// Get the bind group layout that all render items in this layer will use
-		let layer = this.m_renderer.GetRenderPass("rp_main").GetRenderPassLayer("rpl_texture-cube");
-		let bindGroupLayout = layer.GetRenderItemBindGroupLayout();
+		// Get the BindGroupLayout that the mesh group uses
+		let meshGroup = renderer.GetMeshGroup("mg_texture-cube");
+		let bindGroupLayout = meshGroup.GetRenderItemBindGroupLayout();
 		if (bindGroupLayout === null)
 		{
-			let msg = "GameCube::InitializeAsync() failed because layer.GetRenderItemBindGroupLayout() returned null";
+			let msg = "GameCube::InitializeAsync() failed because meshGroup.GetRenderItemBindGroupLayout() returned null";
 			LOG_ERROR(msg);
 			throw Error(msg);
 		}
-		let bindGroupLayoutGroupNumber = layer.GetRenderItemBindGroupLayoutGroupNumber();
+		let bindGroupLayoutGroupNumber = meshGroup.GetRenderItemBindGroupLayoutGroupNumber();
 
-		// Fetch the image and upload it into a GPUTexture.
-		let cubeTexture: GPUTexture;
-		{
-			const response = await fetch('./images/molecule.jpeg');
-			const imageBitmap = await createImageBitmap(await response.blob());
-
-			cubeTexture = device.createTexture({
-				size: [imageBitmap.width, imageBitmap.height, 1],
-				format: 'rgba8unorm',
-				usage:
-					GPUTextureUsage.TEXTURE_BINDING |
-					GPUTextureUsage.COPY_DST |
-					GPUTextureUsage.RENDER_ATTACHMENT,
-			});
-			device.queue.copyExternalImageToTexture(
-				{ source: imageBitmap },
-				{ texture: cubeTexture },
-				[imageBitmap.width, imageBitmap.height]
-			);
-		}
+		// Get the GPUTexture
+		let cubeTexture = renderer.GetTexture("tex_molecule");
 
 		// Create the sampler
 		const sampler = device.createSampler({
@@ -252,49 +246,38 @@ export class GameCube2 extends GameObject
 	{
 		super(name, renderer);
 
-		// Create a render item for the cube
-		let layer = renderer.GetRenderPass("rp_main").GetRenderPassLayer("rpl_texture-cube");
-		let renderItem = layer.CreateRenderItem("ri_game-cube-2", "mg_texture-cube", "mesh_texture-cube");
-		this.m_renderItems = [renderItem];
-
-		// Get the instance number for this new instance
+		// Make a call to GetInstanceManager() will initialize the instance manager
+		// Calling AddInstance() will generate a new instance and return its index into the array of instances
 		this.m_instanceNumber = this.GetInstanceManager().AddInstance(this);
-	}
-	public async InitializeAsync(): Promise<void>
-	{
-		let device = this.m_renderer.GetDevice();
 
-		// Get the bind group layout that all render items in this layer will use
-		let layer = this.m_renderer.GetRenderPass("rp_main").GetRenderPassLayer("rpl_texture-cube");
-		let bindGroupLayout = layer.GetRenderItemBindGroupLayout();
+		// Update the name so that we get a unique name between instances
+		this.m_name = `${this.m_name}:${this.m_instanceNumber}`;
+	}
+	public static InitializeGameCube2RenderItem(renderer: Renderer, renderItem: RenderItem, instanceDataBuffer: GPUBuffer): void
+	{
+		renderItem.AddBindGroup("bg_game-cube-2", GameCube2.GenerateBindGroup(renderer, instanceDataBuffer));
+	}
+	public static OnInstanceBufferChanged(renderer: Renderer, renderItem: RenderItem, buffer: GPUBuffer): void
+	{
+		renderItem.UpdateBindGroup("bg_game-cube-2", GameCube2.GenerateBindGroup(renderer, buffer));
+	}
+	public static GenerateBindGroup(renderer: Renderer, buffer: GPUBuffer): BindGroup
+	{
+		let device = renderer.GetDevice();
+
+		// Get the BindGroupLayout that the mesh group uses
+		let meshGroup = renderer.GetMeshGroup("mg_texture-cube-instancing");
+		let bindGroupLayout = meshGroup.GetRenderItemBindGroupLayout();
 		if (bindGroupLayout === null)
 		{
-			let msg = "GameCube::InitializeAsync() failed because layer.GetRenderItemBindGroupLayout() returned null";
+			let msg = "GameCube2::InitializeAsync() failed because meshGroup.GetRenderItemBindGroupLayout() returned null";
 			LOG_ERROR(msg);
 			throw Error(msg);
 		}
-		let bindGroupLayoutGroupNumber = layer.GetRenderItemBindGroupLayoutGroupNumber();
+		let bindGroupLayoutGroupNumber = meshGroup.GetRenderItemBindGroupLayoutGroupNumber();
 
-		// Fetch the image and upload it into a GPUTexture.
-		let cubeTexture: GPUTexture;
-		{
-			const response = await fetch('./images/molecule.jpeg');
-			const imageBitmap = await createImageBitmap(await response.blob());
-
-			cubeTexture = device.createTexture({
-				size: [imageBitmap.width, imageBitmap.height, 1],
-				format: 'rgba8unorm',
-				usage:
-					GPUTextureUsage.TEXTURE_BINDING |
-					GPUTextureUsage.COPY_DST |
-					GPUTextureUsage.RENDER_ATTACHMENT,
-			});
-			device.queue.copyExternalImageToTexture(
-				{ source: imageBitmap },
-				{ texture: cubeTexture },
-				[imageBitmap.width, imageBitmap.height]
-			);
-		}
+		// Get the GPUTexture
+		let cubeTexture = renderer.GetTexture("tex_molecule");
 
 		// Create the sampler
 		const sampler = device.createSampler({
@@ -302,14 +285,14 @@ export class GameCube2 extends GameObject
 			minFilter: 'linear',
 		});
 
-
+		// Create the BindGroup
 		let cubeBindGroup = device.createBindGroup({
 			layout: bindGroupLayout,
 			entries: [
 				{
 					binding: 0,
 					resource: {
-						buffer: this.m_modelMatrixBuffer,
+						buffer: buffer
 					}
 				},
 				{
@@ -323,11 +306,12 @@ export class GameCube2 extends GameObject
 			],
 		});
 
-		this.m_renderItem.AddBindGroup("bg_game-cube-2", new BindGroup(bindGroupLayoutGroupNumber, cubeBindGroup));
+		return new BindGroup(bindGroupLayoutGroupNumber, cubeBindGroup);
 	}
+
 	public Update(timeDelta: number, parentModelMatrix: Mat4): void
 	{
-		this.m_position[0] += timeDelta / 2;
+		this.m_position[0] += timeDelta * 2;
 
 		this.UpdateModelMatrix(parentModelMatrix);
 
@@ -341,11 +325,23 @@ export class GameCube2 extends GameObject
 	private GetInstanceManager(): InstanceManager<GameCube2>
 	{
 		if (GameCube2.s_instanceManager === null)
-			GameCube2.s_instanceManager = new InstanceManager<GameCube2>("GameCube2", 4 * 16, this.m_renderer.GetDevice(), this.m_renderItems, 4);
+		{
+			GameCube2.s_instanceManager = new InstanceManager<GameCube2>(
+				"GameCube2", 4 * 16, this.m_renderer, "ri_game-cube-2", "mg_texture-cube-instancing", "mesh_texture-cube-instancing", 4,
+				(renderer: Renderer, renderItem: RenderItem, instanceDataBuffer: GPUBuffer) =>
+				{
+					GameCube2.InitializeGameCube2RenderItem(renderer, renderItem, instanceDataBuffer);
+				},
+				(renderer: Renderer, renderItem: RenderItem, instanceDataBuffer: GPUBuffer) =>
+				{
+					GameCube2.OnInstanceBufferChanged(renderer, renderItem, instanceDataBuffer);
+				}
+			);
+		}
 		return GameCube2.s_instanceManager;
 	}
 
-	private m_renderItems: RenderItem[];
+
 	private m_instanceNumber: number;
 
 	private static s_instanceManager: InstanceManager<GameCube2> | null = null;

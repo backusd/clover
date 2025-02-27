@@ -44,50 +44,17 @@ const cubeVertexArray = new Float32Array([
     1, -1, -1, 1, 1, 0, 0, 1, 0, 1,
     -1, 1, -1, 1, 0, 1, 0, 1, 1, 0,
 ]);
-export class TextureCube {
+export class TextureCubeInstancing {
     Initialize(renderer, passBindGroupLayout) {
         let device = renderer.GetDevice();
-        //	// Creating a 2nd box mesh
-        //	let cubeVertexArray_2 = new Float32Array(cubeVertexArray.length);
-        //	for (let row = 0; row < 36; row++)
-        //	{
-        //		for (let col = 0; col < 10; col++)
-        //		{
-        //			let iii = row * 10 + col;
-        //			if (col >= 1)
-        //				cubeVertexArray_2[iii] = cubeVertexArray[iii];
-        //			else
-        //				cubeVertexArray_2[iii] = cubeVertexArray[iii] + 3;
-        //		}
-        //	}
-        //
-        //	let boxMesh_2 = new Mesh();
-        //	boxMesh_2.CreateMeshFromRawData("mesh_texture-cube-2", cubeVertexArray_2, cubeVertexNumFloats);
-        //
-        //	// Creating a 3rd box mesh
-        //	let cubeVertexArray_3 = new Float32Array(cubeVertexArray.length);
-        //	for (let row = 0; row < 36; row++)
-        //	{
-        //		for (let col = 0; col < 10; col++)
-        //		{
-        //			let iii = row * 10 + col;
-        //			if (col === 1)
-        //				cubeVertexArray_3[iii] = cubeVertexArray[iii] + 3;
-        //			else
-        //				cubeVertexArray_3[iii] = cubeVertexArray[iii];
-        //		}
-        //	}
-        //
-        //	let boxMesh_3 = new Mesh();
-        //	boxMesh_3.CreateMeshFromRawData("mesh_texture-cube-3", cubeVertexArray_3, cubeVertexNumFloats);
         // Box Mesh
         let boxMesh = new Mesh();
-        boxMesh.CreateMeshFromRawData("mesh_texture-cube", cubeVertexArray, cubeVertexNumFloats);
+        boxMesh.CreateMeshFromRawData("mesh_texture-cube-instancing", cubeVertexArray, cubeVertexNumFloats);
         // MeshGroup
-        let cubeMeshGroup = new MeshGroup("mg_texture-cube", device, [boxMesh], 0);
+        let cubeMeshGroup = new MeshGroup("mg_texture-cube-instancing", device, [boxMesh], 0);
         // Shader Module
         const module = device.createShaderModule({
-            label: 'Texture cube shader module',
+            label: 'Texture cube instancing shader module',
             code: `
 struct Uniforms
 {
@@ -102,7 +69,7 @@ struct Vertex
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
 
-@group(1) @binding(0) var<uniform> modelMatrix: mat4x4f;
+@group(1) @binding(0) var<storage, read> models: array<mat4x4f>;
 @group(1) @binding(1) var mySampler: sampler;
 @group(1) @binding(2) var myTexture: texture_2d<f32>;
 
@@ -113,9 +80,9 @@ struct VertexOutput
 }
 
 @vertex
-fn vertex_main(vertex: Vertex) -> VertexOutput
+fn vertex_main(vertex: Vertex, @builtin(instance_index) instance: u32) -> VertexOutput
 {
-	let mvp = uniforms.viewProjectionMatrix * modelMatrix;
+	let mvp = uniforms.viewProjectionMatrix * models[instance];
 	return VertexOutput(mvp * vertex.position, vertex.uv);
 }
 
@@ -128,12 +95,12 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
         });
         // Bind group layout for the RenderItem
         let cubeBindGroupLayout = device.createBindGroupLayout({
-            label: "bgl_game-cube",
+            label: "bgl_texture-cube-instancing",
             entries: [
                 {
                     binding: 0,
                     visibility: GPUShaderStage.VERTEX,
-                    buffer: { type: "uniform" }
+                    buffer: { type: "read-only-storage" }
                 },
                 {
                     binding: 1,
@@ -153,9 +120,9 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
             bindGroupLayouts: [passBindGroupLayout, cubeBindGroupLayout]
         };
         let cubePipelineLayout = device.createPipelineLayout(cubePipelineLayoutDescriptor);
-        cubePipelineLayout.label = "pl_texture-cube";
+        cubePipelineLayout.label = "pl_texture-cube-instancing";
         let pipeline = device.createRenderPipeline({
-            label: "rp_texture-cube",
+            label: "rp_texture-cube-instancing",
             layout: cubePipelineLayout,
             vertex: {
                 module,
@@ -201,9 +168,9 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
         // and then must add them by name to a layer
         renderer.AddMeshGroup(cubeMeshGroup);
         // RenderPassLayer
-        let renderPassLayer = new RenderPassLayer("rpl_texture-cube", renderer, pipeline, cubeBindGroupLayout, cubeBindGroupLayoutGroupNumber);
+        let renderPassLayer = new RenderPassLayer("rpl_texture-cube-instancing", renderer, pipeline, cubeBindGroupLayout, cubeBindGroupLayoutGroupNumber);
         renderPassLayer.AddMeshGroup(cubeMeshGroup.Name());
         return renderPassLayer;
     }
 }
-//# sourceMappingURL=TextureCube.js.map
+//# sourceMappingURL=TextureCubeInstancing.js.map

@@ -4,6 +4,7 @@ import { Scene, GameCube, GameCube2 } from "./Scene.js";
 import { mat4 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
 import { TextureCube } from "./TextureCube.js";
+import { TextureCubeInstancing } from "./TextureCubeInstancing.js";
 import { TimingUI } from "./TimingUI.js";
 import { RenderState } from "./RenderState.js";
 class KeyBoardState {
@@ -148,6 +149,8 @@ export class Application {
     }
     OnMButtonDown(e) {
         LOG_TRACE("OnMButtonDown");
+        let cube2 = new GameCube2("game-cube-2", this.m_renderer);
+        this.m_scene.AddGameObject(cube2);
     }
     OnRButtonDown(e) {
         LOG_TRACE("OnRButtonDown");
@@ -180,12 +183,8 @@ export class Application {
     async InitializeAsync() {
         let device = this.m_renderer.GetDevice();
         let context = this.m_renderer.GetContext();
-        let canvas = context.canvas;
-        if (canvas instanceof OffscreenCanvas)
-            throw Error("Cannot initialize Renderer. canvis is instanceof OffscreenCanvas - not sure how to handle that");
-        const devicePixelRatio = window.devicePixelRatio;
-        canvas.width = canvas.clientWidth * devicePixelRatio;
-        canvas.height = canvas.clientHeight * devicePixelRatio;
+        // Load all textures that will be used by the application
+        await this.m_renderer.AddTextureFromFile("tex_molecule", "./images/molecule.jpeg");
         let viewProjBindGroupLayout = device.createBindGroupLayout({
             label: "Model-View-Projection BindGroupLayout",
             entries: [
@@ -197,7 +196,7 @@ export class Application {
             ]
         });
         const depthTexture = device.createTexture({
-            size: [canvas.width, canvas.height],
+            size: [this.m_canvas.width, this.m_canvas.height],
             format: 'depth24plus',
             usage: GPUTextureUsage.RENDER_ATTACHMENT,
         });
@@ -239,7 +238,7 @@ export class Application {
         // RenderPassDescriptor
         let renderPassDescriptor = new RenderPassDescriptor(rpDescriptor);
         // RenderPass
-        let renderPass = new RenderPass("rp_main", device, renderPassDescriptor);
+        let renderPass = new RenderPass("rp_main", renderPassDescriptor);
         renderPass.AddBindGroup(passBindGroup); // bind group for model-view-projection matrix
         renderPass.AddBuffer("viewProj-buffer", viewProjBuffer);
         renderPass.Update = (timeDelta, renderPass, state, scene) => {
@@ -256,8 +255,10 @@ export class Application {
         renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, viewProjBindGroupLayout));
         // Texture Cube
         let textureCube = new TextureCube();
-        let textureCubeLayer = renderPass.AddRenderPassLayer(await textureCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
-        //	let textureCubeRI = textureCubeLayer.CreateRenderItem("ri_texture-cube", "mg_texture-cube", "mesh_texture-cube");
+        let textureCubeLayer = renderPass.AddRenderPassLayer(textureCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
+        // Texture Cube with Instancing
+        let textureCubeInstancing = new TextureCubeInstancing();
+        let textureCubeInstancingLayer = renderPass.AddRenderPassLayer(textureCubeInstancing.Initialize(this.m_renderer, viewProjBindGroupLayout));
         // Solid Color Cube
         //		let colorCube = new ColorCube();
         //		let colorCubeLayer = renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
@@ -269,13 +270,13 @@ export class Application {
         this.m_renderer.EnableGPUTiming();
         // Create the scene
         let cube = new GameCube("game-cube", this.m_renderer);
-        await cube.InitializeAsync();
         let cube2 = new GameCube2("game-cube-2", this.m_renderer);
-        await cube2.InitializeAsync();
-        cube2.SetPosition([0, 2, 0]);
-        cube2.SetScaling([0.5, 0.5, 0.5]);
-        cube.AddChild(cube2);
+        //	cube2.SetPosition([0, 2, 0]);
+        //	cube2.SetScaling([0.5, 0.5, 0.5]);
+        //
+        //	cube.AddChild(cube2);
         this.m_scene.AddGameObject(cube);
+        this.m_scene.AddGameObject(cube2);
     }
     Update(timeDelta) {
         // Inform the timing UI a new frame is starting

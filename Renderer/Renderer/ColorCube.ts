@@ -191,10 +191,13 @@ fn fragment_main(@location(0) color: vec4f) -> @location(0) vec4f
 			},
 		});
 
+		// Mesh groups may be used across multiple layers so we add them to the renderer first
+		// and then must add them by name to a layer
+		renderer.AddMeshGroup(meshGroup);
 
 		// RenderPassLayer
-		let renderPassLayer: RenderPassLayer = new RenderPassLayer("rpl_color-cube", pipeline);
-		renderPassLayer.AddMeshGroup(meshGroup);
+		let renderPassLayer: RenderPassLayer = new RenderPassLayer("rpl_color-cube", renderer, pipeline);
+		renderPassLayer.AddMeshGroup(meshGroup.Name());
 
 		return renderPassLayer;
 

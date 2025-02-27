@@ -20,6 +20,7 @@ import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
 import { ColorCube } from "./ColorCube.js";
 import { TextureCube } from "./TextureCube.js";
+import { TextureCubeInstancing } from "./TextureCubeInstancing.js";
 import { TimingUI } from "./TimingUI.js";
 import { RenderState } from "./RenderState.js"
 
@@ -198,6 +199,9 @@ export class Application
 	{
 		LOG_TRACE("OnMButtonDown");
 
+
+		let cube2 = new GameCube2("game-cube-2", this.m_renderer);
+		this.m_scene.AddGameObject(cube2);
 	}
 	private OnRButtonDown(e: PointerEvent)
 	{
@@ -244,13 +248,11 @@ export class Application
 		let device = this.m_renderer.GetDevice();
 		let context = this.m_renderer.GetContext();
 
-		let canvas: HTMLCanvasElement | OffscreenCanvas = context.canvas;
-		if (canvas instanceof OffscreenCanvas)
-			throw Error("Cannot initialize Renderer. canvis is instanceof OffscreenCanvas - not sure how to handle that");
+		// Load all textures that will be used by the application
+		await this.m_renderer.AddTextureFromFile("tex_molecule", "./images/molecule.jpeg");
 
-		const devicePixelRatio = window.devicePixelRatio;
-		canvas.width = canvas.clientWidth * devicePixelRatio;
-		canvas.height = canvas.clientHeight * devicePixelRatio;
+
+
 
 		let viewProjBindGroupLayout: GPUBindGroupLayout = device.createBindGroupLayout(
 			{
@@ -266,7 +268,7 @@ export class Application
 		);
 
 		const depthTexture = device.createTexture({
-			size: [canvas.width, canvas.height],
+			size: [this.m_canvas.width, this.m_canvas.height],
 			format: 'depth24plus',
 			usage: GPUTextureUsage.RENDER_ATTACHMENT,
 		});
@@ -315,7 +317,7 @@ export class Application
 		let renderPassDescriptor: RenderPassDescriptor = new RenderPassDescriptor(rpDescriptor);
 
 		// RenderPass
-		let renderPass: RenderPass = new RenderPass("rp_main", device, renderPassDescriptor);
+		let renderPass: RenderPass = new RenderPass("rp_main", renderPassDescriptor);
 		renderPass.AddBindGroup(passBindGroup); // bind group for model-view-projection matrix
 		renderPass.AddBuffer("viewProj-buffer", viewProjBuffer);
 		renderPass.Update = (timeDelta: number, renderPass: RenderPass, state: RenderState, scene: Scene) =>
@@ -344,9 +346,11 @@ export class Application
 
 		// Texture Cube
 		let textureCube = new TextureCube();
-		let textureCubeLayer = renderPass.AddRenderPassLayer(await textureCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
-	//	let textureCubeRI = textureCubeLayer.CreateRenderItem("ri_texture-cube", "mg_texture-cube", "mesh_texture-cube");
+		let textureCubeLayer = renderPass.AddRenderPassLayer(textureCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
 
+		// Texture Cube with Instancing
+		let textureCubeInstancing = new TextureCubeInstancing();
+		let textureCubeInstancingLayer = renderPass.AddRenderPassLayer(textureCubeInstancing.Initialize(this.m_renderer, viewProjBindGroupLayout));
 
 		// Solid Color Cube
 //		let colorCube = new ColorCube();
@@ -368,16 +372,15 @@ export class Application
 
 		// Create the scene
 		let cube = new GameCube("game-cube", this.m_renderer);
-		await cube.InitializeAsync();
 
 		let cube2 = new GameCube2("game-cube-2", this.m_renderer);
-		await cube2.InitializeAsync();
-		cube2.SetPosition([0, 2, 0]);
-		cube2.SetScaling([0.5, 0.5, 0.5]);
-
-		cube.AddChild(cube2);
+	//	cube2.SetPosition([0, 2, 0]);
+	//	cube2.SetScaling([0.5, 0.5, 0.5]);
+	//
+	//	cube.AddChild(cube2);
 
 		this.m_scene.AddGameObject(cube);
+		this.m_scene.AddGameObject(cube2);
 	}
 
 	public Update(timeDelta: number): void
