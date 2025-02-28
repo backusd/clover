@@ -87,10 +87,10 @@ export class Application
 		{
 			case 'KeyQ':
 
-				this.m_scene.RemoveGameObject("GameCube2:0");
+				// this.m_scene.RemoveGameObject("GameCube2:0");
 
-				//let cube2 = new GameCube2(this.m_renderer);
-				//this.m_scene.AddGameObject(cube2);
+				let cube = new GameCube2(this.m_renderer, this.m_scene);
+				this.m_scene.AddGameObject(cube);
 
 				break;
 
@@ -379,18 +379,18 @@ export class Application
 		// Create the scene
 	//	let cube = new GameCube(this.m_renderer);
 
-		let cube2 = new GameCube2(this.m_renderer);
-		cube2.SetPosition([3, 0, 0]);
+		let cube2 = new GameCube2(this.m_renderer, this.m_scene);
+	//	cube2.SetPosition([3, 0, 0]);
 	//	cube2.SetScaling([0.5, 0.5, 0.5]);
 	//
 		//	cube.AddChild(cube2);
 
-		let cube3 = new GameCube2(this.m_renderer);
-		cube3.SetPosition([-3, 0, 0]);
+	//	let cube3 = new GameCube2(this.m_renderer, this.m_scene);
+	//	cube3.SetPosition([-3, 0, 0]);
 
 	//	this.m_scene.AddGameObject(cube);
 		this.m_scene.AddGameObject(cube2);
-		this.m_scene.AddGameObject(cube3);
+	//	this.m_scene.AddGameObject(cube3);
 	}
 
 	public Update(timeDelta: number): void

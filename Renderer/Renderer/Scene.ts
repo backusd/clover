@@ -89,8 +89,6 @@ export class InstanceManager<T extends UsesInstancing>
 	public GetInstanceDataBuffer(): GPUBuffer { return this.m_buffer; }
 	public RemoveInstance(index: number): number
 	{
-		this.m_renderItem.Print();
-
 		// Remove the instance
 		this.m_instances.splice(index, 1);
 
@@ -104,8 +102,6 @@ export class InstanceManager<T extends UsesInstancing>
 			this.m_renderer.RemoveRenderItem(this.m_renderItem.Name(), this.m_meshGroupName);
 		else
 			this.m_renderItem.SetInstanceCount(this.m_instances.length);
-
-		this.m_renderItem.Print();
 
 		return this.m_instances.length;
 	}
@@ -127,10 +123,11 @@ export class InstanceManager<T extends UsesInstancing>
 
 export abstract class GameObject
 {
-	constructor(name: string, renderer: Renderer)
+	constructor(name: string, renderer: Renderer, scene: Scene)
 	{
 		this.m_name = name;
 		this.m_renderer = renderer;
+		this.m_scene = scene;
 		this.m_childObjects = new HybridLookup<GameObject>();
 	}
 	public abstract Destruct(): void;
@@ -195,6 +192,7 @@ export abstract class GameObject
 
 	protected m_name: string;
 	protected m_renderer: Renderer;
+	protected m_scene: Scene;
 	protected m_childObjects: HybridLookup<GameObject>;
 
 	protected m_position = vec3.create(0, 0, 0);
@@ -204,9 +202,9 @@ export abstract class GameObject
 }
 export class GameCube extends GameObject
 {
-	constructor(renderer: Renderer)
+	constructor(renderer: Renderer, scene: Scene)
 	{
-		super("GameCube", renderer);
+		super("GameCube", renderer, scene);
 
 		let device = this.m_renderer.GetDevice();
 
@@ -296,10 +294,10 @@ export class GameCube extends GameObject
 }
 export class GameCube2 extends GameObject implements UsesInstancing
 {
-	constructor(renderer: Renderer)
+	constructor(renderer: Renderer, scene: Scene)
 	{
 		// Need to make sure the name of the GameObject is unique
-		super(`GameCube2:${GameCube2.s_instanceNum}`, renderer);
+		super(`GameCube2:${GameCube2.s_instanceNum}`, renderer, scene);
 		GameCube2.s_instanceNum++;
 
 		// Make a call to GetInstanceManager() will initialize the instance manager
@@ -392,11 +390,16 @@ export class GameCube2 extends GameObject implements UsesInstancing
 
 	public UpdatePhysics(timeDelta: number, parentModelMatrix: Mat4): void
 	{
-		this.m_rotation[1] += timeDelta;
-		if (this.m_rotation[1] > 2 * Math.PI)
-			this.m_rotation[1] -= 2 * Math.PI;
+		this.m_position[0] += timeDelta;
 
-		this.UpdateModelMatrix(parentModelMatrix);
+		if (this.m_position[0] > 5)
+		{
+			this.m_scene.RemoveGameObjectDelayed(this.m_name);
+		}
+		else
+		{
+			this.UpdateModelMatrix(parentModelMatrix);
+		}
 	}
 	public UpdateGPU(): void
 	{
@@ -407,9 +410,6 @@ export class GameCube2 extends GameObject implements UsesInstancing
 			this.m_modelMatrix.byteLength
 		);
 	}
-
-
-
 
 	private m_instanceNumber: number;
 
@@ -435,6 +435,12 @@ export class Scene
 		for (let iii = 0; iii < numObjects; ++iii)
 			this.m_gameObjects.getFromIndex(iii).UpdatePhysicsImpl(timeDelta, identity);
 
+		// During the update, some objects may have requested a delete, but it is unsafe for
+		// them to be deleted during the update. So instead, we add them to a list and delete
+		// them here.
+		this.m_delayedObjectsToDelete.forEach(val => { this.RemoveGameObject(val); })
+		this.m_delayedObjectsToDelete.length = 0;
+
 		// It is possible game objects will have disappeared after doing the physics update,
 		// so you need to start from scratch
 		numObjects = this.m_gameObjects.size();
@@ -451,8 +457,14 @@ export class Scene
 		this.m_gameObjects.getFromKey(name).Destruct();
 		this.m_gameObjects.removeFromKey(name);
 	}
+	public RemoveGameObjectDelayed(name: string): void
+	{
+		this.m_delayedObjectsToDelete.push(name);
+	}
 
 
 	private m_camera: Camera;
 	private m_gameObjects: HybridLookup<GameObject>;
+
+	private m_delayedObjectsToDelete: string[] = [];
 }

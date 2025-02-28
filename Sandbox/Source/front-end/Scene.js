@@ -53,7 +53,6 @@ export class InstanceManager {
     }
     GetInstanceDataBuffer() { return this.m_buffer; }
     RemoveInstance(index) {
-        this.m_renderItem.Print();
         // Remove the instance
         this.m_instances.splice(index, 1);
         // Update all instances that came after it with their new instance number
@@ -65,7 +64,6 @@ export class InstanceManager {
             this.m_renderer.RemoveRenderItem(this.m_renderItem.Name(), this.m_meshGroupName);
         else
             this.m_renderItem.SetInstanceCount(this.m_instances.length);
-        this.m_renderItem.Print();
         return this.m_instances.length;
     }
     m_className;
@@ -80,9 +78,10 @@ export class InstanceManager {
     OnBufferChanged;
 }
 export class GameObject {
-    constructor(name, renderer) {
+    constructor(name, renderer, scene) {
         this.m_name = name;
         this.m_renderer = renderer;
+        this.m_scene = scene;
         this.m_childObjects = new HybridLookup();
     }
     UpdatePhysicsImpl(timeDelta, parentModelMatrix) {
@@ -126,6 +125,7 @@ export class GameObject {
     }
     m_name;
     m_renderer;
+    m_scene;
     m_childObjects;
     m_position = vec3.create(0, 0, 0);
     m_rotation = vec3.create(0, 0, 0);
@@ -133,8 +133,8 @@ export class GameObject {
     m_modelMatrix = mat4.identity();
 }
 export class GameCube extends GameObject {
-    constructor(renderer) {
-        super("GameCube", renderer);
+    constructor(renderer, scene) {
+        super("GameCube", renderer, scene);
         let device = this.m_renderer.GetDevice();
         // Create a render item for the cube
         this.m_renderItem = renderer.CreateRenderItem("ri_game-cube", "mg_texture-cube", "mesh_texture-cube");
@@ -201,9 +201,9 @@ export class GameCube extends GameObject {
     m_modelMatrixBuffer;
 }
 export class GameCube2 extends GameObject {
-    constructor(renderer) {
+    constructor(renderer, scene) {
         // Need to make sure the name of the GameObject is unique
-        super(`GameCube2:${GameCube2.s_instanceNum}`, renderer);
+        super(`GameCube2:${GameCube2.s_instanceNum}`, renderer, scene);
         GameCube2.s_instanceNum++;
         // Make a call to GetInstanceManager() will initialize the instance manager
         // Calling AddInstance() will generate a new instance and return its index into the array of instances
@@ -274,10 +274,13 @@ export class GameCube2 extends GameObject {
         return new BindGroup(bindGroupLayoutGroupNumber, cubeBindGroup);
     }
     UpdatePhysics(timeDelta, parentModelMatrix) {
-        this.m_rotation[1] += timeDelta;
-        if (this.m_rotation[1] > 2 * Math.PI)
-            this.m_rotation[1] -= 2 * Math.PI;
-        this.UpdateModelMatrix(parentModelMatrix);
+        this.m_position[0] += timeDelta;
+        if (this.m_position[0] > 5) {
+            this.m_scene.RemoveGameObjectDelayed(this.m_name);
+        }
+        else {
+            this.UpdateModelMatrix(parentModelMatrix);
+        }
     }
     UpdateGPU() {
         this.GetInstanceManager().WriteToBuffer(this.m_instanceNumber, this.m_modelMatrix.buffer, this.m_modelMatrix.byteOffset, this.m_modelMatrix.byteLength);
@@ -299,6 +302,11 @@ export class Scene {
         let numObjects = this.m_gameObjects.size();
         for (let iii = 0; iii < numObjects; ++iii)
             this.m_gameObjects.getFromIndex(iii).UpdatePhysicsImpl(timeDelta, identity);
+        // During the update, some objects may have requested a delete, but it is unsafe for
+        // them to be deleted during the update. So instead, we add them to a list and delete
+        // them here.
+        this.m_delayedObjectsToDelete.forEach(val => { this.RemoveGameObject(val); });
+        this.m_delayedObjectsToDelete.length = 0;
         // It is possible game objects will have disappeared after doing the physics update,
         // so you need to start from scratch
         numObjects = this.m_gameObjects.size();
@@ -313,7 +321,11 @@ export class Scene {
         this.m_gameObjects.getFromKey(name).Destruct();
         this.m_gameObjects.removeFromKey(name);
     }
+    RemoveGameObjectDelayed(name) {
+        this.m_delayedObjectsToDelete.push(name);
+    }
     m_camera;
     m_gameObjects;
+    m_delayedObjectsToDelete = [];
 }
 //# sourceMappingURL=Scene.js.map

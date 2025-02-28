@@ -90,11 +90,6 @@ export class RenderItem
     }
     public Update: (timeDelta: number, renderitem: RenderItem, state: RenderState, scene: Scene) => void;
 
-    public Print(): void
-    {
-        LOG_CORE_TRACE(`RenderItem: ${this.m_name} | instance count = ${this.m_instanceCount}`);
-    }
-
     private m_name: string;
     private m_meshName: string;
     private m_meshDescriptor: MeshDescriptor;
