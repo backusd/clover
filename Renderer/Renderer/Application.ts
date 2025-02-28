@@ -85,6 +85,16 @@ export class Application
 
 		switch (e.code)
 		{
+			case 'KeyQ':
+
+				this.m_scene.RemoveGameObject("GameCube2:0");
+
+				//let cube2 = new GameCube2(this.m_renderer);
+				//this.m_scene.AddGameObject(cube2);
+
+				break;
+
+
 			case 'KeyW': break;
 			case 'KeyS': break;
 			case 'KeyA': break;
@@ -198,10 +208,6 @@ export class Application
 	private OnMButtonDown(e: PointerEvent)
 	{
 		LOG_TRACE("OnMButtonDown");
-
-
-		let cube2 = new GameCube2(this.m_renderer);
-		this.m_scene.AddGameObject(cube2);
 	}
 	private OnRButtonDown(e: PointerEvent)
 	{
@@ -371,16 +377,20 @@ export class Application
 
 
 		// Create the scene
-		let cube = new GameCube(this.m_renderer);
+	//	let cube = new GameCube(this.m_renderer);
 
 		let cube2 = new GameCube2(this.m_renderer);
-	//	cube2.SetPosition([0, 2, 0]);
+		cube2.SetPosition([3, 0, 0]);
 	//	cube2.SetScaling([0.5, 0.5, 0.5]);
 	//
-	//	cube.AddChild(cube2);
+		//	cube.AddChild(cube2);
 
-		this.m_scene.AddGameObject(cube);
+		let cube3 = new GameCube2(this.m_renderer);
+		cube3.SetPosition([-3, 0, 0]);
+
+	//	this.m_scene.AddGameObject(cube);
 		this.m_scene.AddGameObject(cube2);
+		this.m_scene.AddGameObject(cube3);
 	}
 
 	public Update(timeDelta: number): void

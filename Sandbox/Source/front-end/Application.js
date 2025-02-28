@@ -1,6 +1,6 @@
 import { LOG_TRACE } from "./Log.js";
 import { BindGroup, RenderPassDescriptor, RenderPass } from "./Renderer.js";
-import { Scene, GameCube, GameCube2 } from "./Scene.js";
+import { Scene, GameCube2 } from "./Scene.js";
 import { mat4 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
 import { TextureCube } from "./TextureCube.js";
@@ -54,6 +54,11 @@ export class Application {
         LOG_TRACE(`OnKeyDown: ${e.code}`);
         let handled = true;
         switch (e.code) {
+            case 'KeyQ':
+                this.m_scene.RemoveGameObject("GameCube2:0");
+                //let cube2 = new GameCube2(this.m_renderer);
+                //this.m_scene.AddGameObject(cube2);
+                break;
             case 'KeyW': break;
             case 'KeyS': break;
             case 'KeyA': break;
@@ -149,8 +154,6 @@ export class Application {
     }
     OnMButtonDown(e) {
         LOG_TRACE("OnMButtonDown");
-        let cube2 = new GameCube2(this.m_renderer);
-        this.m_scene.AddGameObject(cube2);
     }
     OnRButtonDown(e) {
         LOG_TRACE("OnRButtonDown");
@@ -269,14 +272,17 @@ export class Application {
         // DEBUG_ONLY
         this.m_renderer.EnableGPUTiming();
         // Create the scene
-        let cube = new GameCube(this.m_renderer);
+        //	let cube = new GameCube(this.m_renderer);
         let cube2 = new GameCube2(this.m_renderer);
-        //	cube2.SetPosition([0, 2, 0]);
+        cube2.SetPosition([3, 0, 0]);
         //	cube2.SetScaling([0.5, 0.5, 0.5]);
         //
         //	cube.AddChild(cube2);
-        this.m_scene.AddGameObject(cube);
+        let cube3 = new GameCube2(this.m_renderer);
+        cube3.SetPosition([-3, 0, 0]);
+        //	this.m_scene.AddGameObject(cube);
         this.m_scene.AddGameObject(cube2);
+        this.m_scene.AddGameObject(cube3);
     }
     Update(timeDelta) {
         // Inform the timing UI a new frame is starting

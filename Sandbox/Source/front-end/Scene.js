@@ -8,6 +8,7 @@ export class InstanceManager {
         this.m_className = className;
         this.m_bytesPerInstance = bytesPerInstance;
         this.m_renderer = renderer;
+        this.m_meshGroupName = meshGroupName;
         this.m_device = renderer.GetDevice();
         this.m_renderItem = renderer.CreateRenderItem(renderItemName, meshGroupName, meshName);
         this.OnBufferChanged = onBufferChangedCallback;
@@ -23,7 +24,7 @@ export class InstanceManager {
         // Add the instance to the list of instances we are tracking
         this.m_instances.push(instance);
         // Update the render item's instance count
-        this.m_renderItem.IncrementInstanceCount(1);
+        this.m_renderItem.SetInstanceCount(this.m_instances.length);
         // Increase the buffer capacity if necessary
         if (this.m_instances.length * this.m_bytesPerInstance > this.m_bytesInBuffer)
             this.IncreaseBufferCapacity(this.m_bytesInBuffer * 2);
@@ -51,10 +52,27 @@ export class InstanceManager {
         );
     }
     GetInstanceDataBuffer() { return this.m_buffer; }
+    RemoveInstance(index) {
+        this.m_renderItem.Print();
+        // Remove the instance
+        this.m_instances.splice(index, 1);
+        // Update all instances that came after it with their new instance number
+        for (let iii = index; iii < this.m_instances.length; ++iii)
+            this.m_instances[iii].SetInstanceNumber(iii);
+        // If no instances remain, delete the render item
+        // Otherwise, update the instance count on the render item
+        if (this.m_instances.length === 0)
+            this.m_renderer.RemoveRenderItem(this.m_renderItem.Name(), this.m_meshGroupName);
+        else
+            this.m_renderItem.SetInstanceCount(this.m_instances.length);
+        this.m_renderItem.Print();
+        return this.m_instances.length;
+    }
     m_className;
     m_instances = [];
     m_bytesPerInstance;
     m_renderer;
+    m_meshGroupName;
     m_device;
     m_buffer;
     m_bytesInBuffer;
@@ -163,6 +181,11 @@ export class GameCube extends GameObject {
         });
         this.m_renderItem.AddBindGroup("bg_game-cube", new BindGroup(bindGroupLayoutGroupNumber, cubeBindGroup));
     }
+    Destruct() {
+        // When the object is deleted, we simply need to manually remove the RenderItem
+        // from the MeshGroup
+        this.m_renderer.RemoveRenderItem(this.m_renderItem.Name(), "mg_texture-cube");
+    }
     UpdatePhysics(timeDelta, parentModelMatrix) {
         this.m_rotation[1] += timeDelta;
         if (this.m_rotation[1] > 2 * Math.PI)
@@ -186,6 +209,14 @@ export class GameCube2 extends GameObject {
         // Calling AddInstance() will generate a new instance and return its index into the array of instances
         this.m_instanceNumber = this.GetInstanceManager().AddInstance(this);
     }
+    Destruct() {
+        // When the object is deleted, we need to inform the InstanceManager to remove the object
+        // If this was the last instance, then we need to set the InstanceManager to null
+        if (this.GetInstanceManager().RemoveInstance(this.m_instanceNumber) === 0) {
+            GameCube2.s_instanceManager = null;
+        }
+    }
+    SetInstanceNumber(num) { this.m_instanceNumber = num; }
     GetInstanceManager() {
         if (GameCube2.s_instanceManager === null) {
             GameCube2.s_instanceManager = new InstanceManager("GameCube2", 4 * 16, this.m_renderer, "ri_game-cube-2", "mg_texture-cube-instancing", "mesh_texture-cube-instancing", 4, (renderer, renderItem, instanceDataBuffer) => {
@@ -243,7 +274,9 @@ export class GameCube2 extends GameObject {
         return new BindGroup(bindGroupLayoutGroupNumber, cubeBindGroup);
     }
     UpdatePhysics(timeDelta, parentModelMatrix) {
-        this.m_position[0] += timeDelta * 2;
+        this.m_rotation[1] += timeDelta;
+        if (this.m_rotation[1] > 2 * Math.PI)
+            this.m_rotation[1] -= 2 * Math.PI;
         this.UpdateModelMatrix(parentModelMatrix);
     }
     UpdateGPU() {
@@ -275,6 +308,10 @@ export class Scene {
     GetCamera() { return this.m_camera; }
     AddGameObject(object) {
         return this.m_gameObjects.add(object.Name(), object);
+    }
+    RemoveGameObject(name) {
+        this.m_gameObjects.getFromKey(name).Destruct();
+        this.m_gameObjects.removeFromKey(name);
     }
     m_camera;
     m_gameObjects;

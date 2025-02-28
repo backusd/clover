@@ -16,7 +16,12 @@ import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
 
 
 
-export class InstanceManager<T>
+interface UsesInstancing
+{
+	SetInstanceNumber(i: number): void;
+}
+
+export class InstanceManager<T extends UsesInstancing>
 {
 	constructor(className: string, bytesPerInstance: number, renderer: Renderer, renderItemName: string,
 		meshGroupName: string, meshName: string, numberOfInstancesToAllocateFor: number = 2,
@@ -27,6 +32,7 @@ export class InstanceManager<T>
 		this.m_className = className;
 		this.m_bytesPerInstance = bytesPerInstance;
 		this.m_renderer = renderer;
+		this.m_meshGroupName = meshGroupName;
 		this.m_device = renderer.GetDevice();
 		this.m_renderItem = renderer.CreateRenderItem(renderItemName, meshGroupName, meshName);
 		this.OnBufferChanged = onBufferChangedCallback;
@@ -47,7 +53,7 @@ export class InstanceManager<T>
 		this.m_instances.push(instance);
 
 		// Update the render item's instance count
-		this.m_renderItem.IncrementInstanceCount(1);
+		this.m_renderItem.SetInstanceCount(this.m_instances.length);
 
 		// Increase the buffer capacity if necessary
 		if (this.m_instances.length * this.m_bytesPerInstance > this.m_bytesInBuffer)
@@ -81,12 +87,35 @@ export class InstanceManager<T>
 		);
 	}
 	public GetInstanceDataBuffer(): GPUBuffer { return this.m_buffer; }
+	public RemoveInstance(index: number): number
+	{
+		this.m_renderItem.Print();
+
+		// Remove the instance
+		this.m_instances.splice(index, 1);
+
+		// Update all instances that came after it with their new instance number
+		for (let iii = index; iii < this.m_instances.length; ++iii)
+			this.m_instances[iii].SetInstanceNumber(iii);
+
+		// If no instances remain, delete the render item
+		// Otherwise, update the instance count on the render item
+		if (this.m_instances.length === 0)
+			this.m_renderer.RemoveRenderItem(this.m_renderItem.Name(), this.m_meshGroupName);
+		else
+			this.m_renderItem.SetInstanceCount(this.m_instances.length);
+
+		this.m_renderItem.Print();
+
+		return this.m_instances.length;
+	}
 
 	private m_className: string;
 	private m_instances: T[] = [];
 	private m_bytesPerInstance: number;
 
 	private m_renderer: Renderer;
+	private m_meshGroupName: string;
 	private m_device: GPUDevice;
 	private m_buffer: GPUBuffer;
 	private m_bytesInBuffer: number;
@@ -104,6 +133,7 @@ export abstract class GameObject
 		this.m_renderer = renderer;
 		this.m_childObjects = new HybridLookup<GameObject>();
 	}
+	public abstract Destruct(): void;
 
 	// Physics Update
 	public abstract UpdatePhysics(timeDelta: number, parentModelMatrix: Mat4): void;
@@ -233,6 +263,13 @@ export class GameCube extends GameObject
 
 		this.m_renderItem.AddBindGroup("bg_game-cube", new BindGroup(bindGroupLayoutGroupNumber, cubeBindGroup));
 	}
+	public Destruct(): void
+	{
+		// When the object is deleted, we simply need to manually remove the RenderItem
+		// from the MeshGroup
+		this.m_renderer.RemoveRenderItem(this.m_renderItem.Name(), "mg_texture-cube");
+	}
+
 	public UpdatePhysics(timeDelta: number, parentModelMatrix: Mat4): void
 	{
 		this.m_rotation[1] += timeDelta;
@@ -257,7 +294,7 @@ export class GameCube extends GameObject
 	private m_renderItem: RenderItem;
 	private m_modelMatrixBuffer: GPUBuffer;
 }
-export class GameCube2 extends GameObject
+export class GameCube2 extends GameObject implements UsesInstancing
 {
 	constructor(renderer: Renderer)
 	{
@@ -269,6 +306,16 @@ export class GameCube2 extends GameObject
 		// Calling AddInstance() will generate a new instance and return its index into the array of instances
 		this.m_instanceNumber = this.GetInstanceManager().AddInstance(this);
 	}
+	public Destruct(): void
+	{
+		// When the object is deleted, we need to inform the InstanceManager to remove the object
+		// If this was the last instance, then we need to set the InstanceManager to null
+		if (this.GetInstanceManager().RemoveInstance(this.m_instanceNumber) === 0)
+		{
+			GameCube2.s_instanceManager = null;
+		}
+	}
+	public SetInstanceNumber(num: number): void { this.m_instanceNumber = num; }
 	private GetInstanceManager(): InstanceManager<GameCube2>
 	{
 		if (GameCube2.s_instanceManager === null)
@@ -345,10 +392,11 @@ export class GameCube2 extends GameObject
 
 	public UpdatePhysics(timeDelta: number, parentModelMatrix: Mat4): void
 	{
-		this.m_position[0] += timeDelta * 2;
+		this.m_rotation[1] += timeDelta;
+		if (this.m_rotation[1] > 2 * Math.PI)
+			this.m_rotation[1] -= 2 * Math.PI;
 
 		this.UpdateModelMatrix(parentModelMatrix);
-
 	}
 	public UpdateGPU(): void
 	{
@@ -397,6 +445,11 @@ export class Scene
 	public AddGameObject(object: GameObject): GameObject
 	{
 		return this.m_gameObjects.add(object.Name(), object);
+	}
+	public RemoveGameObject(name: string): void
+	{
+		this.m_gameObjects.getFromKey(name).Destruct();
+		this.m_gameObjects.removeFromKey(name);
 	}
 
 

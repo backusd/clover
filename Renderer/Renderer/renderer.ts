@@ -90,6 +90,11 @@ export class RenderItem
     }
     public Update: (timeDelta: number, renderitem: RenderItem, state: RenderState, scene: Scene) => void;
 
+    public Print(): void
+    {
+        LOG_CORE_TRACE(`RenderItem: ${this.m_name} | instance count = ${this.m_instanceCount}`);
+    }
+
     private m_name: string;
     private m_meshName: string;
     private m_meshDescriptor: MeshDescriptor;
@@ -486,10 +491,6 @@ export class MeshGroup
         for (let iii = 0; iii < this.m_renderItems.size(); iii++)
             this.m_renderItems.getFromIndex(iii).UpdateImpl(timeDelta, state, scene);
     }
-
-
-
-
     public GetRenderItemBindGroupLayout(): GPUBindGroupLayout | null
     {
         return this.m_renderItemBindGroupLayout;

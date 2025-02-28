@@ -1,4 +1,4 @@
-import { LOG_CORE_WARN, LOG_CORE_ERROR } from "./Log.js";
+import { LOG_CORE_TRACE, LOG_CORE_WARN, LOG_CORE_ERROR } from "./Log.js";
 import { HybridLookup } from "./Utils.js";
 export class BindGroup {
     constructor(groupNumber, bindGroup) {
@@ -62,6 +62,9 @@ export class RenderItem {
         this.Update(timeDelta, this, state, scene);
     }
     Update;
+    Print() {
+        LOG_CORE_TRACE(`RenderItem: ${this.m_name} | instance count = ${this.m_instanceCount}`);
+    }
     m_name;
     m_meshName;
     m_meshDescriptor;
