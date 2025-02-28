@@ -200,7 +200,7 @@ export class Application
 		LOG_TRACE("OnMButtonDown");
 
 
-		let cube2 = new GameCube2("game-cube-2", this.m_renderer);
+		let cube2 = new GameCube2(this.m_renderer);
 		this.m_scene.AddGameObject(cube2);
 	}
 	private OnRButtonDown(e: PointerEvent)
@@ -371,9 +371,9 @@ export class Application
 
 
 		// Create the scene
-		let cube = new GameCube("game-cube", this.m_renderer);
+		let cube = new GameCube(this.m_renderer);
 
-		let cube2 = new GameCube2("game-cube-2", this.m_renderer);
+		let cube2 = new GameCube2(this.m_renderer);
 	//	cube2.SetPosition([0, 2, 0]);
 	//	cube2.SetScaling([0.5, 0.5, 0.5]);
 	//

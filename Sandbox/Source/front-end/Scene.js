@@ -67,9 +67,19 @@ export class GameObject {
         this.m_renderer = renderer;
         this.m_childObjects = new HybridLookup();
     }
-    UpdateImpl(timeDelta, parentModelMatrix) {
-        this.Update(timeDelta, parentModelMatrix);
-        this.UpdateChildren(timeDelta, this.m_modelMatrix);
+    UpdatePhysicsImpl(timeDelta, parentModelMatrix) {
+        // Update the object
+        this.UpdatePhysics(timeDelta, parentModelMatrix);
+        // Update the objects children
+        for (let iii = 0; iii < this.m_childObjects.size(); ++iii)
+            this.m_childObjects.getFromIndex(iii).UpdatePhysicsImpl(timeDelta, this.m_modelMatrix);
+    }
+    UpdateGPUImpl() {
+        // Update the object's GPU resources
+        this.UpdateGPU();
+        // Update the objects children GPU resources
+        for (let iii = 0; iii < this.m_childObjects.size(); ++iii)
+            this.m_childObjects.getFromIndex(iii).UpdateGPUImpl();
     }
     Name() { return this.m_name; }
     UpdateModelMatrix(parentModelMatrix) {
@@ -83,10 +93,6 @@ export class GameObject {
         mat4.multiply(model, rotationZ, model);
         mat4.multiply(model, scaling, model);
         mat4.multiply(parentModelMatrix, model, this.m_modelMatrix);
-    }
-    UpdateChildren(timeDelta, parentModelMatrix) {
-        for (let iii = 0; iii < this.m_childObjects.size(); ++iii)
-            this.m_childObjects.getFromIndex(iii).Update(timeDelta, parentModelMatrix);
     }
     AddChild(object) {
         return this.m_childObjects.add(object.Name(), object);
@@ -109,8 +115,8 @@ export class GameObject {
     m_modelMatrix = mat4.identity();
 }
 export class GameCube extends GameObject {
-    constructor(name, renderer) {
-        super(name, renderer);
+    constructor(renderer) {
+        super("GameCube", renderer);
         let device = this.m_renderer.GetDevice();
         // Create a render item for the cube
         this.m_renderItem = renderer.CreateRenderItem("ri_game-cube", "mg_texture-cube", "mesh_texture-cube");
@@ -157,11 +163,13 @@ export class GameCube extends GameObject {
         });
         this.m_renderItem.AddBindGroup("bg_game-cube", new BindGroup(bindGroupLayoutGroupNumber, cubeBindGroup));
     }
-    Update(timeDelta, parentModelMatrix) {
+    UpdatePhysics(timeDelta, parentModelMatrix) {
         this.m_rotation[1] += timeDelta;
         if (this.m_rotation[1] > 2 * Math.PI)
             this.m_rotation[1] -= 2 * Math.PI;
         this.UpdateModelMatrix(parentModelMatrix);
+    }
+    UpdateGPU() {
         // Update the GPUBuffer
         let device = this.m_renderer.GetDevice();
         device.queue.writeBuffer(this.m_modelMatrixBuffer, 0, this.m_modelMatrix.buffer, this.m_modelMatrix.byteOffset, this.m_modelMatrix.byteLength);
@@ -170,13 +178,23 @@ export class GameCube extends GameObject {
     m_modelMatrixBuffer;
 }
 export class GameCube2 extends GameObject {
-    constructor(name, renderer) {
-        super(name, renderer);
+    constructor(renderer) {
+        // Need to make sure the name of the GameObject is unique
+        super(`GameCube2:${GameCube2.s_instanceNum}`, renderer);
+        GameCube2.s_instanceNum++;
         // Make a call to GetInstanceManager() will initialize the instance manager
         // Calling AddInstance() will generate a new instance and return its index into the array of instances
         this.m_instanceNumber = this.GetInstanceManager().AddInstance(this);
-        // Update the name so that we get a unique name between instances
-        this.m_name = `${this.m_name}:${this.m_instanceNumber}`;
+    }
+    GetInstanceManager() {
+        if (GameCube2.s_instanceManager === null) {
+            GameCube2.s_instanceManager = new InstanceManager("GameCube2", 4 * 16, this.m_renderer, "ri_game-cube-2", "mg_texture-cube-instancing", "mesh_texture-cube-instancing", 4, (renderer, renderItem, instanceDataBuffer) => {
+                GameCube2.InitializeGameCube2RenderItem(renderer, renderItem, instanceDataBuffer);
+            }, (renderer, renderItem, instanceDataBuffer) => {
+                GameCube2.OnInstanceBufferChanged(renderer, renderItem, instanceDataBuffer);
+            });
+        }
+        return GameCube2.s_instanceManager;
     }
     static InitializeGameCube2RenderItem(renderer, renderItem, instanceDataBuffer) {
         renderItem.AddBindGroup("bg_game-cube-2", GameCube2.GenerateBindGroup(renderer, instanceDataBuffer));
@@ -224,23 +242,16 @@ export class GameCube2 extends GameObject {
         });
         return new BindGroup(bindGroupLayoutGroupNumber, cubeBindGroup);
     }
-    Update(timeDelta, parentModelMatrix) {
+    UpdatePhysics(timeDelta, parentModelMatrix) {
         this.m_position[0] += timeDelta * 2;
         this.UpdateModelMatrix(parentModelMatrix);
-        this.GetInstanceManager().WriteToBuffer(this.m_instanceNumber, this.m_modelMatrix.buffer, this.m_modelMatrix.byteOffset, this.m_modelMatrix.byteLength);
     }
-    GetInstanceManager() {
-        if (GameCube2.s_instanceManager === null) {
-            GameCube2.s_instanceManager = new InstanceManager("GameCube2", 4 * 16, this.m_renderer, "ri_game-cube-2", "mg_texture-cube-instancing", "mesh_texture-cube-instancing", 4, (renderer, renderItem, instanceDataBuffer) => {
-                GameCube2.InitializeGameCube2RenderItem(renderer, renderItem, instanceDataBuffer);
-            }, (renderer, renderItem, instanceDataBuffer) => {
-                GameCube2.OnInstanceBufferChanged(renderer, renderItem, instanceDataBuffer);
-            });
-        }
-        return GameCube2.s_instanceManager;
+    UpdateGPU() {
+        this.GetInstanceManager().WriteToBuffer(this.m_instanceNumber, this.m_modelMatrix.buffer, this.m_modelMatrix.byteOffset, this.m_modelMatrix.byteLength);
     }
     m_instanceNumber;
     static s_instanceManager = null;
+    static s_instanceNum = 0;
 }
 export class Scene {
     constructor() {
@@ -250,11 +261,16 @@ export class Scene {
     Update(timeDelta) {
         // Update the Camera
         this.m_camera.Update(timeDelta);
-        // Update the game objects
-        let identity = mat4.identity();
+        // Update the game objects. First do a physics update, and then write the results to the GPU
+        const identity = mat4.identity();
         let numObjects = this.m_gameObjects.size();
         for (let iii = 0; iii < numObjects; ++iii)
-            this.m_gameObjects.getFromIndex(iii).UpdateImpl(timeDelta, identity);
+            this.m_gameObjects.getFromIndex(iii).UpdatePhysicsImpl(timeDelta, identity);
+        // It is possible game objects will have disappeared after doing the physics update,
+        // so you need to start from scratch
+        numObjects = this.m_gameObjects.size();
+        for (let iii = 0; iii < numObjects; ++iii)
+            this.m_gameObjects.getFromIndex(iii).UpdateGPUImpl();
     }
     GetCamera() { return this.m_camera; }
     AddGameObject(object) {
