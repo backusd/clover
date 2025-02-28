@@ -10,6 +10,11 @@ import
 	RenderPass,
 	Renderer
 } from "./Renderer.js";
+import 
+{ 
+	UniformBufferWritable,
+	UniformBufferSingleStaging
+} from "./Buffer.js"
 import { Camera } from "./Camera.js";
 import { HybridLookup } from "./Utils.js"
 import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
@@ -212,11 +217,12 @@ export class GameCube extends GameObject
 		this.m_renderItem = renderer.CreateRenderItem("ri_game-cube", "mg_texture-cube", "mesh_texture-cube");
 
 		// Create the model buffer
-		this.m_modelMatrixBuffer = this.m_renderer.GetDevice().createBuffer({
-			label: 'buffer_game-cube-model-matrix',
-			size: 4 * 16, // sizeof(float) * floats per matrix
-			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-		});
+	//	this.m_modelMatrixBuffer = this.m_renderer.GetDevice().createBuffer({
+	//		label: 'buffer_game-cube-model-matrix',
+	//		size: 4 * 16, // sizeof(float) * floats per matrix
+	//		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		//	});
+		this.m_modelMatrixBuffer = new UniformBufferSingleStaging(device, Float32Array.BYTES_PER_ELEMENT * 16, "buffer_game-cube-model-matrix");
 
 		// Get the BindGroupLayout that the mesh group uses
 		let meshGroup = renderer.GetMeshGroup("mg_texture-cube");
@@ -245,7 +251,7 @@ export class GameCube extends GameObject
 				{
 					binding: 0,
 					resource: {
-						buffer: this.m_modelMatrixBuffer,
+						buffer: this.m_modelMatrixBuffer.GetGPUBuffer()
 					}
 				},
 				{
@@ -276,21 +282,24 @@ export class GameCube extends GameObject
 
 		this.UpdateModelMatrix(parentModelMatrix);
 	}
-	public UpdateGPU(): void
+	public async UpdateGPU(): Promise<void>
 	{
-		// Update the GPUBuffer
-		let device = this.m_renderer.GetDevice();
-		device.queue.writeBuffer(
-			this.m_modelMatrixBuffer,
-			0,
-			this.m_modelMatrix.buffer,
-			this.m_modelMatrix.byteOffset,
-			this.m_modelMatrix.byteLength
-		);
+	//	// Update the GPUBuffer
+	//	let device = this.m_renderer.GetDevice();
+	//	device.queue.writeBuffer(
+	//		this.m_modelMatrixBuffer,
+	//		0,
+	//		this.m_modelMatrix.buffer,
+	//		this.m_modelMatrix.byteOffset,
+	//		this.m_modelMatrix.byteLength
+	//	);
+
+		await this.m_modelMatrixBuffer.WriteData(this.m_modelMatrix);
 	}
 
 	private m_renderItem: RenderItem;
-	private m_modelMatrixBuffer: GPUBuffer;
+	//private m_modelMatrixBuffer: GPUBuffer;
+	private m_modelMatrixBuffer: UniformBufferSingleStaging;
 }
 export class GameCube2 extends GameObject implements UsesInstancing
 {

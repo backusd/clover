@@ -100,7 +100,10 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
                 {
                     binding: 0,
                     visibility: GPUShaderStage.VERTEX,
-                    buffer: { type: "read-only-storage" }
+                    buffer: {
+                        type: "read-only-storage",
+                        minBindingSize: 4 * 16 // BEST PRACTICE to always set this when possible
+                    }
                 },
                 {
                     binding: 1,

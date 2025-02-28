@@ -162,7 +162,10 @@ fn fragment_main(@location(0) fragUV: vec2f) -> @location(0) vec4f
 					{
 						binding: 0,
 						visibility: GPUShaderStage.VERTEX,
-						buffer: { type: "uniform" }
+						buffer: {
+							type: "uniform",
+							minBindingSize: 4 * 16	// BEST PRACTICE to always set this
+						}
 					},
 					{
 						binding: 1,

@@ -267,7 +267,10 @@ export class Application
 					{
 						binding: 0,
 						visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-						buffer: {}						
+						buffer: {
+							type: "uniform",
+							minBindingSize: 4 * 16	// BEST PRACTICE to always set this	when possible	
+						}						
 					}
 				]
 			}
@@ -277,7 +280,7 @@ export class Application
 			size: [this.m_canvas.width, this.m_canvas.height],
 			format: 'depth24plus',
 			usage: GPUTextureUsage.RENDER_ATTACHMENT,
-		});
+		}); 
 
 
 		// View-projection matrix buffer
@@ -377,7 +380,7 @@ export class Application
 
 
 		// Create the scene
-	//	let cube = new GameCube(this.m_renderer);
+		let cube = new GameCube(this.m_renderer, this.m_scene);
 
 		let cube2 = new GameCube2(this.m_renderer, this.m_scene);
 	//	cube2.SetPosition([3, 0, 0]);
@@ -388,7 +391,7 @@ export class Application
 	//	let cube3 = new GameCube2(this.m_renderer, this.m_scene);
 	//	cube3.SetPosition([-3, 0, 0]);
 
-	//	this.m_scene.AddGameObject(cube);
+		this.m_scene.AddGameObject(cube);
 		this.m_scene.AddGameObject(cube2);
 	//	this.m_scene.AddGameObject(cube3);
 	}
