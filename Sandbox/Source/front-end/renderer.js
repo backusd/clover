@@ -44,6 +44,7 @@ export class RenderItem {
     }
     Render(encoder) {
         if (this.m_isActive) {
+            this.PreRender();
             // Set all RenderItem specific bind groups
             // These should likely used the convention @group(2)
             for (let iii = 0; iii < this.m_bindGroups.size(); ++iii) {
@@ -69,6 +70,7 @@ export class RenderItem {
     m_startInstance = 0;
     m_isActive = true;
     m_bindGroups;
+    PreRender = () => { };
 }
 export class Mesh {
     CreateMeshFromRawData(name, rawVertexData, floatsPerVertex, indices = null) {

@@ -1,58 +1,50 @@
 import { LOG_ERROR } from "./Log.js";
 import { BindGroup } from "./Renderer.js";
-import { UniformBufferSingleStaging } from "./Buffer.js";
+import { UniformBufferPool, InstanceBufferPool } from "./Buffer.js";
 import { Camera } from "./Camera.js";
 import { HybridLookup } from "./Utils.js";
 import { mat4, vec3 } from 'wgpu-matrix';
 export class InstanceManager {
-    constructor(className, bytesPerInstance, renderer, renderItemName, meshGroupName, meshName, numberOfInstancesToAllocateFor = 2, renderItemInitializationCallback = () => { }, onBufferChangedCallback = () => { }) {
+    constructor(className, bytesPerInstance, renderer, renderItemName, meshGroupName, meshName, numberOfInstancesToAllocateFor = 2, RenderItemInitializationCallback = () => { }, OnBufferChangedCallback = () => { }) {
         this.m_className = className;
-        this.m_bytesPerInstance = bytesPerInstance;
         this.m_renderer = renderer;
         this.m_meshGroupName = meshGroupName;
         this.m_device = renderer.GetDevice();
+        this.OnBufferChanged = OnBufferChangedCallback;
+        this.m_instanceBuffer = new InstanceBufferPool(this.m_device, bytesPerInstance, numberOfInstancesToAllocateFor, `InstanceBuffer for InstanceManager<${this.m_className}>`);
+        // Create the RenderItem.
+        // The InstanceBuffer may use a staging buffer and therefore, we must make sure
+        // the InstanceBuffer's staging buffer is transitioned to the appropriate state
+        // before and after rendering.
         this.m_renderItem = renderer.CreateRenderItem(renderItemName, meshGroupName, meshName);
-        this.OnBufferChanged = onBufferChangedCallback;
-        this.m_bytesInBuffer = bytesPerInstance * numberOfInstancesToAllocateFor;
-        this.m_buffer = this.m_device.createBuffer({
-            label: `Buffer for InstanceManager<${this.m_className}>`,
-            size: this.m_bytesInBuffer,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        });
-        renderItemInitializationCallback(renderer, this.m_renderItem, this.m_buffer);
+        this.m_renderItem.PreRender = () => { this.m_instanceBuffer.PreRender(); };
+        // This callback is necessary because the InstanceManager only manages the instances of
+        // the RenderItem - it knows nothing about what BindGroups the RenderItem should have. Therefore,
+        // once the RenderItem is created, we call this callback so  that the derived class can add
+        // 1+ BindGroups to the RenderItem
+        RenderItemInitializationCallback(renderer, this.m_renderItem, this.m_instanceBuffer.GetGPUBuffer());
     }
     AddInstance(instance) {
         // Add the instance to the list of instances we are tracking
         this.m_instances.push(instance);
         // Update the render item's instance count
         this.m_renderItem.SetInstanceCount(this.m_instances.length);
-        // Increase the buffer capacity if necessary
-        if (this.m_instances.length * this.m_bytesPerInstance > this.m_bytesInBuffer)
-            this.IncreaseBufferCapacity(this.m_bytesInBuffer * 2);
+        // If adding this instance would push the instance buffer beyond capacity,
+        // then double the instance buffer's size
+        let currentCapacity = this.m_instanceBuffer.CurrentCapacity();
+        if (this.m_instances.length >= currentCapacity) {
+            this.m_instanceBuffer.SetCapacity(currentCapacity * 2);
+            // Because we are creating a brand new GPUBuffer, there will likely be updates
+            // needed by the RenderItem to reference this new buffer. However, this may be
+            // different for different GameObjects, so it needs to be a user provided callback
+            this.OnBufferChanged(this.m_renderer, this.m_renderItem, this.m_instanceBuffer.GetGPUBuffer());
+        }
         // Return the index of the instance
         return this.m_instances.length - 1;
     }
-    IncreaseBufferCapacity(bytes) {
-        this.m_bytesInBuffer = bytes;
-        this.m_buffer = this.m_device.createBuffer({
-            label: `Buffer for InstanceManager<${this.m_className}>`,
-            size: this.m_bytesInBuffer,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        });
-        // Because we are creating a brand new GPUBuffer, there will likely be updates
-        // needed by the RenderItem to reference this new buffer. However, this may be
-        // different for different GameObjects, so it needs to be a user provided callback
-        this.OnBufferChanged(this.m_renderer, this.m_renderItem, this.m_buffer);
+    WriteData(instanceNumber, data) {
+        this.m_instanceBuffer.WriteData(instanceNumber, data);
     }
-    WriteToBuffer(instanceNumber, data, dataOffset, size) {
-        this.m_device.queue.writeBuffer(this.m_buffer, // buffer to write to
-        instanceNumber * this.m_bytesPerInstance, // byte offset in the buffer
-        data, // data to write into buffer
-        dataOffset, // Offset in the data to start from
-        size // Total number of bytes to write
-        );
-    }
-    GetInstanceDataBuffer() { return this.m_buffer; }
     RemoveInstance(index) {
         // Remove the instance
         this.m_instances.splice(index, 1);
@@ -69,12 +61,10 @@ export class InstanceManager {
     }
     m_className;
     m_instances = [];
-    m_bytesPerInstance;
     m_renderer;
     m_meshGroupName;
     m_device;
-    m_buffer;
-    m_bytesInBuffer;
+    m_instanceBuffer;
     m_renderItem;
     OnBufferChanged;
 }
@@ -145,7 +135,7 @@ export class GameCube extends GameObject {
         //		size: 4 * 16, // sizeof(float) * floats per matrix
         //		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         //	});
-        this.m_modelMatrixBuffer = new UniformBufferSingleStaging(device, Float32Array.BYTES_PER_ELEMENT * 16, "buffer_game-cube-model-matrix");
+        this.m_modelMatrixBuffer = new UniformBufferPool(device, Float32Array.BYTES_PER_ELEMENT * 16, "buffer_game-cube-model-matrix");
         // Get the BindGroupLayout that the mesh group uses
         let meshGroup = renderer.GetMeshGroup("mg_texture-cube");
         let bindGroupLayout = meshGroup.GetRenderItemBindGroupLayout();
@@ -195,19 +185,9 @@ export class GameCube extends GameObject {
         this.UpdateModelMatrix(parentModelMatrix);
     }
     async UpdateGPU() {
-        //	// Update the GPUBuffer
-        //	let device = this.m_renderer.GetDevice();
-        //	device.queue.writeBuffer(
-        //		this.m_modelMatrixBuffer,
-        //		0,
-        //		this.m_modelMatrix.buffer,
-        //		this.m_modelMatrix.byteOffset,
-        //		this.m_modelMatrix.byteLength
-        //	);
         await this.m_modelMatrixBuffer.WriteData(this.m_modelMatrix);
     }
     m_renderItem;
-    //private m_modelMatrixBuffer: GPUBuffer;
     m_modelMatrixBuffer;
 }
 export class GameCube2 extends GameObject {
@@ -229,7 +209,7 @@ export class GameCube2 extends GameObject {
     SetInstanceNumber(num) { this.m_instanceNumber = num; }
     GetInstanceManager() {
         if (GameCube2.s_instanceManager === null) {
-            GameCube2.s_instanceManager = new InstanceManager("GameCube2", 4 * 16, this.m_renderer, "ri_game-cube-2", "mg_texture-cube-instancing", "mesh_texture-cube-instancing", 4, (renderer, renderItem, instanceDataBuffer) => {
+            GameCube2.s_instanceManager = new InstanceManager("GameCube2", Float32Array.BYTES_PER_ELEMENT * 16, this.m_renderer, "ri_game-cube-2", "mg_texture-cube-instancing", "mesh_texture-cube-instancing", 4, (renderer, renderItem, instanceDataBuffer) => {
                 GameCube2.InitializeGameCube2RenderItem(renderer, renderItem, instanceDataBuffer);
             }, (renderer, renderItem, instanceDataBuffer) => {
                 GameCube2.OnInstanceBufferChanged(renderer, renderItem, instanceDataBuffer);
@@ -293,7 +273,7 @@ export class GameCube2 extends GameObject {
         }
     }
     UpdateGPU() {
-        this.GetInstanceManager().WriteToBuffer(this.m_instanceNumber, this.m_modelMatrix.buffer, this.m_modelMatrix.byteOffset, this.m_modelMatrix.byteLength);
+        this.GetInstanceManager().WriteData(this.m_instanceNumber, this.m_modelMatrix);
     }
     m_instanceNumber;
     static s_instanceManager = null;

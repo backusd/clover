@@ -66,6 +66,8 @@ export class RenderItem
     {
         if (this.m_isActive)
         {
+            this.PreRender();
+
             // Set all RenderItem specific bind groups
             // These should likely used the convention @group(2)
             for (let iii = 0; iii < this.m_bindGroups.size(); ++iii)
@@ -97,6 +99,8 @@ export class RenderItem
     private m_startInstance: number = 0;
     private m_isActive: boolean = true;
     private m_bindGroups: HybridLookup<BindGroup>;
+
+    public PreRender: () => void = () => {};
 }
 export class Mesh
 {
