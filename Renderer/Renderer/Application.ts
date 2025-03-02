@@ -1,4 +1,4 @@
-import { LOG_INFO, LOG_TRACE, LOG_WARN, LOG_ERROR } from "./Log.js";
+import { LOG_INFO, LOG_TRACE, LOG_WARN, LOG_ERROR, LOG_CORE_ERROR } from "./Log.js";
 import
 {
 	Mesh,
@@ -47,6 +47,29 @@ export class Application
 		this.m_scene = new Scene();
 		this.m_renderState = new RenderState();
 		this.m_renderState.UpdateProjectionMatrix(canvas.width, canvas.height);
+
+		// At the application level, we are going to add an eventlistener for all webgpu errors
+		// Right now, this will just throw an exception. However, in the future, this should try
+		// to handle any error more gracefully if possible and should also report the error to the
+		// server for logging
+		// TODO: Report the error to the game server
+		let device = renderer.GetDevice();
+		device.addEventListener('uncapturederror', (event) =>
+		{
+			let msg = `'uncapturederror' event listener on the GPUDevice was triggered. This means a WebGPU error was not captured. Error: '${event.error}'`;
+			LOG_CORE_ERROR(msg);
+			throw Error(msg);
+
+			// TODO: Report the error to the game server. Could look something like this:
+			//			reportErrorToServer({
+			//				type: event.error.constructor.name,
+			//				message: event.error.message,
+			//			});
+			//		 However, we should probably also try to capture information like the user, what 
+			//		 browser (& version) they are using (if possible), what GPU they are using (if 
+			//		 possible), date / time, and anything else that might be relevant
+			// NOTE: reporting the error to the server should only be done in production. NOT in debug.
+		});
 
 		// Create the TimingUI. Have it cache timing measurements from 20 frames before computing averages
 		this.m_timingUI = new TimingUI(20, renderer);

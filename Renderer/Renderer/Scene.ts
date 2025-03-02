@@ -207,11 +207,6 @@ export class GameCube extends GameObject
 		this.m_renderItem = renderer.CreateRenderItem("ri_game-cube", "mg_texture-cube", "mesh_texture-cube");
 
 		// Create the model buffer
-	//	this.m_modelMatrixBuffer = this.m_renderer.GetDevice().createBuffer({
-	//		label: 'buffer_game-cube-model-matrix',
-	//		size: 4 * 16, // sizeof(float) * floats per matrix
-	//		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-		//	});
 		this.m_modelMatrixBuffer = new UniformBufferPool(device, Float32Array.BYTES_PER_ELEMENT * 16, "buffer_game-cube-model-matrix");
 
 		// Get the BindGroupLayout that the mesh group uses

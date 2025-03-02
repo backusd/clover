@@ -437,6 +437,9 @@ export class MeshGroup
         if (!this.HasActiveRenderItem())
             return;
 
+        // DEBUG_ONLY
+        encoder.pushDebugGroup(`Mesh Group: ${this.m_name}`);
+
         // Vertex Buffer
         encoder.setVertexBuffer(this.m_vertexBufferSlot, this.m_vertexBuffer);
 
@@ -447,6 +450,9 @@ export class MeshGroup
         // Draw each RenderItem
         for (let iii = 0; iii < this.m_renderItems.size(); iii++)
             this.m_renderItems.getFromIndex(iii).Render(encoder);
+
+        // DEBUG_ONLY
+        encoder.popDebugGroup();
     }
     private HasActiveRenderItem(): boolean
     {
@@ -579,6 +585,9 @@ export class RenderPassLayer
     }
     public Render(passEncoder: GPURenderPassEncoder): void
     {
+        // DEBUG_ONLY
+        passEncoder.pushDebugGroup(`Render Pass Layer: ${this.m_name}`);
+
         // Set the pipeline
         passEncoder.setPipeline(this.m_renderPipeline);
 
@@ -592,6 +601,9 @@ export class RenderPassLayer
         // !!! This will make a draw call for each RenderItem in each MeshGroup !!!
         for (let iii = 0; iii < this.m_meshGroups.size(); iii++)
             this.m_meshGroups.getFromIndex(iii).Render(passEncoder);
+
+        // DEBUG_ONLY
+        passEncoder.popDebugGroup();
     }
     public UpdateImpl(timeDelta: number, state: RenderState, scene: Scene): void
     {
@@ -706,6 +718,9 @@ export class RenderPass
         const passEncoder = encoder.beginRenderPass(this.m_renderPassDescriptor.GetDescriptor());
         passEncoder.label = `RenderPassEncoder: ${this.m_name}`;
 
+        // DEBUG_ONLY
+        passEncoder.pushDebugGroup(`Render Pass: ${this.m_name}`);
+
         // Set the BindGroups that will be used for the entire render pass
         this.m_bindGroups.forEach(bindGroup =>
         {
@@ -715,6 +730,9 @@ export class RenderPass
         // Run each layer
         for (let iii = 0; iii < this.m_layers.size(); ++iii)
             this.m_layers.getFromIndex(iii).Render(passEncoder);
+
+        // DEBUG_ONLY
+        passEncoder.popDebugGroup();
 
         passEncoder.end();
 
@@ -846,9 +864,15 @@ export class Renderer
         // specifically designed to not be reusable.
         let commandEncoder = this.m_device.createCommandEncoder({ label: "Renderer command encoder" });
 
+        // DEBUG_ONLY
+        commandEncoder.pushDebugGroup('Main Renderer Loop');
+
         // Run each render pass
         for (let iii = 0; iii < this.m_renderPasses.size(); ++iii)
             this.m_renderPasses.getFromIndex(iii).Render(this.m_device, this.m_context, commandEncoder);
+
+        // DEBUG_ONLY
+        commandEncoder.popDebugGroup();
 
         // Finalize the command encoder and submit it for rendering
         this.m_device.queue.submit([commandEncoder.finish()]);
@@ -908,7 +932,6 @@ export class Renderer
         for (let iii = 0; iii < this.m_renderPasses.size(); ++iii)
             this.m_renderPasses.getFromIndex(iii).EnableGPUTiming(this.m_device);
     }
-
     public AddMeshGroup(meshGroup: MeshGroup): MeshGroup
     {
         return this.m_meshGroups.add(meshGroup.Name(), meshGroup);
