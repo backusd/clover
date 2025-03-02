@@ -4,11 +4,11 @@ import { LOG_INFO, LOG_TRACE, LOG_WARN, LOG_ERROR } from "./Log.js";
 
 export class Camera
 {
-	constructor()
+	constructor(eye: Vec3 = vec3.create(10, 10, 10), at: Vec3 = vec3.create(0, 0, 0), up: Vec3 = vec3.create(0, 1, 0))
 	{
-		this.m_eye = vec3.create(0, 2, 10);
-		this.m_at = vec3.create(0, 0, 0);
-		this.m_up = vec3.create(0, 1, 0);
+		this.m_eye = eye;
+		this.m_at = at;
+		this.m_up = up;
 
 		this.m_viewMatrix = mat4.create();
 		this.UpdateViewMatrix();

@@ -15,6 +15,13 @@ import
 	GameCube,
 	GameCube2
 } from "./Scene.js";
+import 
+{
+	UniformBufferBasicWrite,
+	UniformBufferPool,
+	InstanceBufferBasicWrite,
+	InstanceBufferPool
+} from "./Buffer.js"
 import { Camera } from "./Camera.js";
 import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
@@ -45,6 +52,8 @@ export class Application
 		this.m_timingUI = new TimingUI(20, renderer);
 
 		this.SetupInputCallbacks();
+
+		this.m_viewProjBuffer = new UniformBufferBasicWrite(this.m_renderer.GetDevice(), Float32Array.BYTES_PER_ELEMENT * 16, "View-Projection Buffer");
 	}
 	private SetupInputCallbacks(): void
 	{
@@ -90,6 +99,8 @@ export class Application
 				// this.m_scene.RemoveGameObject("GameCube2:0");
 
 				let cube = new GameCube2(this.m_renderer, this.m_scene);
+				cube.SetPosition([0, 1, 0]);
+				cube.SetVelocity([5 * (Math.random() - 0.5), 0, 5 * (Math.random() - 0.5)]);
 				this.m_scene.AddGameObject(cube);
 
 				break;
@@ -282,21 +293,13 @@ export class Application
 			usage: GPUTextureUsage.RENDER_ATTACHMENT,
 		}); 
 
-
-		// View-projection matrix buffer
-		const viewProjBufferSize = 4 * 16; // 4x4 matrix (sizeof(float) * 16 elements)
-		let viewProjBuffer = device.createBuffer({
-			size: viewProjBufferSize,
-			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-		});
-
 		let viewProjBindGroup = device.createBindGroup({
 			layout: viewProjBindGroupLayout,
 			entries: [
 				{
 					binding: 0,
 					resource: {
-						buffer: viewProjBuffer,
+						buffer: this.m_viewProjBuffer.GetGPUBuffer(),
 					},
 				}
 			],
@@ -328,7 +331,7 @@ export class Application
 		// RenderPass
 		let renderPass: RenderPass = new RenderPass("rp_main", renderPassDescriptor);
 		renderPass.AddBindGroup(passBindGroup); // bind group for model-view-projection matrix
-		renderPass.AddBuffer("viewProj-buffer", viewProjBuffer);
+	//	renderPass.AddBuffer("viewProj-buffer", this.m_viewProjBuffer.GetGPUBuffer());
 		renderPass.Update = (timeDelta: number, renderPass: RenderPass, state: RenderState, scene: Scene) =>
 		{
 			if (state.projectionMatrixHasChanged || scene.GetCamera().ViewHasChanged())
@@ -337,13 +340,15 @@ export class Application
 				const viewMatrix = scene.GetCamera().GetViewMatrix();
 				mat4.multiply(state.projectionMatrix, viewMatrix, viewProjectionMatrix);
 
-				device.queue.writeBuffer(
-					renderPass.GetBuffer("viewProj-buffer"),
-					0,
-					viewProjectionMatrix.buffer,
-					viewProjectionMatrix.byteOffset,
-					viewProjectionMatrix.byteLength
-				);
+				this.m_viewProjBuffer.WriteData(viewProjectionMatrix);
+
+				//device.queue.writeBuffer(
+				//	renderPass.GetBuffer("viewProj-buffer"),
+				//	0,
+				//	viewProjectionMatrix.buffer,
+				//	viewProjectionMatrix.byteOffset,
+				//	viewProjectionMatrix.byteLength
+				//);
 			}
 		};
 
@@ -380,9 +385,9 @@ export class Application
 
 
 		// Create the scene
-		let cube = new GameCube(this.m_renderer, this.m_scene);
+	//	let cube = new GameCube(this.m_renderer, this.m_scene);
 
-		let cube2 = new GameCube2(this.m_renderer, this.m_scene);
+	//	let cube2 = new GameCube2(this.m_renderer, this.m_scene);
 	//	cube2.SetPosition([3, 0, 0]);
 	//	cube2.SetScaling([0.5, 0.5, 0.5]);
 	//
@@ -391,9 +396,18 @@ export class Application
 	//	let cube3 = new GameCube2(this.m_renderer, this.m_scene);
 	//	cube3.SetPosition([-3, 0, 0]);
 
-		this.m_scene.AddGameObject(cube);
-		this.m_scene.AddGameObject(cube2);
-	//	this.m_scene.AddGameObject(cube3);
+	//	this.m_scene.AddGameObject(cube);
+	//	this.m_scene.AddGameObject(cube2);
+		//	this.m_scene.AddGameObject(cube3);
+
+
+		for (let iii = 0; iii < 100; ++iii)
+		{
+			let cube = new GameCube2(this.m_renderer, this.m_scene);
+			cube.SetPosition([0, 1, 0]);
+			cube.SetVelocity([5 * (Math.random() - 0.5), 0, 5 * (Math.random() - 0.5)]);
+			this.m_scene.AddGameObject(cube);
+		}
 	}
 
 	public Update(timeDelta: number): void
@@ -436,4 +450,6 @@ export class Application
 	private m_timingUI: TimingUI;
 	private m_scene: Scene;
 	private m_renderState: RenderState;
+
+	private m_viewProjBuffer: UniformBufferBasicWrite;
 }

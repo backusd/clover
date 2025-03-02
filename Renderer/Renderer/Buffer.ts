@@ -29,6 +29,10 @@ abstract class InstanceBuffer
         {
             this.m_numberOfInstances = numberOfInstances;
 
+            // Manually destroying the GPUBuffer may provide some benefit because it can release the GPU memory
+            // immediately as opposed to waiting for garbage collection to kick in
+            this.m_gpuBuffer.destroy();
+
             // Update the GPU Buffer and then do capacity updates in the derived class
             this.m_gpuBuffer = this.m_device.createBuffer({
                 label: this.m_gpuBuffer.label,
@@ -210,6 +214,17 @@ export class InstanceBufferPool extends InstanceBuffer
     constructor(device: GPUDevice, bytesPerInstance: number, numberOfInstances: number, label: string = "(unlabeled)")
     {
         super(device, bytesPerInstance, numberOfInstances, label);
+
+        // DEBUG_ONLY
+        // When calling getMappedRange(offset, size), the offset must be multiple of 8 & overall size must be a multiple of 4.
+        // This is most easily satisfied by requiring the bytes per instance to be a multiple of 8
+        // See documentation: https://developer.mozilla.org/en-US/docs/Web/API/GPUBuffer/getMappedRange
+        if (this.m_bytesPerInstance % 8 !== 0)
+        {
+            let msg = `InstanceBufferPool::constructor() failed for buffer '${this.m_gpuBuffer.label}'. Invalid bytesPerInstance value '${bytesPerInstance}'. When calling getMappedRange(offset, size), the offset must be a multiple of 8 and size a multiple of 4, so we required bytesPerInstance must also be a multiple of 8 (see docs: https://developer.mozilla.org/en-US/docs/Web/API/GPUBuffer/getMappedRange)`;
+            LOG_CORE_ERROR(msg);
+            throw Error(msg);
+        }
     }
     private GetOrCreateBuffer(): GPUBuffer
     {
@@ -228,6 +243,10 @@ export class InstanceBufferPool extends InstanceBuffer
     }
     protected SetCapacityDerived(numberOfInstances: number): void
     {
+        // Manually destroying the ready staging buffers may provide some benefit because it can release the GPU memory
+        // immediately as opposed to waiting for garbage collection to kick in
+        this.m_readyBuffers.forEach(buffer => { buffer.destroy(); });
+
         // Every buffer that currently exists is invalid, so we are going to just
         // create a brand new array of GPUBuffers which will force new staging buffers
         // to be created later
@@ -262,7 +281,13 @@ export class InstanceBufferPool extends InstanceBuffer
                     if (currentCapacity === this.CurrentCapacity())
                         this.m_readyBuffers.push(stagingBuffer)
                     else
+                    {
                         stagingBuffer.unmap();
+
+                        // Manually destroying the GPUBuffer may provide some benefit because it can release the GPU memory
+                        // immediately as opposed to waiting for garbage collection to kick in
+                        stagingBuffer.destroy();
+                    }
                 }
             );
 
@@ -276,7 +301,7 @@ export class InstanceBufferPool extends InstanceBuffer
         // DEBUG_ONLY
         if (instanceIndex < 0 || instanceIndex >= this.m_numberOfInstances)
         {
-            let msg = `InstanceBufferBasicWrite::WriteData() failed for buffer '${this.m_gpuBuffer.label}'. Trying to update instance index '${instanceIndex}', but the max index is '${this.m_numberOfInstances - 1}'`;
+            let msg = `InstanceBufferPool::WriteData() failed for buffer '${this.m_gpuBuffer.label}'. Trying to update instance index '${instanceIndex}', but the max index is '${this.m_numberOfInstances - 1}'`;
             LOG_CORE_ERROR(msg);
             throw Error(msg);
         }
@@ -284,7 +309,7 @@ export class InstanceBufferPool extends InstanceBuffer
         // DEBUG_ONLY
         if (data.byteLength !== this.m_bytesPerInstance)
         {
-            let msg = `InstanceBufferBasicWrite::WriteData() failed for buffer '${this.m_gpuBuffer.label}'. BytesPerInstance is '${this.m_bytesPerInstance}', but trying to write ${data.byteLength}.`;
+            let msg = `InstanceBufferPool::WriteData() failed for buffer '${this.m_gpuBuffer.label}'. BytesPerInstance is '${this.m_bytesPerInstance}', but trying to write ${data.byteLength}.`;
             LOG_CORE_ERROR(msg);
             throw Error(msg);
         }
@@ -326,7 +351,6 @@ abstract class UniformBuffer
     protected m_gpuBuffer: GPUBuffer;
     protected m_bufferSizeInBytes: number;
 }
-
 export class UniformBufferBasicWrite extends UniformBuffer
 {
     constructor(device: GPUDevice, bufferSizeInBytes: number, label: string = "(unlabeled)")
@@ -414,6 +438,17 @@ export class UniformBufferPool extends UniformBuffer
         super(device, bufferSizeInBytes, label);
 
         this.m_readyBuffers = [];
+
+        // DEBUG_ONLY
+        // When calling getMappedRange(offset, size), the offset must be multiple of 8 & overall size must be a multiple of 4.
+        // Because we don't use an offset, this is most easily satisfied by requiring that the total buffer size be a multiple of 4
+        // See documentation: https://developer.mozilla.org/en-US/docs/Web/API/GPUBuffer/getMappedRange
+        if (bufferSizeInBytes % 8 !== 0)
+        {
+            let msg = `UniformBufferPool::constructor() failed for buffer '${this.m_gpuBuffer.label}'. Invalid buffer size value '${bufferSizeInBytes}'. When calling getMappedRange(offset, size), the offset must be a multiple of 8 and size a multiple of 4, however, we don't use the offset. So we simply required the buffer size must be a multiple of 4 (see docs: https://developer.mozilla.org/en-US/docs/Web/API/GPUBuffer/getMappedRange)`;
+            LOG_CORE_ERROR(msg);
+            throw Error(msg);
+        }
     }
     public WriteData(data: Float32Array<ArrayBufferLike>): void
     {

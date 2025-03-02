@@ -264,18 +264,23 @@ export class GameCube2 extends GameObject {
         return new BindGroup(bindGroupLayoutGroupNumber, cubeBindGroup);
     }
     UpdatePhysics(timeDelta, parentModelMatrix) {
-        this.m_position[0] += timeDelta;
-        if (this.m_position[0] > 5) {
-            this.m_scene.RemoveGameObjectDelayed(this.m_name);
-        }
-        else {
-            this.UpdateModelMatrix(parentModelMatrix);
-        }
+        this.m_position[0] += timeDelta * this.m_velocity[0];
+        this.m_position[1] += timeDelta * this.m_velocity[1];
+        this.m_position[2] += timeDelta * this.m_velocity[2];
+        if (Math.abs(this.m_position[0]) > 10)
+            this.m_velocity[0] *= -1;
+        if (Math.abs(this.m_position[1]) > 10)
+            this.m_velocity[1] *= -1;
+        if (Math.abs(this.m_position[2]) > 10)
+            this.m_velocity[2] *= -1;
+        this.UpdateModelMatrix(parentModelMatrix);
     }
     UpdateGPU() {
         this.GetInstanceManager().WriteData(this.m_instanceNumber, this.m_modelMatrix);
     }
+    SetVelocity(v) { this.m_velocity = v; }
     m_instanceNumber;
+    m_velocity = vec3.create(0, 0, 0);
     static s_instanceManager = null;
     static s_instanceNum = 0;
 }

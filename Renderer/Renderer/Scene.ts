@@ -379,23 +379,32 @@ export class GameCube2 extends GameObject implements UsesInstancing
 
 	public UpdatePhysics(timeDelta: number, parentModelMatrix: Mat4): void
 	{
-		this.m_position[0] += timeDelta;
+		this.m_position[0] += timeDelta * this.m_velocity[0];
+		this.m_position[1] += timeDelta * this.m_velocity[1];
+		this.m_position[2] += timeDelta * this.m_velocity[2];
 
-		if (this.m_position[0] > 5)
-		{
-			this.m_scene.RemoveGameObjectDelayed(this.m_name);
-		}
-		else
-		{
-			this.UpdateModelMatrix(parentModelMatrix);
-		}
+		if (Math.abs(this.m_position[0]) > 10)
+			this.m_velocity[0] *= -1;
+
+		if (Math.abs(this.m_position[1]) > 10)
+			this.m_velocity[1] *= -1;
+
+		if (Math.abs(this.m_position[2]) > 10)
+			this.m_velocity[2] *= -1;
+
+		this.UpdateModelMatrix(parentModelMatrix);
 	}
 	public UpdateGPU(): void
 	{
 		this.GetInstanceManager().WriteData(this.m_instanceNumber, this.m_modelMatrix);
 	}
 
+	public SetVelocity(v: Vec3): void { this.m_velocity = v; }
+
 	private m_instanceNumber: number;
+	private m_velocity = vec3.create(0, 0, 0);
+
+
 
 	private static s_instanceManager: InstanceManager<GameCube2> | null = null;
 	private static s_instanceNum: number = 0;
