@@ -283,7 +283,7 @@ export class GameCube2 extends GameObject implements UsesInstancing
 		super(`GameCube2:${GameCube2.s_instanceNum}`, renderer, scene);
 		GameCube2.s_instanceNum++;
 
-		// Make a call to GetInstanceManager() will initialize the instance manager
+		// Make a call to GetInstanceManager() will initialize the instance manager if necessary
 		// Calling AddInstance() will generate a new instance and return its index into the array of instances
 		this.m_instanceNumber = this.GetInstanceManager().AddInstance(this);
 	}
@@ -333,7 +333,7 @@ export class GameCube2 extends GameObject implements UsesInstancing
 		let bindGroupLayout = meshGroup.GetRenderItemBindGroupLayout();
 		if (bindGroupLayout === null)
 		{
-			let msg = "GameCube2::InitializeAsync() failed because meshGroup.GetRenderItemBindGroupLayout() returned null";
+			let msg = "GameCube2::GenerateBindGroup() failed because meshGroup.GetRenderItemBindGroupLayout() returned null";
 			LOG_ERROR(msg);
 			throw Error(msg);
 		}
@@ -398,8 +398,6 @@ export class GameCube2 extends GameObject implements UsesInstancing
 
 	private m_instanceNumber: number;
 	private m_velocity = vec3.create(0, 0, 0);
-
-
 
 	private static s_instanceManager: InstanceManager<GameCube2> | null = null;
 	private static s_instanceNum: number = 0;
