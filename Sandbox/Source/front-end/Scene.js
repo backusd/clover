@@ -123,6 +123,68 @@ export class GameObject {
     m_scaling = vec3.create(1, 1, 1);
     m_modelMatrix = mat4.identity();
 }
+export class BasicBox extends GameObject {
+    constructor(renderer, scene) {
+        super("BasicBox", renderer, scene);
+        let device = this.m_renderer.GetDevice();
+        // Create a render item for the cube
+        this.m_renderItem = renderer.CreateRenderItem("ri_game-cube", "mg_basic-object", "mesh_box");
+        // Create the model buffer
+        this.m_modelMatrixBuffer = new UniformBufferPool(device, Float32Array.BYTES_PER_ELEMENT * 16, "buffer_basic-box-model-matrix");
+        // Get the BindGroupLayout that the mesh group uses
+        let meshGroup = renderer.GetMeshGroup("mg_basic-object");
+        let bindGroupLayout = meshGroup.GetRenderItemBindGroupLayout();
+        if (bindGroupLayout === null) {
+            let msg = "BasicBox::constructor() failed because meshGroup.GetRenderItemBindGroupLayout() returned null";
+            LOG_ERROR(msg);
+            throw Error(msg);
+        }
+        let bindGroupLayoutGroupNumber = meshGroup.GetRenderItemBindGroupLayoutGroupNumber();
+        //		// Get the GPUTexture
+        //		let cubeTexture = renderer.GetTexture("tex_molecule");
+        //		// Create the sampler
+        //		const sampler = device.createSampler({
+        //			magFilter: 'linear',
+        //			minFilter: 'linear',
+        //		});
+        let boxBindGroup = device.createBindGroup({
+            layout: bindGroupLayout,
+            entries: [
+                {
+                    binding: 0,
+                    resource: {
+                        buffer: this.m_modelMatrixBuffer.GetGPUBuffer()
+                    }
+                },
+                //				{
+                //					binding: 1,
+                //					resource: sampler,
+                //				},
+                //				{
+                //					binding: 2,
+                //					resource: cubeTexture.createView(),
+                //				},
+            ],
+        });
+        this.m_renderItem.AddBindGroup("bg_basic-box", new BindGroup(bindGroupLayoutGroupNumber, boxBindGroup));
+    }
+    Destruct() {
+        // When the object is deleted, we simply need to manually remove the RenderItem
+        // from the MeshGroup
+        this.m_renderer.RemoveRenderItem(this.m_renderItem.Name(), "mg_basic-object");
+    }
+    UpdatePhysics(timeDelta, parentModelMatrix) {
+        this.m_rotation[1] += timeDelta;
+        if (this.m_rotation[1] > 2 * Math.PI)
+            this.m_rotation[1] -= 2 * Math.PI;
+        this.UpdateModelMatrix(parentModelMatrix);
+    }
+    async UpdateGPU() {
+        await this.m_modelMatrixBuffer.WriteData(this.m_modelMatrix);
+    }
+    m_renderItem;
+    m_modelMatrixBuffer;
+}
 export class GameCube extends GameObject {
     constructor(renderer, scene) {
         super("GameCube", renderer, scene);
@@ -190,7 +252,7 @@ export class GameCube2 extends GameObject {
         // Need to make sure the name of the GameObject is unique
         super(`GameCube2:${GameCube2.s_instanceNum}`, renderer, scene);
         GameCube2.s_instanceNum++;
-        // Make a call to GetInstanceManager() will initialize the instance manager
+        // Make a call to GetInstanceManager() will initialize the instance manager if necessary
         // Calling AddInstance() will generate a new instance and return its index into the array of instances
         this.m_instanceNumber = this.GetInstanceManager().AddInstance(this);
     }
@@ -224,7 +286,7 @@ export class GameCube2 extends GameObject {
         let meshGroup = renderer.GetMeshGroup("mg_texture-cube-instancing");
         let bindGroupLayout = meshGroup.GetRenderItemBindGroupLayout();
         if (bindGroupLayout === null) {
-            let msg = "GameCube2::InitializeAsync() failed because meshGroup.GetRenderItemBindGroupLayout() returned null";
+            let msg = "GameCube2::GenerateBindGroup() failed because meshGroup.GetRenderItemBindGroupLayout() returned null";
             LOG_ERROR(msg);
             throw Error(msg);
         }

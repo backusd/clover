@@ -13,7 +13,8 @@ import
 {
 	Scene,
 	GameCube,
-	GameCube2
+	GameCube2,
+	BasicBox
 } from "./Scene.js";
 import 
 {
@@ -30,7 +31,8 @@ import { TextureCube } from "./TextureCube.js";
 import { TextureCubeInstancing } from "./TextureCubeInstancing.js";
 import { TimingUI } from "./TimingUI.js";
 import { RenderState } from "./RenderState.js"
-
+import { GenerateBoxMesh } from "./GeometryGenerator.js"
+import { GetBasicObjectLayer } from "./BasicObjectLayer.js"
 
 class KeyBoardState
 {
@@ -288,12 +290,101 @@ export class Application
 		let device = this.m_renderer.GetDevice();
 		let context = this.m_renderer.GetContext();
 
-		// Load all textures that will be used by the application
+
+
+
+		// ====== Layers ==============================
+
+		// Terrain
+//		let terrain: Terrain = new Terrain(10, 10);
+//		renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, viewProjBindGroupLayout));
+//
+//		// Texture Cube
+//		let textureCube = new TextureCube();
+//		let textureCubeLayer = renderPass.AddRenderPassLayer(textureCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
+//
+//		// Texture Cube with Instancing
+//		let textureCubeInstancing = new TextureCubeInstancing();
+//		let textureCubeInstancingLayer = renderPass.AddRenderPassLayer(textureCubeInstancing.Initialize(this.m_renderer, viewProjBindGroupLayout));
+
+		// Solid Color Cube
+//		let colorCube = new ColorCube();
+//		let colorCubeLayer = renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
+//		let colorCubeRI_2 = colorCubeLayer.CreateRenderItem("ri_color-cube-2", "mg_color-cube", "mesh_color-cube-2");
+//		let colorCubeRI_3 = colorCubeLayer.CreateRenderItem("ri_color-cube-3", "mg_color-cube", "mesh_color-cube-3");
+
+
+		// ============================================
+
+//		this.m_renderer.AddRenderPass(renderPass);
+
+
+
+
+
+
+
+		// Create the scene
+	//	let cube = new GameCube(this.m_renderer, this.m_scene);
+
+	//	let cube2 = new GameCube2(this.m_renderer, this.m_scene);
+	//	cube2.SetPosition([3, 0, 0]);
+	//	cube2.SetScaling([0.5, 0.5, 0.5]);
+	//
+		//	cube.AddChild(cube2);
+
+	//	let cube3 = new GameCube2(this.m_renderer, this.m_scene);
+	//	cube3.SetPosition([-3, 0, 0]);
+
+	//	this.m_scene.AddGameObject(cube);
+	//	this.m_scene.AddGameObject(cube2);
+		//	this.m_scene.AddGameObject(cube3);
+
+
+//		for (let iii = 0; iii < 100; ++iii)
+//		{
+//			let cube = new GameCube2(this.m_renderer, this.m_scene);
+//			cube.SetPosition([0, 1, 0]);
+//			cube.SetVelocity([5 * (Math.random() - 0.5), 0, 5 * (Math.random() - 0.5)]);
+//			this.m_scene.AddGameObject(cube);
+//		}
+
+
+
+
+		// =========================================================================
+		// Application Startup Process
+		//	1. Load all textures (asynchronously)
+		//	2. Load all meshes (asynchronously)
+		//	3. Construct the render passes and sublayers
+		//		a. Opaque Pass
+		//			i.   TerrainLayer
+		//			ii.  BasicGameObjectLayer
+		//			iii. VertexSkinningLayer ???
+		//			iv.  Skybox ???
+		//		b. ... more passes to come ...
+		//  4. Construct the game objects and add them to the Scene
+		//
+		// TODO: See note.
+		// NOTE: Steps 1-3 could be automated by reading in and parsing an entire
+		//       scene file (ex. a glTF file). If that's the case, we would need to
+		//       define a very clear set of rules for the types of meshes/attributes
+		//       we expect to read, but assuming we have that, the entire scene
+		//		 and render passes could be configured all in one go.
+		//
+		// =========================================================================
+
+		// 1. Load all textures (asynchronously)
 		await this.m_renderer.AddTextureFromFile("tex_molecule", "./images/molecule.jpeg");
 
+		// 2. Load all meshes (asynchronously)
+		let boxMesh = GenerateBoxMesh("mesh_box", 1, 1, 1, 0);
 
+		this.m_renderer.AddMeshGroup(
+			new MeshGroup("mg_basic-object", this.m_renderer.GetDevice(), [boxMesh], 0)
+		);
 
-
+		// 3. Construct the render passes and sublayers
 		let viewProjBindGroupLayout: GPUBindGroupLayout = device.createBindGroupLayout(
 			{
 				label: "Model-View-Projection BindGroupLayout",
@@ -303,8 +394,8 @@ export class Application
 						visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
 						buffer: {
 							type: "uniform",
-							minBindingSize: 4 * 16	// BEST PRACTICE to always set this	when possible	
-						}						
+							minBindingSize: Float32Array.BYTES_PER_ELEMENT * 16	// BEST PRACTICE to always set this	when possible	
+						}
 					}
 				]
 			}
@@ -314,7 +405,7 @@ export class Application
 			size: [this.m_canvas.width, this.m_canvas.height],
 			format: 'depth24plus',
 			usage: GPUTextureUsage.RENDER_ATTACHMENT,
-		}); 
+		});
 
 		let viewProjBindGroup = device.createBindGroup({
 			layout: viewProjBindGroupLayout,
@@ -351,10 +442,10 @@ export class Application
 		// RenderPassDescriptor
 		let renderPassDescriptor: RenderPassDescriptor = new RenderPassDescriptor(rpDescriptor);
 
-		// RenderPass
-		let renderPass: RenderPass = new RenderPass("rp_main", renderPassDescriptor);
+		// RenderPass: Opaque
+		let renderPass: RenderPass = new RenderPass("rp_opaque", renderPassDescriptor);
 		renderPass.AddBindGroup(passBindGroup); // bind group for model-view-projection matrix
-	//	renderPass.AddBuffer("viewProj-buffer", this.m_viewProjBuffer.GetGPUBuffer());
+		//	renderPass.AddBuffer("viewProj-buffer", this.m_viewProjBuffer.GetGPUBuffer());
 		renderPass.Update = (timeDelta: number, renderPass: RenderPass, state: RenderState, scene: Scene) =>
 		{
 			if (state.projectionMatrixHasChanged || scene.GetCamera().ViewHasChanged())
@@ -364,73 +455,32 @@ export class Application
 				mat4.multiply(state.projectionMatrix, viewMatrix, viewProjectionMatrix);
 
 				this.m_viewProjBuffer.WriteData(viewProjectionMatrix);
-
-				//device.queue.writeBuffer(
-				//	renderPass.GetBuffer("viewProj-buffer"),
-				//	0,
-				//	viewProjectionMatrix.buffer,
-				//	viewProjectionMatrix.byteOffset,
-				//	viewProjectionMatrix.byteLength
-				//);
 			}
 		};
 
-		// ====== Layers ==============================
+		this.m_renderer.AddRenderPass(renderPass);
 
-		// Terrain
+		// ====== Layers ==============================
+		//
+		// Layer: Terrain
 		let terrain: Terrain = new Terrain(10, 10);
 		renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, viewProjBindGroupLayout));
 
-		// Texture Cube
-		let textureCube = new TextureCube();
-		let textureCubeLayer = renderPass.AddRenderPassLayer(textureCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
-
-		// Texture Cube with Instancing
-		let textureCubeInstancing = new TextureCubeInstancing();
-		let textureCubeInstancingLayer = renderPass.AddRenderPassLayer(textureCubeInstancing.Initialize(this.m_renderer, viewProjBindGroupLayout));
-
-		// Solid Color Cube
-//		let colorCube = new ColorCube();
-//		let colorCubeLayer = renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
-//		let colorCubeRI_2 = colorCubeLayer.CreateRenderItem("ri_color-cube-2", "mg_color-cube", "mesh_color-cube-2");
-//		let colorCubeRI_3 = colorCubeLayer.CreateRenderItem("ri_color-cube-3", "mg_color-cube", "mesh_color-cube-3");
+		// Layer: BasicObject
+		let basicObjectLayer = renderPass.AddRenderPassLayer(GetBasicObjectLayer(this.m_renderer, viewProjBindGroupLayout));
+		basicObjectLayer.AddMeshGroup("mg_basic-object");
 
 
-		// ============================================
 
-		this.m_renderer.AddRenderPass(renderPass);
+		//  4. Construct the game objects and add them to the Scene
+		let box = new BasicBox(this.m_renderer, this.m_scene);
+
+		this.m_scene.AddGameObject(box);
+
+
 
 		// DEBUG_ONLY
 		this.m_renderer.EnableGPUTiming();
-
-
-
-
-
-		// Create the scene
-	//	let cube = new GameCube(this.m_renderer, this.m_scene);
-
-	//	let cube2 = new GameCube2(this.m_renderer, this.m_scene);
-	//	cube2.SetPosition([3, 0, 0]);
-	//	cube2.SetScaling([0.5, 0.5, 0.5]);
-	//
-		//	cube.AddChild(cube2);
-
-	//	let cube3 = new GameCube2(this.m_renderer, this.m_scene);
-	//	cube3.SetPosition([-3, 0, 0]);
-
-	//	this.m_scene.AddGameObject(cube);
-	//	this.m_scene.AddGameObject(cube2);
-		//	this.m_scene.AddGameObject(cube3);
-
-
-		for (let iii = 0; iii < 100; ++iii)
-		{
-			let cube = new GameCube2(this.m_renderer, this.m_scene);
-			cube.SetPosition([0, 1, 0]);
-			cube.SetVelocity([5 * (Math.random() - 0.5), 0, 5 * (Math.random() - 0.5)]);
-			this.m_scene.AddGameObject(cube);
-		}
 	}
 
 	public Update(timeDelta: number): void

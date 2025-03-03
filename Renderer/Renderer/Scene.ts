@@ -195,6 +195,92 @@ export abstract class GameObject
 	protected m_scaling = vec3.create(1, 1, 1);
 	protected m_modelMatrix = mat4.identity();
 }
+
+
+export class BasicBox extends GameObject
+{
+	constructor(renderer: Renderer, scene: Scene)
+	{
+		super("BasicBox", renderer, scene);
+
+		let device = this.m_renderer.GetDevice();
+
+		// Create a render item for the cube
+		this.m_renderItem = renderer.CreateRenderItem("ri_game-cube", "mg_basic-object", "mesh_box");
+
+		// Create the model buffer
+		this.m_modelMatrixBuffer = new UniformBufferPool(device, Float32Array.BYTES_PER_ELEMENT * 16, "buffer_basic-box-model-matrix");
+
+		// Get the BindGroupLayout that the mesh group uses
+		let meshGroup = renderer.GetMeshGroup("mg_basic-object");
+		let bindGroupLayout = meshGroup.GetRenderItemBindGroupLayout();
+		if (bindGroupLayout === null)
+		{
+			let msg = "BasicBox::constructor() failed because meshGroup.GetRenderItemBindGroupLayout() returned null";
+			LOG_ERROR(msg);
+			throw Error(msg);
+		}
+		let bindGroupLayoutGroupNumber = meshGroup.GetRenderItemBindGroupLayoutGroupNumber();
+
+//		// Get the GPUTexture
+//		let cubeTexture = renderer.GetTexture("tex_molecule");
+
+//		// Create the sampler
+//		const sampler = device.createSampler({
+//			magFilter: 'linear',
+//			minFilter: 'linear',
+//		});
+
+
+		let boxBindGroup = device.createBindGroup({
+			layout: bindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: {
+						buffer: this.m_modelMatrixBuffer.GetGPUBuffer()
+					}
+				},
+//				{
+//					binding: 1,
+//					resource: sampler,
+//				},
+//				{
+//					binding: 2,
+//					resource: cubeTexture.createView(),
+//				},
+			],
+		});
+
+		this.m_renderItem.AddBindGroup("bg_basic-box", new BindGroup(bindGroupLayoutGroupNumber, boxBindGroup));
+	}
+	public Destruct(): void
+	{
+		// When the object is deleted, we simply need to manually remove the RenderItem
+		// from the MeshGroup
+		this.m_renderer.RemoveRenderItem(this.m_renderItem.Name(), "mg_basic-object");
+	}
+
+	public UpdatePhysics(timeDelta: number, parentModelMatrix: Mat4): void
+	{
+		this.m_rotation[1] += timeDelta;
+		if (this.m_rotation[1] > 2 * Math.PI)
+			this.m_rotation[1] -= 2 * Math.PI;
+
+		this.UpdateModelMatrix(parentModelMatrix);
+	}
+	public async UpdateGPU(): Promise<void>
+	{
+		await this.m_modelMatrixBuffer.WriteData(this.m_modelMatrix);
+	}
+
+	private m_renderItem: RenderItem;
+	private m_modelMatrixBuffer: UniformBufferPool;
+}
+
+
+
+
 export class GameCube extends GameObject
 {
 	constructor(renderer: Renderer, scene: Scene)

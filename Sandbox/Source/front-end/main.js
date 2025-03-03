@@ -44,6 +44,22 @@ async function main() {
         let canvas = GetCanvas("main-canvas");
         // Asynchronously get the device and context
         let { adapter, device, context } = await GetAdapterDeviceAndContext(canvas);
+        // Set a DeviceLost callback. Right now, this will just log an error. However, in the future,
+        // we should make a best attempt to recover by attempting to get a brand new adapter and device
+        // and then re-populate the Renderer state in the hopes we can pick back up right where we left off.
+        // Also, we should POST a message to the game server to log this failure and should include extra
+        // information such as the user, what browser & version they are using, what their GPU specs are, etc.
+        // In the event we cannot recover, a friendly user message should be displayed, but ultimately, that
+        // will need to be Application specific, so we may want to do something like call Application::OnDeviceLost(device)
+        // where device is 'GPUDevice | null' and if its null, it means we could not successfully recover the 
+        // device.
+        // See: https://toji.dev/webgpu-best-practices/device-loss
+        // TODO: Implement best practices for trying to recover from device lost error
+        device.lost.then((info) => {
+            let msg = `Caught Device Lost error. Reason: '${info.reason}'. Message: ${info.message}`;
+            LOG_CORE_ERROR(msg);
+            throw Error(msg);
+        });
         // Create the Renderer
         let renderer = new Renderer(adapter, device, context);
         // Load the application (input handling, game logic, scene, etc)
