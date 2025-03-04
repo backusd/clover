@@ -42,7 +42,8 @@ export class InstanceBufferBasicWrite extends InstanceBuffer {
     PreRender() {
         // Doesn't need to do anything because we just directly call writeBuffer on the gpu buffer
     }
-    WriteData(instanceIndex, data) {
+    //    public WriteData(instanceIndex: number, data: Float32Array<ArrayBufferLike>): void
+    WriteData(instanceIndex, data, byteOffset, numBytesToWrite) {
         // DEBUG_ONLY
         if (instanceIndex < 0 || instanceIndex >= this.m_numberOfInstances) {
             let msg = `InstanceBufferBasicWrite::WriteData() failed for buffer '${this.m_gpuBuffer.label}'. Trying to update instance index '${instanceIndex}', but the max index is '${this.m_numberOfInstances - 1}'`;
@@ -55,7 +56,14 @@ export class InstanceBufferBasicWrite extends InstanceBuffer {
             LOG_CORE_ERROR(msg);
             throw Error(msg);
         }
-        this.m_device.queue.writeBuffer(this.m_gpuBuffer, instanceIndex * this.m_bytesPerInstance, data.buffer, data.byteOffset, data.byteLength);
+        // this.m_device.queue.writeBuffer(
+        //     this.m_gpuBuffer,
+        //     instanceIndex * this.m_bytesPerInstance,
+        //     data.buffer,
+        //     data.byteOffset,
+        //     data.byteLength
+        //);
+        this.m_device.queue.writeBuffer(this.m_gpuBuffer, instanceIndex * this.m_bytesPerInstance, data, byteOffset, numBytesToWrite);
     }
 }
 // NOTE: I never got InstanceBufferSingleStaging fully working because it requires awaiting for the
@@ -239,7 +247,8 @@ export class InstanceBufferPool extends InstanceBuffer {
             this.m_stagingBuffer = null;
         }
     }
-    WriteData(instanceIndex, data) {
+    // public WriteData(instanceIndex: number, data: Float32Array<ArrayBufferLike>): void
+    WriteData(instanceIndex, data, byteOffset, numBytesToWrite) {
         // DEBUG_ONLY
         if (instanceIndex < 0 || instanceIndex >= this.m_numberOfInstances) {
             let msg = `InstanceBufferPool::WriteData() failed for buffer '${this.m_gpuBuffer.label}'. Trying to update instance index '${instanceIndex}', but the max index is '${this.m_numberOfInstances - 1}'`;
@@ -256,7 +265,7 @@ export class InstanceBufferPool extends InstanceBuffer {
             this.m_stagingBuffer = this.GetOrCreateBuffer();
         // Get the mapped range and copy our data into it
         let mappedRange = new Float32Array(this.m_stagingBuffer.getMappedRange(instanceIndex * this.m_bytesPerInstance, this.m_bytesPerInstance));
-        mappedRange.set(data);
+        mappedRange.set(new Float32Array(data, byteOffset, numBytesToWrite));
     }
     m_readyBuffers = [];
     m_stagingBuffer = null;
@@ -280,14 +289,14 @@ export class UniformBufferBasicWrite extends UniformBuffer {
     constructor(device, bufferSizeInBytes, label = "(unlabeled)") {
         super(device, bufferSizeInBytes, label);
     }
-    WriteData(data) {
+    WriteData(data, byteOffset, numBytesToWrite) {
         // DEBUG_ONLY
         if (data.byteLength !== this.m_bufferSizeInBytes) {
             let msg = `UniformBufferBasicWrite::WriteData() failed for buffer '${this.m_gpuBuffer.label}'. Buffer size is '${this.m_bufferSizeInBytes}', but trying to write ${data.byteLength}.`;
             LOG_CORE_ERROR(msg);
             throw Error(msg);
         }
-        this.m_device.queue.writeBuffer(this.m_gpuBuffer, 0, data.buffer, data.byteOffset, data.byteLength);
+        this.m_device.queue.writeBuffer(this.m_gpuBuffer, 0, data, byteOffset, numBytesToWrite);
     }
 }
 // NOTE: I think I got UniformBufferSingleStaging fully working, however it requires awaiting for the
@@ -352,13 +361,13 @@ export class UniformBufferPool extends UniformBuffer {
         // When calling getMappedRange(offset, size), the offset must be multiple of 8 & overall size must be a multiple of 4.
         // Because we don't use an offset, this is most easily satisfied by requiring that the total buffer size be a multiple of 4
         // See documentation: https://developer.mozilla.org/en-US/docs/Web/API/GPUBuffer/getMappedRange
-        if (bufferSizeInBytes % 8 !== 0) {
+        if (bufferSizeInBytes % 4 !== 0) {
             let msg = `UniformBufferPool::constructor() failed for buffer '${this.m_gpuBuffer.label}'. Invalid buffer size value '${bufferSizeInBytes}'. When calling getMappedRange(offset, size), the offset must be a multiple of 8 and size a multiple of 4, however, we don't use the offset. So we simply required the buffer size must be a multiple of 4 (see docs: https://developer.mozilla.org/en-US/docs/Web/API/GPUBuffer/getMappedRange)`;
             LOG_CORE_ERROR(msg);
             throw Error(msg);
         }
     }
-    WriteData(data) {
+    WriteData(data, byteOffset, numBytesToWrite) {
         // DEBUG_ONLY
         if (data.byteLength !== this.m_bufferSizeInBytes) {
             let msg = `UniformBufferSingleStaging::WriteData() failed for buffer '${this.m_gpuBuffer.label}'. Buffer size is '${this.m_bufferSizeInBytes}', but trying to write ${data.byteLength}.`;
@@ -368,7 +377,7 @@ export class UniformBufferPool extends UniformBuffer {
         let stagingBuffer = this.GetOrCreateBuffer();
         // Get the mapped range and copy our data into it
         let mappedRange = new Float32Array(stagingBuffer.getMappedRange());
-        mappedRange.set(data);
+        mappedRange.set(new Float32Array(data, byteOffset, numBytesToWrite));
         // Unmap the buffer so it can be used by GPU commands
         stagingBuffer.unmap();
         // Execute GPU commands to copy the staging buffer to the final buffer

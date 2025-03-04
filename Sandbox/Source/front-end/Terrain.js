@@ -36,6 +36,13 @@ struct Uniforms
   viewProjectionMatrix : mat4x4f
 }
 
+struct Material
+{
+	diffuseAlbedo: vec4f,
+	fresnelR0: vec3f,
+	roughness: f32
+}
+
 struct Vertex
 {
   @location(0) position: vec4f,
@@ -43,6 +50,7 @@ struct Vertex
 }
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
+@group(0) @binding(1) var<storage, read> materials: array<Material>;
 
 @group(1) @binding(0) var<storage, read> models: array<mat4x4f>;
 

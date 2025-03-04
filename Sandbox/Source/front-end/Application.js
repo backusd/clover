@@ -2,12 +2,13 @@ import { LOG_TRACE, LOG_CORE_ERROR } from "./Log.js";
 import { MeshGroup, BindGroup, RenderPassDescriptor, RenderPass } from "./Renderer.js";
 import { Scene, GameCube2, BasicBox } from "./Scene.js";
 import { UniformBufferBasicWrite } from "./Buffer.js";
-import { mat4 } from 'wgpu-matrix';
+import { mat4, vec3, vec4 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
 import { TimingUI } from "./TimingUI.js";
 import { RenderState } from "./RenderState.js";
 import { GenerateBoxMesh, GenerateSphereMesh, GenerateGeosphereMesh, GenerateCylinderMesh, GenerateGridMesh, GenerateQuadMesh } from "./GeometryGenerator.js";
 import { GetBasicObjectLayer } from "./BasicObjectLayer.js";
+import { Material } from "./Material.js";
 class KeyBoardState {
     shiftIsDown = false;
     LButtonIsDown = false;
@@ -252,14 +253,15 @@ export class Application {
         // Application Startup Process
         //	1. Load all textures (asynchronously)
         //	2. Load all meshes (asynchronously)
-        //	3. Construct the render passes and sublayers
+        //	3. Load all materials (asynchronously)
+        //	4. Construct the render passes and sublayers
         //		a. Opaque Pass
         //			i.   TerrainLayer
         //			ii.  BasicGameObjectLayer
         //			iii. VertexSkinningLayer ???
         //			iv.  Skybox ???
         //		b. ... more passes to come ...
-        //  4. Construct the game objects and add them to the Scene
+        //  5. Construct the game objects and add them to the Scene
         //
         // TODO: See note.
         // NOTE: Steps 1-3 could be automated by reading in and parsing an entire
@@ -279,16 +281,30 @@ export class Application {
         let gridMesh = GenerateGridMesh("mesh_grid", 2, 3, 2, 3);
         let quadMesh = GenerateQuadMesh("mesh_quad", 1, 1, 1, 1, 1);
         this.m_renderer.AddMeshGroup(new MeshGroup("mg_basic-object", this.m_renderer.GetDevice(), [boxMesh, sphereMesh, geosphereMesh, cylinderMesh, gridMesh, quadMesh], 0));
-        // 3. Construct the render passes and sublayers
+        // 3. Load all materials (asynchronously)
+        let mat1 = new Material("mat_test1", vec4.create(1.0, 1.0, 0.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.25);
+        let mat2 = new Material("mat_test2", vec4.create(1.0, 0.0, 1.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.25);
+        this.m_renderer.AddMaterial(mat1);
+        this.m_renderer.AddMaterial(mat2);
+        // 4. Construct the render passes and sublayers
         let viewProjBindGroupLayout = device.createBindGroupLayout({
-            label: "Model-View-Projection BindGroupLayout",
+            label: "bgl_main-render-pass",
             entries: [
                 {
                     binding: 0,
-                    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+                    visibility: GPUShaderStage.VERTEX,
                     buffer: {
                         type: "uniform",
                         minBindingSize: Float32Array.BYTES_PER_ELEMENT * 16 // BEST PRACTICE to always set this	when possible	
+                    }
+                },
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.VERTEX,
+                    buffer: {
+                        type: "read-only-storage",
+                        // Must always bind at least one material
+                        minBindingSize: Material.bytesPerMaterial // BEST PRACTICE to always set this
                     }
                 }
             ]
@@ -305,6 +321,12 @@ export class Application {
                     binding: 0,
                     resource: {
                         buffer: this.m_viewProjBuffer.GetGPUBuffer(),
+                    },
+                },
+                {
+                    binding: 1,
+                    resource: {
+                        buffer: this.m_renderer.GetMaterialsGPUBuffer(),
                     },
                 }
             ],
@@ -338,7 +360,7 @@ export class Application {
                 const viewProjectionMatrix = mat4.create();
                 const viewMatrix = scene.GetCamera().GetViewMatrix();
                 mat4.multiply(state.projectionMatrix, viewMatrix, viewProjectionMatrix);
-                this.m_viewProjBuffer.WriteData(viewProjectionMatrix);
+                this.m_viewProjBuffer.WriteData(viewProjectionMatrix.buffer);
             }
         };
         this.m_renderer.AddRenderPass(renderPass);
@@ -350,7 +372,7 @@ export class Application {
         // Layer: BasicObject
         let basicObjectLayer = renderPass.AddRenderPassLayer(GetBasicObjectLayer(this.m_renderer, viewProjBindGroupLayout));
         basicObjectLayer.AddMeshGroup("mg_basic-object");
-        //  4. Construct the game objects and add them to the Scene
+        //  5. Construct the game objects and add them to the Scene
         let box = new BasicBox(this.m_renderer, this.m_scene);
         this.m_scene.AddGameObject(box);
         // DEBUG_ONLY

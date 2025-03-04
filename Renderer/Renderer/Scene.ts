@@ -82,7 +82,7 @@ export class InstanceManager<T extends UsesInstancing>
 	}
 	public WriteData(instanceNumber: number, data: Float32Array<ArrayBufferLike>): void
 	{
-		this.m_instanceBuffer.WriteData(instanceNumber, data);
+		this.m_instanceBuffer.WriteData(instanceNumber, data.buffer, data.byteOffset, data.byteLength);
 	}
 	public RemoveInstance(index: number): number
 	{
@@ -118,12 +118,15 @@ export class InstanceManager<T extends UsesInstancing>
 
 export abstract class GameObject
 {
-	constructor(name: string, renderer: Renderer, scene: Scene)
+	constructor(name: string, renderer: Renderer, scene: Scene, materialName: string = "")
 	{
 		this.m_name = name;
 		this.m_renderer = renderer;
 		this.m_scene = scene;
 		this.m_childObjects = new HybridLookup<GameObject>();
+
+		this.m_materialName = materialName;
+		this.FetchCurrentMaterialIndex();
 	}
 	public abstract Destruct(): void;
 
@@ -185,10 +188,20 @@ export abstract class GameObject
 		this.m_scaling = scaling;
 	}
 
+	public FetchCurrentMaterialIndex(): void
+	{
+		if (this.m_materialName.length > 0)
+			this.m_materialIndex = this.m_renderer.GetMaterialIndex(this.m_materialName);
+	}
+
 	protected m_name: string;
 	protected m_renderer: Renderer;
 	protected m_scene: Scene;
 	protected m_childObjects: HybridLookup<GameObject>;
+
+	// Data manage usage of materials
+	protected m_materialName: string = "";
+	protected m_materialIndex: number = 0;
 
 	protected m_position = vec3.create(0, 0, 0);
 	protected m_rotation = vec3.create(0, 0, 0);
@@ -201,15 +214,17 @@ export class BasicBox extends GameObject
 {
 	constructor(renderer: Renderer, scene: Scene)
 	{
-		super("BasicBox", renderer, scene);
+		super("BasicBox", renderer, scene, "mat_test2");
 
 		let device = this.m_renderer.GetDevice();
 
 		// Create a render item for the cube
-		this.m_renderItem = renderer.CreateRenderItem("ri_game-cube", "mg_basic-object", "mesh_quad");
+		this.m_renderItem = renderer.CreateRenderItem("ri_game-cube", "mg_basic-object", "mesh_box");
 
 		// Create the model buffer
-		this.m_modelMatrixBuffer = new UniformBufferPool(device, Float32Array.BYTES_PER_ELEMENT * 16, "buffer_basic-box-model-matrix");
+		this.m_modelMatrixBuffer = new UniformBufferPool(device,
+			Float32Array.BYTES_PER_ELEMENT * (16 + 4),	// 16 for the model matrix (mat4x4) & 1 for the material index
+			"buffer_basic-box-model-matrix");
 
 		// Get the BindGroupLayout that the mesh group uses
 		let meshGroup = renderer.GetMeshGroup("mg_basic-object");
@@ -269,9 +284,16 @@ export class BasicBox extends GameObject
 
 		this.UpdateModelMatrix(parentModelMatrix);
 	}
-	public async UpdateGPU(): Promise<void>
+	public UpdateGPU(): void
 	{
-		await this.m_modelMatrixBuffer.WriteData(this.m_modelMatrix);
+		let data = new ArrayBuffer(Float32Array.BYTES_PER_ELEMENT * 20);
+		let modelMatrixView = new Float32Array(data, 0, 16);
+		let materialIndexView = new Uint32Array(data, Float32Array.BYTES_PER_ELEMENT * 16, 1);
+
+		modelMatrixView.set(this.m_modelMatrix);
+		materialIndexView.set([this.m_materialIndex]);
+
+		this.m_modelMatrixBuffer.WriteData(data);
 	}
 
 	private m_renderItem: RenderItem;
@@ -355,7 +377,7 @@ export class GameCube extends GameObject
 	}
 	public async UpdateGPU(): Promise<void>
 	{
-		await this.m_modelMatrixBuffer.WriteData(this.m_modelMatrix);
+		await this.m_modelMatrixBuffer.WriteData(this.m_modelMatrix.buffer);
 	}
 
 	private m_renderItem: RenderItem;

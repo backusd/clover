@@ -9,6 +9,7 @@ import { Camera } from "./Camera.js"
 import { HybridLookup } from "./Utils.js"
 import { RenderState } from "./RenderState.js"
 import { Scene } from "./Scene.js"
+import { Material, MaterialGroup } from "./Material.js"
 
 
 
@@ -536,14 +537,18 @@ export class MeshGroup
 }
 export class RenderPassLayer
 {
-    constructor(name: string, renderer: Renderer, pipeline: GPURenderPipeline, renderItemBindGroupLayout: GPUBindGroupLayout | null = null, renderItemBindGroupLayoutGroupNumber: number = 2)
+    constructor(name: string, renderer: Renderer, pipeline: GPURenderPipeline,
+        layerBindGroupLayout: GPUBindGroupLayout | null = null, layerBindGroupLayoutGroupNumber: number = 2,
+        renderItemBindGroupLayout: GPUBindGroupLayout | null = null, renderItemBindGroupLayoutGroupNumber: number = 2)
     {
         this.m_name = name;
         this.m_renderer = renderer;
         this.m_renderPipeline = pipeline;
+        this.m_bindGroups = [];
+//        this.m_layerBindGroupLayout = layerBindGroupLayout;
+//        this.m_layerBindGroupLayoutGroupNumber = layerBindGroupLayoutGroupNumber;
         this.m_renderItemBindGroupLayout = renderItemBindGroupLayout;
         this.m_renderItemBindGroupLayoutGroupNumber = renderItemBindGroupLayoutGroupNumber;
-        this.m_bindGroups = [];
         this.m_meshGroups = new HybridLookup<MeshGroup>();
         this.Update = (timeDelta: number, renderPassLayer: RenderPassLayer, state: RenderState, scene: Scene) => { };
     }
@@ -561,8 +566,64 @@ export class RenderPassLayer
         meshGroup.SetRenderItemBindGroupLayout(this.m_renderItemBindGroupLayout);
         meshGroup.SetRenderItemBindGroupLayoutGroupNumber(this.m_renderItemBindGroupLayoutGroupNumber);
 
+//        // Get a list of strings from the mesh group about what materials are used by the render items
+//        this.AddMaterials(meshGroup.GetMaterialNames());
+
         return this.m_meshGroups.add(meshGroup.Name(), meshGroup);
     }
+//    private AddMaterials(materialNames: string[]): void
+//    {
+//        if (materialNames.length === 0)
+//            return;
+//
+//        if (this.m_layerBindGroupLayout === null)
+//        {
+//            let msg = `RenderPassLayer::AddMaterials failure! Cannot add materialNames: '${materialNames}' because m_layerBindGroupLayout is null`;
+//            LOG_CORE_ERROR(msg);
+//            throw Error(msg);
+//        }
+//
+//        let device = this.m_renderer.GetDevice();
+//
+//        let materials: Material[] = [];
+//        materialNames.forEach(name => { materials.push(this.m_renderer.GetMaterial(name)); });
+//
+//        if (this.m_materialGroup === null)
+//        {
+//            // Create the material group from scratch
+//            this.m_materialGroup = new MaterialGroup(`matgrp_layer=${this.m_name}`, device, materials);
+//        }
+//        else
+//        {
+//            // MaterialGroup already exists, so we just need to add the new materials
+//            this.m_materialGroup.AddMaterials(materials);
+//        }
+//
+//        // Rebuild the bind group so that it references the material groups GPUBuffer
+//        this.RebuildBindGroup();
+//    }
+//    private RebuildBindGroup(): void
+//    {
+//        if (this.m_layerBindGroupLayout === null || this.m_materialGroup === null)
+//            return;
+//
+//        // Create the bind group that references the material group buffer
+//        let bindGroup = this.m_renderer.GetDevice().createBindGroup({
+//            layout: this.m_layerBindGroupLayout,
+//            entries: [
+//                {
+//                    binding: 0,
+//                    resource: {
+//                        buffer: this.m_materialGroup.GetGPUBuffer()
+//                    }
+//                }
+//            ],
+//        });
+//
+//        // Add the bind group coupled with the group number
+//        this.m_bindGroup = new BindGroup(this.m_layerBindGroupLayoutGroupNumber, bindGroup);
+//    }
+
     public RemoveMeshGroup(meshGroupName: string): void
     {
         this.m_meshGroups.removeFromKey(meshGroupName);
@@ -591,11 +652,10 @@ export class RenderPassLayer
         // Set the pipeline
         passEncoder.setPipeline(this.m_renderPipeline);
 
-        // Set the BindGroups
-        this.m_bindGroups.forEach(bindGroup =>
-        {
-            passEncoder.setBindGroup(bindGroup.GetGroupNumber(), bindGroup.GetBindGroup());
-        });
+        // Set the BindGroups (Right now we assume there will only ever be 1 bind group)
+        this.m_bindGroups.forEach(bg =>
+            { passEncoder.setBindGroup(bg.GetGroupNumber(), bg.GetBindGroup()); }
+        );
 
         // Set the mesh group
         // !!! This will make a draw call for each RenderItem in each MeshGroup !!!
@@ -629,9 +689,18 @@ export class RenderPassLayer
     //      @group(1) - things that are bound in each render layer
     //      @group(2) - things that are bound by each render item
     // The bind group layout for each of these must be fully specified at the point of layer
-    // construction. However, at a future point in time, render items will need to create the 
+    // construction. However, at a future point in time, render items will need to create the
     // bind groups that they will use and therefore, need to be able to lookup the layout they
-    // must use.
+    // must use. Furthermore, it is very common that render items will reference a material,
+    // and for performance, it is best to group all materials in a single buffer and bind that
+    // buffer once. This naturally means it will be the responsibility of the Layer to bind
+    // the materials, which we will do using @group(1).
+
+    // NOTE: NOT currently using these
+    //private m_materialGroup: MaterialGroup | null = null;
+    //private m_layerBindGroupLayout: GPUBindGroupLayout | null = null;
+    //private m_layerBindGroupLayoutGroupNumber: number = 1;
+
     private m_renderItemBindGroupLayout: GPUBindGroupLayout | null = null;
     private m_renderItemBindGroupLayoutGroupNumber: number = 2;
 }
@@ -857,6 +926,7 @@ export class Renderer
 
         this.m_meshGroups = new HybridLookup<MeshGroup>();
         this.m_textures = new HybridLookup<GPUTexture>();
+        this.m_materialGroup = new MaterialGroup("matgrp_main", device, null);
     }
     public Render(): void
     {
@@ -998,6 +1068,29 @@ export class Renderer
     }
 
 
+
+    public AddMaterial(material: Material): Material
+    {
+        return this.m_materialGroup.AddMaterial(material);
+    }
+    public RemoveMaterial(materialName: string): void
+    {
+        LOG_CORE_ERROR(`Called Renderer::RemoveMaterial() for material name '${materialName}'.`)
+        LOG_CORE_ERROR(`This is an error because we do not currently support removing materials because that would require updating the indices for all outstanding GameObjects that reference a material`);
+    }
+    public GetMaterial(nameOrIndex: string | number): Material
+    {
+        return this.m_materialGroup.GetMaterial(nameOrIndex);
+    }
+    public GetMaterialsGPUBuffer(): GPUBuffer
+    {
+        return this.m_materialGroup.GetGPUBuffer();
+    }
+    public GetMaterialIndex(name: string): number
+    {
+        return this.m_materialGroup.GetMaterialIndex(name);
+    }
+
     private m_adapter: GPUAdapter;
     private m_device:  GPUDevice;
     private m_context: GPUCanvasContext;
@@ -1009,6 +1102,10 @@ export class Renderer
     // The renderer holds all textures so that they can be loaded at program launch
     // and referenced later by 1+ render items
     private m_textures: HybridLookup<GPUTexture>;
+
+    // The renderer holds all of the materials so that then can be looked up by the RenderPassLayer
+    // to for a MaterialGroup
+    private m_materialGroup: MaterialGroup;
 
     // GPU Timing state
     private m_canComputeTimestamps: boolean;

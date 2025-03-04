@@ -46,7 +46,7 @@ abstract class InstanceBuffer
 
     protected abstract SetCapacityDerived(numberOfInstances: number): void;
     public abstract PreRender(): void;
-    public abstract WriteData(instanceNumber: number, data: Float32Array<ArrayBufferLike>): void;
+    public abstract WriteData(instanceNumber: number, data: ArrayBufferLike, byteOffset?: GPUSize64, numBytesToWrite?: GPUSize64): void;
 
     protected m_device: GPUDevice;
     protected m_gpuBuffer: GPUBuffer;
@@ -67,7 +67,8 @@ export class InstanceBufferBasicWrite extends InstanceBuffer
     {
         // Doesn't need to do anything because we just directly call writeBuffer on the gpu buffer
     }
-    public WriteData(instanceIndex: number, data: Float32Array<ArrayBufferLike>): void
+//    public WriteData(instanceIndex: number, data: Float32Array<ArrayBufferLike>): void
+    public WriteData(instanceIndex: number, data: ArrayBufferLike, byteOffset?: GPUSize64, numBytesToWrite?: GPUSize64): void
     {
         // DEBUG_ONLY
         if (instanceIndex < 0 || instanceIndex >= this.m_numberOfInstances)
@@ -85,13 +86,21 @@ export class InstanceBufferBasicWrite extends InstanceBuffer
             throw Error(msg);
         }
 
-        this.m_device.queue.writeBuffer(
-            this.m_gpuBuffer,
-            instanceIndex * this.m_bytesPerInstance,
-            data.buffer,
-            data.byteOffset,
-            data.byteLength
-        );
+       // this.m_device.queue.writeBuffer(
+       //     this.m_gpuBuffer,
+       //     instanceIndex * this.m_bytesPerInstance,
+       //     data.buffer,
+       //     data.byteOffset,
+       //     data.byteLength
+        //);
+
+       this.m_device.queue.writeBuffer(
+           this.m_gpuBuffer,
+           instanceIndex * this.m_bytesPerInstance,
+           data,
+           byteOffset,
+           numBytesToWrite
+       );
     }
 }
 
@@ -296,7 +305,8 @@ export class InstanceBufferPool extends InstanceBuffer
             this.m_stagingBuffer = null;
         }
     }
-    public WriteData(instanceIndex: number, data: Float32Array<ArrayBufferLike>): void
+   // public WriteData(instanceIndex: number, data: Float32Array<ArrayBufferLike>): void
+    public WriteData(instanceIndex: number, data: ArrayBufferLike, byteOffset?: GPUSize64, numBytesToWrite?: GPUSize64): void
     {
         // DEBUG_ONLY
         if (instanceIndex < 0 || instanceIndex >= this.m_numberOfInstances)
@@ -319,7 +329,7 @@ export class InstanceBufferPool extends InstanceBuffer
 
         // Get the mapped range and copy our data into it
         let mappedRange = new Float32Array(this.m_stagingBuffer.getMappedRange(instanceIndex * this.m_bytesPerInstance, this.m_bytesPerInstance));
-        mappedRange.set(data);
+        mappedRange.set(new Float32Array(data, byteOffset, numBytesToWrite));
     }
 
     private m_readyBuffers: GPUBuffer[] = [];
@@ -344,8 +354,7 @@ abstract class UniformBuffer
         this.m_bufferSizeInBytes = bufferSizeInBytes;
     }
     public GetGPUBuffer(): GPUBuffer { return this.m_gpuBuffer; }
-    public abstract WriteData(data: Float32Array<ArrayBufferLike>): void;
-    
+    public abstract WriteData(data: ArrayBufferLike, byteOffset?: GPUSize64, numBytesToWrite?: GPUSize64): void;
 
     protected m_device: GPUDevice;
     protected m_gpuBuffer: GPUBuffer;
@@ -357,7 +366,7 @@ export class UniformBufferBasicWrite extends UniformBuffer
     {
         super(device, bufferSizeInBytes, label);
     }
-    public WriteData(data: Float32Array<ArrayBufferLike>): void
+    public WriteData(data: ArrayBufferLike, byteOffset?: GPUSize64, numBytesToWrite?: GPUSize64): void
     {
         // DEBUG_ONLY
         if (data.byteLength !== this.m_bufferSizeInBytes)
@@ -370,9 +379,9 @@ export class UniformBufferBasicWrite extends UniformBuffer
         this.m_device.queue.writeBuffer(
             this.m_gpuBuffer,
             0,
-            data.buffer,
-            data.byteOffset,
-            data.byteLength
+            data,
+            byteOffset,
+            numBytesToWrite
         );
     }
 }
@@ -443,14 +452,14 @@ export class UniformBufferPool extends UniformBuffer
         // When calling getMappedRange(offset, size), the offset must be multiple of 8 & overall size must be a multiple of 4.
         // Because we don't use an offset, this is most easily satisfied by requiring that the total buffer size be a multiple of 4
         // See documentation: https://developer.mozilla.org/en-US/docs/Web/API/GPUBuffer/getMappedRange
-        if (bufferSizeInBytes % 8 !== 0)
+        if (bufferSizeInBytes % 4 !== 0)
         {
             let msg = `UniformBufferPool::constructor() failed for buffer '${this.m_gpuBuffer.label}'. Invalid buffer size value '${bufferSizeInBytes}'. When calling getMappedRange(offset, size), the offset must be a multiple of 8 and size a multiple of 4, however, we don't use the offset. So we simply required the buffer size must be a multiple of 4 (see docs: https://developer.mozilla.org/en-US/docs/Web/API/GPUBuffer/getMappedRange)`;
             LOG_CORE_ERROR(msg);
             throw Error(msg);
         }
     }
-    public WriteData(data: Float32Array<ArrayBufferLike>): void
+    public WriteData(data: ArrayBufferLike, byteOffset?: GPUSize64, numBytesToWrite?: GPUSize64): void
     {
         // DEBUG_ONLY
         if (data.byteLength !== this.m_bufferSizeInBytes)
@@ -464,7 +473,7 @@ export class UniformBufferPool extends UniformBuffer
 
         // Get the mapped range and copy our data into it
         let mappedRange = new Float32Array(stagingBuffer.getMappedRange());
-        mappedRange.set(data);
+        mappedRange.set(new Float32Array(data, byteOffset, numBytesToWrite));
 
         // Unmap the buffer so it can be used by GPU commands
         stagingBuffer.unmap();

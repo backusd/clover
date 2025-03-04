@@ -11,6 +11,22 @@ struct Uniforms
 	viewProjectionMatrix : mat4x4f
 }
 
+struct Material
+{
+	diffuseAlbedo: vec4f,
+	fresnelR0: vec3f,
+	roughness: f32
+}
+
+struct ModelDetails
+{
+	modelMatrix: mat4x4f,
+	materialIndex: u32,
+	padding1: u32,
+	padding2: u32,
+	padding3: u32,
+}
+
 struct Vertex
 {
 	@location(0) position: vec3f,
@@ -20,8 +36,9 @@ struct Vertex
 }
 
 @group(0) @binding(0) var<uniform> uniforms : Uniforms;
+@group(0) @binding(1) var<storage, read> materials: array<Material>;
 
-@group(1) @binding(0) var<uniform> modelMatrix: mat4x4f;
+@group(1) @binding(0) var<uniform> modelDetails: ModelDetails;
 
 struct VertexOutput
 {
@@ -32,8 +49,8 @@ struct VertexOutput
 @vertex
 fn vertex_main(vertex: Vertex) -> VertexOutput
 {
-	let mvp = uniforms.viewProjectionMatrix * modelMatrix;
-	return VertexOutput(mvp * vec4f(vertex.position, 1), vec4f(1, 1, 1, 1));
+	let mvp = uniforms.viewProjectionMatrix * modelDetails.modelMatrix;
+	return VertexOutput(mvp * vec4f(vertex.position, 1), materials[modelDetails.materialIndex].diffuseAlbedo);
 }
 
 @fragment
@@ -44,7 +61,7 @@ fn fragment_main(@location(0) color: vec4f) -> @location(0) vec4f
 `
     });
     // Bind group layout for the RenderItem
-    let basicObjectBindGroupLayout = device.createBindGroupLayout({
+    let renderItemBindGroupLayout = device.createBindGroupLayout({
         label: "bgl_basic-object",
         entries: [
             {
@@ -52,7 +69,7 @@ fn fragment_main(@location(0) color: vec4f) -> @location(0) vec4f
                 visibility: GPUShaderStage.VERTEX,
                 buffer: {
                     type: "uniform",
-                    minBindingSize: Float32Array.BYTES_PER_ELEMENT * 16 // BEST PRACTICE to always set this
+                    minBindingSize: Float32Array.BYTES_PER_ELEMENT * (16 + 4) // BEST PRACTICE to always set this
                 }
             },
             //				{
@@ -67,11 +84,10 @@ fn fragment_main(@location(0) color: vec4f) -> @location(0) vec4f
             //				}
         ]
     });
-    // There is no bind group for the layer, so the bind group for the RenderItem will be at index 1
-    let basicObjectBindGroupLayoutGroupNumber = 1;
+    let renderItemBindGroupLayoutGroupNumber = 1;
     let layoutDescriptor = {
         label: "ld_basic-object",
-        bindGroupLayouts: [passBindGroupLayout, basicObjectBindGroupLayout]
+        bindGroupLayouts: [passBindGroupLayout, renderItemBindGroupLayout]
     };
     let pipelineLayout = device.createPipelineLayout(layoutDescriptor);
     pipelineLayout.label = "pl_basic-object";
@@ -131,6 +147,7 @@ fn fragment_main(@location(0) color: vec4f) -> @location(0) vec4f
             format: 'depth24plus',
         },
     });
-    return new RenderPassLayer("rpl_basic-object", renderer, pipeline, basicObjectBindGroupLayout, basicObjectBindGroupLayoutGroupNumber);
+    return new RenderPassLayer("rpl_basic-object", renderer, pipeline, null, undefined, // Bind group details for the Layer
+    renderItemBindGroupLayout, renderItemBindGroupLayoutGroupNumber); // Bind group details for RenderItems
 }
 //# sourceMappingURL=BasicObjectLayer.js.map
