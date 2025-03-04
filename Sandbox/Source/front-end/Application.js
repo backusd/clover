@@ -6,7 +6,7 @@ import { mat4 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
 import { TimingUI } from "./TimingUI.js";
 import { RenderState } from "./RenderState.js";
-import { GenerateBoxMesh, GenerateSphereMesh, GenerateGeosphereMesh } from "./GeometryGenerator.js";
+import { GenerateBoxMesh, GenerateSphereMesh, GenerateGeosphereMesh, GenerateCylinderMesh, GenerateGridMesh, GenerateQuadMesh } from "./GeometryGenerator.js";
 import { GetBasicObjectLayer } from "./BasicObjectLayer.js";
 class KeyBoardState {
     shiftIsDown = false;
@@ -275,7 +275,10 @@ export class Application {
         let boxMesh = GenerateBoxMesh("mesh_box", 1, 1, 1, 0);
         let sphereMesh = GenerateSphereMesh("mesh_sphere", 1, 40, 40);
         let geosphereMesh = GenerateGeosphereMesh("mesh_geosphere", 1, 4);
-        this.m_renderer.AddMeshGroup(new MeshGroup("mg_basic-object", this.m_renderer.GetDevice(), [boxMesh, sphereMesh, geosphereMesh], 0));
+        let cylinderMesh = GenerateCylinderMesh("mesh_cylinder", 2, 1, 4, 40, 5);
+        let gridMesh = GenerateGridMesh("mesh_grid", 2, 3, 2, 3);
+        let quadMesh = GenerateQuadMesh("mesh_quad", 1, 1, 1, 1, 1);
+        this.m_renderer.AddMeshGroup(new MeshGroup("mg_basic-object", this.m_renderer.GetDevice(), [boxMesh, sphereMesh, geosphereMesh, cylinderMesh, gridMesh, quadMesh], 0));
         // 3. Construct the render passes and sublayers
         let viewProjBindGroupLayout = device.createBindGroupLayout({
             label: "Model-View-Projection BindGroupLayout",

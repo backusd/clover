@@ -423,3 +423,288 @@ export function GenerateGeosphereMesh(name: string, radius: number, numSubdivisi
     mesh.CreateMeshFromRawData(name, PackVertices(v), BasicObjectVertex.floatsPerVertex, indices);
     return mesh;
 }
+export function GenerateCylinderMesh(name: string, bottomRadius: number, topRadius: number, height: number, sliceCount: number, stackCount: number): Mesh
+{
+    if (sliceCount <= 0)
+    {
+        LOG_CORE_ERROR(`GenerateCylinderMesh: Invalid sliceCount value '${sliceCount}'. Value must be > 0. Setting sliceCount to 2`);
+        sliceCount = 2;
+    }
+    if (stackCount <= 0)
+    {
+        LOG_CORE_ERROR(`GenerateCylinderMesh: Invalid stackCount value '${stackCount}'. Value must be > 0. Setting stackCount to 2`);
+        stackCount = 2;
+    }
+
+    let v = new Array<BasicObjectVertex>();
+
+    //
+	// Build Stacks.
+    // 
+	let stackHeight = height / stackCount;
+
+	// Amount to increment radius as we move up each stack level from bottom to top.
+	let radiusStep = (topRadius - bottomRadius) / stackCount;
+
+	let ringCount = stackCount + 1;
+
+    // Compute vertices for each stack ring starting at the bottom and moving up.
+    for (let iii = 0; iii < ringCount; ++iii)
+    {
+		let y = -0.5 * height + iii * stackHeight;
+		let r = bottomRadius + iii * radiusStep;
+
+		// vertices of ring
+		let dTheta = 2.0 * Math.PI / sliceCount;
+        for (let jjj = 0; jjj <= sliceCount; ++jjj)
+        {
+            let vertex = new BasicObjectVertex(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+			let c = Math.cos(jjj * dTheta);
+            let s = Math.sin(jjj * dTheta);
+
+            vertex.position[0] = r * c;
+            vertex.position[1] = y;
+            vertex.position[2] = r * s;
+
+            vertex.textureCoords[0] = jjj / sliceCount;
+            vertex.textureCoords[1] = 1.0 - (iii / stackCount);
+
+            // Cylinder can be parameterized as follows, where we introduce v
+            // parameter that goes in the same direction as the v tex-coord
+            // so that the bitangent goes in the same direction as the v tex-coord.
+            //   Let r0 be the bottom radius and let r1 be the top radius.
+            //   y(v) = h - hv for v in [0,1].
+            //   r(v) = r1 + (r0-r1)v
+            //
+            //   x(t, v) = r(v)*cos(t)
+            //   y(t, v) = h - hv
+            //   z(t, v) = r(v)*sin(t)
+            //
+            //  dx/dt = -r(v)*sin(t)
+            //  dy/dt = 0
+            //  dz/dt = +r(v)*cos(t)
+            //
+            //  dx/dv = (r0-r1)*cos(t)
+            //  dy/dv = -h
+            //  dz/dv = (r0-r1)*sin(t)
+
+            // This is unit length.
+            vec3.set(-s, 0.0, c, vertex.tangent);
+
+			let dr = bottomRadius - topRadius;
+            let bitangent = vec3.set(dr * c, -height, dr * s);
+
+            vec3.normalize(
+                vec3.cross(vertex.tangent, bitangent),
+                vertex.normal
+            );
+
+            v.push(vertex);
+        }
+    }
+
+    // Add one because we duplicate the first and last vertex per ring
+	// since the texture coordinates are different.
+    let ringVertexCount = sliceCount + 1;
+
+    let i: number[] = [];
+
+    // Compute indices for each stack.
+    for (let iii = 0; iii < stackCount; ++iii)
+    {
+        for (let jjj = 0; jjj < sliceCount; ++jjj)
+        {
+            i.push(iii * ringVertexCount + jjj);
+            i.push((iii + 1) * ringVertexCount + jjj);
+            i.push((iii + 1) * ringVertexCount + jjj + 1);
+
+            i.push(iii * ringVertexCount + jjj);
+            i.push((iii + 1) * ringVertexCount + jjj + 1);
+            i.push(iii * ringVertexCount + jjj + 1);
+        }
+    }
+
+    //
+    // Build cylinder top cap ======================================================
+    //
+    let baseIndex = v.length;
+
+	let y = 0.5 * height;
+	let dTheta = 2.0 * Math.PI / sliceCount;
+
+    // Duplicate cap ring vertices because the texture coordinates and normals differ.
+    for (let iii = 0; iii <= sliceCount; ++iii)
+    {
+		let x = topRadius * Math.cos(iii * dTheta);
+		let z = topRadius * Math.sin(iii * dTheta);
+
+		// Scale down by the height to try and make top cap texture coord area
+		// proportional to base.
+		let _u = x / height + 0.5;
+		let _v = z / height + 0.5;
+
+        v.push(new BasicObjectVertex(x, y, z, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, _u, _v));
+    }
+
+    // Cap center vertex.
+    v.push(new BasicObjectVertex(0.0, y, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.5, 0.5));
+
+	// Index of center vertex.
+	let centerIndex = v.length - 1;
+
+    for (let iii = 0; iii < sliceCount; ++iii)
+    {
+        i.push(centerIndex);
+        i.push(baseIndex + iii + 1);
+        i.push(baseIndex + iii);
+    }
+
+    //
+    // Build cylinder top cap ======================================================
+    //
+    baseIndex = v.length;
+	y = -0.5 * height;
+
+	// vertices of ring
+	dTheta = 2.0 * Math.PI / sliceCount;
+    for (let  iii = 0; iii <= sliceCount; ++iii)
+    {
+		let x = bottomRadius * Math.cos(iii * dTheta);
+		let z = bottomRadius * Math.sin(iii * dTheta);
+
+		// Scale down by the height to try and make top cap texture coord area
+		// proportional to base.
+		let _u = x / height + 0.5;
+		let _v = z / height + 0.5;
+
+        v.push(new BasicObjectVertex(x, y, z, 0.0, -1.0, 0.0, 1.0, 0.0, 0.0, _u, _v));
+    }
+
+    // Cap center vertex.
+    v.push(new BasicObjectVertex(0.0, y, 0.0, 0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.5, 0.5));
+
+	// Cache the index of center vertex.
+	centerIndex = v.length - 1;
+
+    for (let iii = 0; iii < sliceCount; ++iii)
+    {
+        i.push(centerIndex);
+        i.push(baseIndex + iii);
+        i.push(baseIndex + iii + 1);
+    }
+
+    let indices = new Uint32Array(i);
+
+    let mesh = new Mesh();
+    mesh.CreateMeshFromRawData(name, PackVertices(v), BasicObjectVertex.floatsPerVertex, indices);
+    return mesh;
+}
+export function GenerateGridMesh(name: string, width: number, depth: number, numRows: number, numColumns: number): Mesh
+{
+    let vertexCount = numRows * numColumns;
+    let faceCount = (numRows - 1) * (numColumns - 1) * 2;
+
+	//
+	// Create the vertices.
+	//
+
+	let halfWidth = 0.5 * width;
+	let halfDepth = 0.5 * depth;
+
+	let dx = width / (numColumns - 1);
+	let dz = depth / (numRows - 1);
+
+	let du = 1.0 / (numColumns - 1);
+	let dv = 1.0 / (numRows - 1);
+
+    let v = new Array<BasicObjectVertex>(vertexCount);
+
+    for (let iii = 0; iii < numRows; ++iii)
+    {
+		let z = halfDepth - iii * dz;
+        for (let jjj = 0; jjj < numColumns; ++jjj)
+        {
+            let x = -halfWidth + jjj * dx;
+
+            v[iii * numColumns + jjj] = new BasicObjectVertex(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+            v[iii * numColumns + jjj].position = vec3.set(x, 0.0, z);
+            v[iii * numColumns + jjj].normal = vec3.set(0.0, 1.0, 0.0);
+            v[iii * numColumns + jjj].tangent = vec3.set(1.0, 0.0, 0.0);
+
+            // Stretch texture over grid.
+            v[iii * numColumns + jjj].textureCoords = vec2.set(jjj * du, iii * dv);
+        }
+    }
+
+    //
+    // Create the indices.
+    //
+
+    let indices = new Uint32Array(faceCount * 3);
+
+	// Iterate over each quad and compute indices.
+	let k = 0;
+    for (let iii = 0; iii < numRows - 1; ++iii)
+    {
+        for (let jjj = 0; jjj < numColumns - 1; ++jjj)
+        {
+            indices[k] = iii * numColumns + jjj;
+            indices[k + 1] = iii * numColumns + jjj + 1;
+            indices[k + 2] = (iii + 1) * numColumns + jjj;
+            indices[k + 3] = (iii + 1) * numColumns + jjj;
+            indices[k + 4] = iii * numColumns + jjj + 1;
+            indices[k + 5] = (iii + 1) * numColumns + jjj + 1;
+
+            k += 6; // next quad
+        }
+    }
+
+    let mesh = new Mesh();
+    mesh.CreateMeshFromRawData(name, PackVertices(v), BasicObjectVertex.floatsPerVertex, indices);
+    return mesh;
+}
+export function GenerateQuadMesh(name: string, x: number, y: number, w: number, h: number, depth: number): Mesh
+{
+    // Creates a quad aligned with the screen.  This is useful for postprocessing and screen effects.
+
+    let v = new Array<BasicObjectVertex>(4);
+    let indices = new Uint32Array(6);
+
+    // Position coordinates specified in NDC space.
+    v[0] = new BasicObjectVertex(
+        x, y - h, depth,
+        0.0, 0.0, -1.0,
+        1.0, 0.0, 0.0,
+        0.0, 1.0);
+
+    v[1] = new BasicObjectVertex(
+        x, y, depth,
+        0.0, 0.0, -1.0,
+        1.0, 0.0, 0.0,
+        0.0, 0.0);
+
+    v[2] = new BasicObjectVertex(
+        x + w, y, depth,
+        0.0, 0.0, -1.0,
+        1.0, 0.0, 0.0,
+        1.0, 0.0);
+
+    v[3] = new BasicObjectVertex(
+        x + w, y - h, depth,
+        0.0, 0.0, -1.0,
+        1.0, 0.0, 0.0,
+        1.0, 1.0);
+
+    indices[0] = 0;
+    indices[1] = 1;
+    indices[2] = 2;
+    indices[3] = 0;
+    indices[4] = 2;
+    indices[5] = 3;
+
+    let mesh = new Mesh();
+    mesh.CreateMeshFromRawData(name, PackVertices(v), BasicObjectVertex.floatsPerVertex, indices);
+    return mesh;
+}

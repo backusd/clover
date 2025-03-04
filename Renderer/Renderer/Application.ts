@@ -35,7 +35,10 @@ import
 {
 	GenerateBoxMesh,
 	GenerateSphereMesh,
-	GenerateGeosphereMesh
+	GenerateGeosphereMesh,
+	GenerateCylinderMesh,
+	GenerateGridMesh,
+	GenerateQuadMesh
 } from "./GeometryGenerator.js"
 import { GetBasicObjectLayer } from "./BasicObjectLayer.js"
 
@@ -386,9 +389,12 @@ export class Application
 		let boxMesh = GenerateBoxMesh("mesh_box", 1, 1, 1, 0);
 		let sphereMesh = GenerateSphereMesh("mesh_sphere", 1, 40, 40);
 		let geosphereMesh = GenerateGeosphereMesh("mesh_geosphere", 1, 4);
+		let cylinderMesh = GenerateCylinderMesh("mesh_cylinder", 2, 1, 4, 40, 5);
+		let gridMesh = GenerateGridMesh("mesh_grid", 2, 3, 2, 3);
+		let quadMesh = GenerateQuadMesh("mesh_quad", 1, 1, 1, 1, 1);
 
 		this.m_renderer.AddMeshGroup(
-			new MeshGroup("mg_basic-object", this.m_renderer.GetDevice(), [boxMesh, sphereMesh, geosphereMesh], 0)
+			new MeshGroup("mg_basic-object", this.m_renderer.GetDevice(), [boxMesh, sphereMesh, geosphereMesh, cylinderMesh, gridMesh, quadMesh], 0)
 		);
 
 		// 3. Construct the render passes and sublayers
