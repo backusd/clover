@@ -11,15 +11,6 @@ export class BasicObjectVertex
         this.tangent = vec3.create(tx, ty, tz);
         this.textureCoords = vec2.create(tcu, tcv);
     }
-    CreateCopy(): BasicObjectVertex
-    {
-        return new BasicObjectVertex(
-            this.position.x, this.position.y, this.position.z,
-            this.normal.x, this.normal.y, this.normal.z,
-            this.tangent.x, this.tangent.y, this.tangent.z,
-            this.textureCoords.x, this.textureCoords.y
-        );
-    }
     MidPoint(v: BasicObjectVertex): BasicObjectVertex
     {
         let p0 = vec3.copy(this.position);
