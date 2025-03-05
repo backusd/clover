@@ -22,6 +22,7 @@ export class Camera
 	{
 		return this.m_viewMatrix;
 	}
+	public GetPosition(): Vec3 { return this.m_eye; }
 	public ViewHasChanged(): boolean { return this.m_viewHasChanged; }
 	public ResetViewHasChanged(): void { this.m_viewHasChanged = false; }
 

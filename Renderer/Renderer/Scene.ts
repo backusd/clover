@@ -219,7 +219,7 @@ export class BasicBox extends GameObject
 		let device = this.m_renderer.GetDevice();
 
 		// Create a render item for the cube
-		this.m_renderItem = renderer.CreateRenderItem("ri_game-cube", "mg_basic-object", "mesh_box");
+		this.m_renderItem = renderer.CreateRenderItem("ri_game-cube", "mg_basic-object", "mesh_geosphere");
 
 		// Create the model buffer
 		this.m_modelMatrixBuffer = new UniformBufferPool(device,

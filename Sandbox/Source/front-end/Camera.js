@@ -14,6 +14,7 @@ export class Camera {
     GetViewMatrix() {
         return this.m_viewMatrix;
     }
+    GetPosition() { return this.m_eye; }
     ViewHasChanged() { return this.m_viewHasChanged; }
     ResetViewHasChanged() { this.m_viewHasChanged = false; }
     IsMoving() {

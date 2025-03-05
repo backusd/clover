@@ -137,7 +137,7 @@ export class BasicBox extends GameObject {
         super("BasicBox", renderer, scene, "mat_test2");
         let device = this.m_renderer.GetDevice();
         // Create a render item for the cube
-        this.m_renderItem = renderer.CreateRenderItem("ri_game-cube", "mg_basic-object", "mesh_box");
+        this.m_renderItem = renderer.CreateRenderItem("ri_game-cube", "mg_basic-object", "mesh_geosphere");
         // Create the model buffer
         this.m_modelMatrixBuffer = new UniformBufferPool(device, Float32Array.BYTES_PER_ELEMENT * (16 + 4), // 16 for the model matrix (mat4x4) & 1 for the material index
         "buffer_basic-box-model-matrix");

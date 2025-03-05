@@ -1,7 +1,7 @@
 import { LOG_TRACE, LOG_CORE_ERROR } from "./Log.js";
 import { MeshGroup, BindGroup, RenderPassDescriptor, RenderPass } from "./Renderer.js";
 import { Scene, GameCube2, BasicBox } from "./Scene.js";
-import { UniformBufferBasicWrite } from "./Buffer.js";
+import { UniformBufferBasicWrite, InstanceBufferBasicWrite } from "./Buffer.js";
 import { mat4, vec3, vec4 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
 import { TimingUI } from "./TimingUI.js";
@@ -13,6 +13,102 @@ class KeyBoardState {
     shiftIsDown = false;
     LButtonIsDown = false;
 }
+class Globals {
+    // The global data is structured as follows:
+    //		mat4x4f viewProjectionMatrix
+    //		vec4f   ambientLight
+    //		vec3f   eyePosition
+    //		u32		numberOfDirectionalLights
+    //		u32		numberOfPointLights
+    //		u32		numberOfSpotLights
+    //		f32		_padding_
+    //		f32		_padding_
+    constructor() {
+        this.m_data = new ArrayBuffer(Globals.sizeInBytes);
+        this.m_viewProjectionView = new Float32Array(this.m_data, 0, 16);
+        this.m_ambientLightView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * 16, 4);
+        this.m_eyePositionView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (16 + 4), 3);
+        this.m_numberOfDirectionalLightsView = new Uint32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (16 + 4 + 3), 1);
+        this.m_numberOfPointLightsView = new Uint32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (16 + 4 + 3 + 1), 1);
+        this.m_numberOfSpotLightsView = new Uint32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (16 + 4 + 3 + 1 + 1), 1);
+    }
+    SetViewProjection(viewProj) {
+        this.m_viewProjectionView.set(viewProj);
+    }
+    SetAmbientLight(ambient) {
+        this.m_ambientLightView.set(ambient);
+    }
+    SetEyePosition(eyePos) {
+        this.m_eyePositionView.set(eyePos);
+    }
+    SetNumberOfDirectionalLights(numLights) {
+        this.m_numberOfDirectionalLightsView[0] = numLights;
+    }
+    SetNumberOfPointLights(numLights) {
+        this.m_numberOfPointLightsView[0] = numLights;
+    }
+    SetNumberOfSpotLights(numLights) {
+        this.m_numberOfSpotLightsView[0] = numLights;
+    }
+    Data() {
+        return this.m_data;
+    }
+    m_data;
+    m_viewProjectionView;
+    m_ambientLightView;
+    m_eyePositionView;
+    m_numberOfDirectionalLightsView;
+    m_numberOfPointLightsView;
+    m_numberOfSpotLightsView;
+    static sizeInBytes = Float32Array.BYTES_PER_ELEMENT * (16 + 4 + 3 + 1 + 1 + 1 + 2);
+}
+class Light {
+    // The light data is structured as follows:
+    //		vec3f	strength
+    //		f32		falloffStart
+    //		vec3f   direction
+    //		f32		falloffEnd
+    //		vec3f	position
+    //		f32		spotPower		
+    constructor() {
+        this.m_data = new ArrayBuffer(Light.sizeInBytes);
+        this.m_strengthView = new Float32Array(this.m_data, 0, 3);
+        this.m_falloffStartView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3), 1);
+        this.m_directionView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1), 3);
+        this.m_falloffEndView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3), 1);
+        this.m_positionView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1), 3);
+        this.m_spotPowerView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1 + 3), 1);
+    }
+    SetStrength(strength) {
+        this.m_strengthView.set(strength);
+    }
+    SetDirection(direction) {
+        this.m_directionView.set(direction);
+    }
+    SetPosition(position) {
+        this.m_positionView.set(position);
+    }
+    SetFalloffStart(start) {
+        this.m_falloffStartView[0] = start;
+    }
+    SetFalloffEnd(end) {
+        this.m_falloffEndView[0] = end;
+    }
+    SetSpotPower(power) {
+        this.m_spotPowerView[0] = power;
+    }
+    Data() {
+        return this.m_data;
+    }
+    m_data;
+    m_strengthView;
+    m_falloffStartView;
+    m_directionView;
+    m_falloffEndView;
+    m_positionView;
+    m_spotPowerView;
+    static sizeInBytes = Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1 + 3 + 1);
+}
 export class Application {
     constructor(renderer, canvas) {
         this.m_keyboardState = new KeyBoardState();
@@ -21,6 +117,24 @@ export class Application {
         this.m_scene = new Scene();
         this.m_renderState = new RenderState();
         this.m_renderState.UpdateProjectionMatrix(canvas.width, canvas.height);
+        let dirLight = new Light();
+        dirLight.SetDirection([0, 0, -1]);
+        dirLight.SetPosition([0, 0, 10]);
+        dirLight.SetStrength([1, 1, 1]);
+        dirLight.SetFalloffStart(1);
+        dirLight.SetFalloffEnd(20);
+        dirLight.SetSpotPower(0);
+        this.m_lights = [dirLight];
+        this.m_lightsBuffer = new InstanceBufferBasicWrite(this.m_renderer.GetDevice(), Light.sizeInBytes, this.m_lights.length, "buffer_lights");
+        for (let iii = 0; iii < this.m_lights.length; ++iii)
+            this.m_lightsBuffer.WriteData(iii, this.m_lights[iii].Data());
+        this.m_globals = new Globals();
+        this.m_globals.SetAmbientLight([0.25, 0.25, 0.35, 1.0]);
+        this.m_globals.SetEyePosition(this.m_scene.GetCamera().GetPosition());
+        this.m_globals.SetNumberOfDirectionalLights(1);
+        this.m_globals.SetNumberOfPointLights(0);
+        this.m_globals.SetNumberOfSpotLights(0);
+        this.m_globalsBuffer = new UniformBufferBasicWrite(this.m_renderer.GetDevice(), Globals.sizeInBytes, "buffer_globals");
         // At the application level, we are going to add an eventlistener for all webgpu errors
         // Right now, this will just throw an exception. However, in the future, this should try
         // to handle any error more gracefully if possible and should also report the error to the
@@ -44,7 +158,6 @@ export class Application {
         // Create the TimingUI. Have it cache timing measurements from 20 frames before computing averages
         this.m_timingUI = new TimingUI(20, renderer);
         this.SetupInputCallbacks();
-        this.m_viewProjBuffer = new UniformBufferBasicWrite(this.m_renderer.GetDevice(), Float32Array.BYTES_PER_ELEMENT * 16, "View-Projection Buffer");
     }
     SetupInputCallbacks() {
         window.addEventListener('keydown', (e) => this.OnKeyDown(e));
@@ -283,7 +396,7 @@ export class Application {
         this.m_renderer.AddMeshGroup(new MeshGroup("mg_basic-object", this.m_renderer.GetDevice(), [boxMesh, sphereMesh, geosphereMesh, cylinderMesh, gridMesh, quadMesh], 0));
         // 3. Load all materials (asynchronously)
         let mat1 = new Material("mat_test1", vec4.create(1.0, 1.0, 0.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.25);
-        let mat2 = new Material("mat_test2", vec4.create(1.0, 0.0, 1.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.25);
+        let mat2 = new Material("mat_test2", vec4.create(0.0, 0.5, 1.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.25);
         this.m_renderer.AddMaterial(mat1);
         this.m_renderer.AddMaterial(mat2);
         // 4. Construct the render passes and sublayers
@@ -292,19 +405,28 @@ export class Application {
             entries: [
                 {
                     binding: 0,
-                    visibility: GPUShaderStage.VERTEX,
+                    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
                     buffer: {
                         type: "uniform",
-                        minBindingSize: Float32Array.BYTES_PER_ELEMENT * 16 // BEST PRACTICE to always set this	when possible	
+                        minBindingSize: Globals.sizeInBytes // BEST PRACTICE to always set this	when possible	
                     }
                 },
                 {
                     binding: 1,
-                    visibility: GPUShaderStage.VERTEX,
+                    visibility: GPUShaderStage.FRAGMENT,
                     buffer: {
                         type: "read-only-storage",
                         // Must always bind at least one material
                         minBindingSize: Material.bytesPerMaterial // BEST PRACTICE to always set this
+                    }
+                },
+                {
+                    binding: 2,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    buffer: {
+                        type: "read-only-storage",
+                        // Must always bind at least one light
+                        minBindingSize: Light.sizeInBytes // BEST Practice to always set this
                     }
                 }
             ]
@@ -320,13 +442,19 @@ export class Application {
                 {
                     binding: 0,
                     resource: {
-                        buffer: this.m_viewProjBuffer.GetGPUBuffer(),
+                        buffer: this.m_globalsBuffer.GetGPUBuffer(),
                     },
                 },
                 {
                     binding: 1,
                     resource: {
                         buffer: this.m_renderer.GetMaterialsGPUBuffer(),
+                    },
+                },
+                {
+                    binding: 2,
+                    resource: {
+                        buffer: this.m_lightsBuffer.GetGPUBuffer(),
                     },
                 }
             ],
@@ -357,10 +485,16 @@ export class Application {
         //	renderPass.AddBuffer("viewProj-buffer", this.m_viewProjBuffer.GetGPUBuffer());
         renderPass.Update = (timeDelta, renderPass, state, scene) => {
             if (state.projectionMatrixHasChanged || scene.GetCamera().ViewHasChanged()) {
+                // View Projection
                 const viewProjectionMatrix = mat4.create();
                 const viewMatrix = scene.GetCamera().GetViewMatrix();
                 mat4.multiply(state.projectionMatrix, viewMatrix, viewProjectionMatrix);
-                this.m_viewProjBuffer.WriteData(viewProjectionMatrix.buffer);
+                this.m_globals.SetViewProjection(viewProjectionMatrix);
+                // Eye Position
+                this.m_globals.SetEyePosition(this.m_scene.GetCamera().GetPosition());
+                // Update the GPUBuffer
+                this.m_globalsBuffer.WriteData(this.m_globals.Data());
+                //				this.m_viewProjBuffer.WriteData(viewProjectionMatrix.buffer);
             }
         };
         this.m_renderer.AddRenderPass(renderPass);
@@ -410,6 +544,10 @@ export class Application {
     m_timingUI;
     m_scene;
     m_renderState;
-    m_viewProjBuffer;
+    // Hold onto global data that will be bound once per pass
+    m_globals;
+    m_globalsBuffer;
+    m_lights;
+    m_lightsBuffer;
 }
 //# sourceMappingURL=Application.js.map
