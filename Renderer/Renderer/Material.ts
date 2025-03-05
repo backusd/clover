@@ -12,7 +12,7 @@ import
 
 export class Material
 {
-	constructor(_name: string, _diffuseAlbedo: Vec4, _fresnelR0: Vec3, _roughness: number)
+	constructor(_name: string, _diffuseAlbedo: Vec4, _fresnelR0: Vec3, _shininess: number)
 	{
 		this.m_name = _name;
 		this.m_data = new ArrayBuffer(Material.bytesPerMaterial);
@@ -20,20 +20,20 @@ export class Material
 		// The material is structured as follows:
 		//		float4 diffuseAlbedo
 		//		float3 fresnelR0
-		//		float  roughness
+		//		float  shininess
 		this.m_diffuseAlbedoView = new Float32Array(this.m_data, 0, 4);
 		this.m_fresnelR0View = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * 4, 3);
-		this.m_roughnessView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (4 + 3), 1);
+		this.m_shininessView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (4 + 3), 1);
 
 		this.m_diffuseAlbedoView.set(_diffuseAlbedo);
 		this.m_fresnelR0View.set(_fresnelR0);
-		this.m_roughnessView.set([_roughness]);
+		this.m_shininessView.set([_shininess]);
 	}
 	public Name(): string { return this.m_name; }
 
 	public GetDiffuseAlbedo(): Vec4 { return this.m_diffuseAlbedoView; }
 	public GetFresnelR0(): Vec3 { return this.m_fresnelR0View; }
-	public GetRoughness(): number { return this.m_roughnessView[0]; }
+	public GetShininess(): number { return this.m_shininessView[0]; }
 
 	public SetDiffuseAlbedo(x: number, y: number, z: number, w: number): void
 	{
@@ -48,9 +48,9 @@ export class Material
 		this.m_fresnelR0View[1] = y;
 		this.m_fresnelR0View[2] = z;
 	}
-	public SetRoughness(roughness: number): void
+	public SetShininess(shininess: number): void
 	{
-		this.m_roughnessView[0] = roughness;
+		this.m_shininessView[0] = shininess;
 	}
 
 	public Data(): ArrayBuffer { return this.m_data; }
@@ -60,7 +60,7 @@ export class Material
 
 	private m_diffuseAlbedoView: Float32Array;
 	private m_fresnelR0View: Float32Array;
-	private m_roughnessView: Float32Array;
+	private m_shininessView: Float32Array;
 
 	diffuseAlbedo: Vec4 = vec4.create(1.0, 1.0, 1.0, 1.0);
 	fresnelR0 = vec3.create(0.01, 0.01, 0.01);

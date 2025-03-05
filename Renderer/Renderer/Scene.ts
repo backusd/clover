@@ -23,11 +23,123 @@ import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
 
 
 
+export class Light
+{
+	// The light data is structured as follows:
+	//		vec3f	strength
+	//		f32		falloffStart
+	//		vec3f   direction
+	//		f32		falloffEnd
+	//		vec3f	position
+	//		f32		spotPower		
+	constructor(name: string)
+	{
+		this.m_name = name;
+		this.m_data = new ArrayBuffer(Light.sizeInBytes);
+
+		this.m_strengthView = new Float32Array(this.m_data, 0, 3);
+		this.m_falloffStartView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3), 1);
+		this.m_directionView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1), 3);
+		this.m_falloffEndView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3), 1);
+		this.m_positionView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1), 3);
+		this.m_spotPowerView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1 + 3), 1);
+	}
+	public Data(): ArrayBuffer
+	{
+		return this.m_data;
+	}
+	public Name(): string
+	{
+		return this.m_name;
+	}
+
+	private m_data: ArrayBuffer;
+	private m_name: string;
+
+	protected m_strengthView: Float32Array;
+	protected m_falloffStartView: Float32Array;
+	protected m_directionView: Float32Array;
+	protected m_falloffEndView: Float32Array;
+	protected m_positionView: Float32Array;
+	protected m_spotPowerView: Float32Array;
+
+	static sizeInBytes = Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1 + 3 + 1);
+}
+export class DirectionalLight extends Light
+{
+	constructor(name: string)
+	{
+		super(name);
+	}
+	public SetDirection(direction: Vec3): void
+	{
+		this.m_directionView.set(direction);
+	}
+	public SetStrength(strength: Vec3): void
+	{
+		this.m_strengthView.set(strength);
+	}
+}
+export class PointLight extends Light
+{
+	constructor(name: string)
+	{
+		super(name);
+	}
+	public SetPosition(position: Vec3): void
+	{
+		this.m_positionView.set(position);
+	}
+	public SetStrength(strength: Vec3): void
+	{
+		this.m_strengthView.set(strength);
+	}
+	public SetFalloffStart(start: number): void
+	{
+		this.m_falloffStartView[0] = start;
+	}
+	public SetFalloffEnd(end: number): void
+	{
+		this.m_falloffEndView[0] = end;
+	}
+}
+export class SpotLight extends Light
+{
+	constructor(name: string)
+	{
+		super(name);
+	}
+	public SetStrength(strength: Vec3): void
+	{
+		this.m_strengthView.set(strength);
+	}
+	public SetDirection(direction: Vec3): void
+	{
+		this.m_directionView.set(direction);
+	}
+	public SetPosition(position: Vec3): void
+	{
+		this.m_positionView.set(position);
+	}
+	public SetFalloffStart(start: number): void
+	{
+		this.m_falloffStartView[0] = start;
+	}
+	public SetFalloffEnd(end: number): void
+	{
+		this.m_falloffEndView[0] = end;
+	}
+	public SetSpotPower(power: number): void
+	{
+		this.m_spotPowerView[0] = power;
+	}
+}
+
+
 interface UsesInstancing
 {
 	SetInstanceNumber(i: number): void;
 }
-
 export class InstanceManager<T extends UsesInstancing>
 {
 	constructor(className: string, bytesPerInstance: number, renderer: Renderer, renderItemName: string,
@@ -115,6 +227,7 @@ export class InstanceManager<T extends UsesInstancing>
 
 	private OnBufferChanged: (renderer: Renderer, renderItem: RenderItem, buffer: GPUBuffer) => void;
 }
+
 
 export abstract class GameObject
 {
@@ -209,7 +322,6 @@ export abstract class GameObject
 	protected m_modelMatrix = mat4.identity();
 }
 
-
 export class BasicBox extends GameObject
 {
 	constructor(renderer: Renderer, scene: Scene)
@@ -299,9 +411,6 @@ export class BasicBox extends GameObject
 	private m_renderItem: RenderItem;
 	private m_modelMatrixBuffer: UniformBufferPool;
 }
-
-
-
 
 export class GameCube extends GameObject
 {
@@ -517,6 +626,14 @@ export class Scene
 	{
 		this.m_camera = new Camera();
 		this.m_gameObjects = new HybridLookup<GameObject>();
+
+		this.m_directionalLights = new HybridLookup<DirectionalLight>();
+		this.m_pointLights = new HybridLookup<PointLight>();
+		this.m_spotLights = new HybridLookup<SpotLight>();
+		this.OnLightsBufferNeedsRebuilding = (directionalLights: HybridLookup<DirectionalLight>,
+			pointLights: HybridLookup<PointLight>,
+			spotLights: HybridLookup<SpotLight>) => { };
+		this.OnLightChanged = (index: number, light: Light) => { };
 	}
 	public Update(timeDelta: number): void
 	{
@@ -556,9 +673,99 @@ export class Scene
 		this.m_delayedObjectsToDelete.push(name);
 	}
 
+	public AddDirectionalLight(name: string, direction: Vec3, strength: Vec3): DirectionalLight
+	{
+		let light = new DirectionalLight(name);
+		light.SetDirection(direction);
+		light.SetStrength(strength);
+		let l = this.m_directionalLights.add(name, light);
+		this.OnLightsBufferNeedsRebuilding(this.m_directionalLights, this.m_pointLights, this.m_spotLights);
+		return l;
+	}
+	public AddPointLight(name: string, position: Vec3, strength: Vec3, falloffStart: number, falloffEnd: number): PointLight
+	{
+		let light = new PointLight(name);
+		light.SetPosition(position);
+		light.SetStrength(strength);
+		light.SetFalloffStart(falloffStart);
+		light.SetFalloffEnd(falloffEnd);
+		let l = this.m_pointLights.add(name, light);
+		this.OnLightsBufferNeedsRebuilding(this.m_directionalLights, this.m_pointLights, this.m_spotLights);
+		return l;
+	}
+	public AddSpotLight(name: string, position: Vec3, direction: Vec3, strength: Vec3,
+		                falloffStart: number, falloffEnd: number, spotPower: number): SpotLight
+	{
+		let light = new SpotLight(name);
+		light.SetPosition(position);
+		light.SetDirection(direction);
+		light.SetStrength(strength);
+		light.SetFalloffStart(falloffStart);
+		light.SetFalloffEnd(falloffEnd);
+		light.SetSpotPower(spotPower);
+		let l = this.m_spotLights.add(name, light);
+		this.OnLightsBufferNeedsRebuilding(this.m_directionalLights, this.m_pointLights, this.m_spotLights);
+		return l;
+	}
+	public NumberOfDirectionalLights(): number { return this.m_directionalLights.size(); }
+	public NumberOfPointLights(): number { return this.m_pointLights.size(); }
+	public NumberOfSpotLights(): number { return this.m_spotLights.size(); }
+
+	public RemoveDirectionalLight(name: string): void
+	{
+		this.m_directionalLights.removeFromKey(name);
+		this.OnLightsBufferNeedsRebuilding(this.m_directionalLights, this.m_pointLights, this.m_spotLights);
+	}
+	public RemovePointLight(name: string): void
+	{
+		this.m_pointLights.removeFromKey(name);
+		this.OnLightsBufferNeedsRebuilding(this.m_directionalLights, this.m_pointLights, this.m_spotLights);
+	}
+	public RemoveSpotLight(name: string): void
+	{
+		this.m_spotLights.removeFromKey(name);
+		this.OnLightsBufferNeedsRebuilding(this.m_directionalLights, this.m_pointLights, this.m_spotLights);
+	}
+
+
+	private NotifyDirectionalLightChanged(name: string): void
+	{
+		let index = this.m_directionalLights.indexOfKey(name);
+		let light = this.m_directionalLights.getFromKey(name);
+		this.OnLightChanged(index, light);
+	}
+	private NotifyPointLightChanged(name: string): void
+	{
+		let index = this.m_directionalLights.size() + this.m_directionalLights.indexOfKey(name);
+		let light = this.m_directionalLights.getFromKey(name);
+		this.OnLightChanged(index, light);
+	}
+	private NotifySpotLightChanged(name: string): void
+	{
+		let index = this.m_directionalLights.size() + this.m_pointLights.size() + this.m_directionalLights.indexOfKey(name);
+		let light = this.m_directionalLights.getFromKey(name);
+		this.OnLightChanged(index, light);
+	}
+
+
+
 
 	private m_camera: Camera;
 	private m_gameObjects: HybridLookup<GameObject>;
+
+	// Keep separate lists of all lights because they need to be sorted when we
+	// upload them to the GPUBuffer. The ordering will go direction lights, point
+	// lights, then spot lights
+	private m_directionalLights: HybridLookup<DirectionalLight>;
+	private m_pointLights: HybridLookup<PointLight>;
+	private m_spotLights: HybridLookup<SpotLight>;
+	// OnLightsBufferNeedsRebuilding is called anytime the entire GPUBuffer of lights should be re-built
+	public OnLightsBufferNeedsRebuilding: (directionalLights: HybridLookup<DirectionalLight>,
+		pointLights: HybridLookup<PointLight>,
+		spotLights: HybridLookup<SpotLight>) => void;
+	// OnLightChanged is called anytime the position (or any other data) for a light is changed - no need to rebuild buffers
+	public OnLightChanged: (index: number, light: Light) => void;
+
 
 	private m_delayedObjectsToDelete: string[] = [];
 }

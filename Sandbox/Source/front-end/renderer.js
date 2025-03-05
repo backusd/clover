@@ -8,6 +8,9 @@ export class BindGroup {
     }
     GetGroupNumber() { return this.m_groupNumber; }
     GetBindGroup() { return this.m_bindGroup; }
+    SetBindGroup(bindGroup) {
+        this.m_bindGroup = bindGroup;
+    }
     m_bindGroup;
     m_groupNumber;
 }
@@ -593,6 +596,9 @@ export class RenderPass {
     AddBindGroup(bindGroup) {
         this.m_bindGroups.push(bindGroup);
         return bindGroup;
+    }
+    UpdateBindGroup(index, bindGroup) {
+        this.m_bindGroups[index] = bindGroup;
     }
     AddRenderPassLayer(layer) {
         return this.m_layers.add(layer.Name(), layer);

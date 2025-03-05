@@ -1,6 +1,6 @@
 import { LOG_TRACE, LOG_CORE_ERROR } from "./Log.js";
 import { MeshGroup, BindGroup, RenderPassDescriptor, RenderPass } from "./Renderer.js";
-import { Scene, GameCube2, BasicBox } from "./Scene.js";
+import { Scene, BasicBox, Light } from "./Scene.js";
 import { UniformBufferBasicWrite, InstanceBufferBasicWrite } from "./Buffer.js";
 import { mat4, vec3, vec4 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
@@ -62,85 +62,94 @@ class Globals {
     m_numberOfSpotLightsView;
     static sizeInBytes = Float32Array.BYTES_PER_ELEMENT * (16 + 4 + 3 + 1 + 1 + 1 + 2);
 }
-class Light {
-    // The light data is structured as follows:
-    //		vec3f	strength
-    //		f32		falloffStart
-    //		vec3f   direction
-    //		f32		falloffEnd
-    //		vec3f	position
-    //		f32		spotPower		
-    constructor() {
-        this.m_data = new ArrayBuffer(Light.sizeInBytes);
-        this.m_strengthView = new Float32Array(this.m_data, 0, 3);
-        this.m_falloffStartView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3), 1);
-        this.m_directionView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1), 3);
-        this.m_falloffEndView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3), 1);
-        this.m_positionView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1), 3);
-        this.m_spotPowerView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1 + 3), 1);
-    }
-    SetStrength(strength) {
-        this.m_strengthView.set(strength);
-    }
-    SetDirection(direction) {
-        this.m_directionView.set(direction);
-    }
-    SetPosition(position) {
-        this.m_positionView.set(position);
-    }
-    SetFalloffStart(start) {
-        this.m_falloffStartView[0] = start;
-    }
-    SetFalloffEnd(end) {
-        this.m_falloffEndView[0] = end;
-    }
-    SetSpotPower(power) {
-        this.m_spotPowerView[0] = power;
-    }
-    Data() {
-        return this.m_data;
-    }
-    m_data;
-    m_strengthView;
-    m_falloffStartView;
-    m_directionView;
-    m_falloffEndView;
-    m_positionView;
-    m_spotPowerView;
-    static sizeInBytes = Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1 + 3 + 1);
-}
 export class Application {
     constructor(renderer, canvas) {
+        let device = renderer.GetDevice();
         this.m_keyboardState = new KeyBoardState();
         this.m_renderer = renderer;
         this.m_canvas = canvas;
         this.m_scene = new Scene();
         this.m_renderState = new RenderState();
         this.m_renderState.UpdateProjectionMatrix(canvas.width, canvas.height);
-        let dirLight = new Light();
-        dirLight.SetDirection([0, 0, -1]);
-        dirLight.SetPosition([0, 0, 10]);
-        dirLight.SetStrength([1, 1, 1]);
-        dirLight.SetFalloffStart(1);
-        dirLight.SetFalloffEnd(20);
-        dirLight.SetSpotPower(0);
-        this.m_lights = [dirLight];
-        this.m_lightsBuffer = new InstanceBufferBasicWrite(this.m_renderer.GetDevice(), Light.sizeInBytes, this.m_lights.length, "buffer_lights");
-        for (let iii = 0; iii < this.m_lights.length; ++iii)
-            this.m_lightsBuffer.WriteData(iii, this.m_lights[iii].Data());
         this.m_globals = new Globals();
         this.m_globals.SetAmbientLight([0.25, 0.25, 0.35, 1.0]);
         this.m_globals.SetEyePosition(this.m_scene.GetCamera().GetPosition());
-        this.m_globals.SetNumberOfDirectionalLights(1);
+        this.m_globals.SetNumberOfDirectionalLights(0);
         this.m_globals.SetNumberOfPointLights(0);
         this.m_globals.SetNumberOfSpotLights(0);
-        this.m_globalsBuffer = new UniformBufferBasicWrite(this.m_renderer.GetDevice(), Globals.sizeInBytes, "buffer_globals");
+        this.m_globalsBuffer = new UniformBufferBasicWrite(device, Globals.sizeInBytes, "buffer_globals");
+        // Create the lights buffer
+        this.m_lightsBuffer = new InstanceBufferBasicWrite(device, Light.sizeInBytes, 1, "buffer_lights");
+        // Set callback for when lights are added/removed and the whole buffer needs rebuilding
+        this.m_scene.OnLightsBufferNeedsRebuilding = (directionalLights, pointLights, spotLights) => {
+            // Update the globals data which specifies the light counts
+            this.m_globals.SetNumberOfDirectionalLights(directionalLights.size());
+            this.m_globals.SetNumberOfPointLights(pointLights.size());
+            this.m_globals.SetNumberOfSpotLights(spotLights.size());
+            this.m_globalsBuffer.WriteData(this.m_globals.Data());
+            LOG_TRACE(`OnLightsBufferNeedsRebuilding:`);
+            LOG_TRACE(`  directional lights = ${directionalLights.size()}`);
+            LOG_TRACE(`  point lights       = ${pointLights.size()}`);
+            LOG_TRACE(`  spot lights        = ${spotLights.size()}`);
+            LOG_TRACE(`Setting capacity = ${directionalLights.size() + pointLights.size() + spotLights.size()}`);
+            // Update the lighting GPUBuffer
+            this.m_lightsBuffer.SetCapacity(directionalLights.size() + pointLights.size() + spotLights.size());
+            let offset = 0;
+            for (let iii = 0; iii < directionalLights.size(); ++iii) {
+                this.m_lightsBuffer.WriteData(iii + offset, directionalLights.getFromIndex(iii).Data());
+                LOG_TRACE(`Write [${iii}] = ${directionalLights.getFromIndex(iii).Data()}`);
+            }
+            offset = directionalLights.size();
+            for (let iii = 0; iii < pointLights.size(); ++iii)
+                this.m_lightsBuffer.WriteData(iii + offset, pointLights.getFromIndex(iii).Data());
+            offset = directionalLights.size() + pointLights.size();
+            for (let iii = 0; iii < spotLights.size(); ++iii)
+                this.m_lightsBuffer.WriteData(iii + offset, spotLights.getFromIndex(iii).Data());
+            // Because the underlying GPUBuffer that holds the lighting data may have been destroyed
+            // to create one with a large size, we need to regenerate the bind group to reference
+            // the new GPUBuffer
+            this.UpdatePassBindGroup();
+        };
+        // Set callback for when a single light changed, which means we can update the buffer directly
+        this.m_scene.OnLightChanged = (index, light) => {
+            this.m_lightsBuffer.WriteData(index, light.Data());
+        };
+        this.m_passBindGroupLayout = device.createBindGroupLayout({
+            label: "bgl_main-render-pass",
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+                    buffer: {
+                        type: "uniform",
+                        minBindingSize: Globals.sizeInBytes // BEST PRACTICE to always set this	when possible	
+                    }
+                },
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    buffer: {
+                        type: "read-only-storage",
+                        // Must always bind at least one material
+                        minBindingSize: Material.bytesPerMaterial // BEST PRACTICE to always set this
+                    }
+                },
+                {
+                    binding: 2,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    buffer: {
+                        type: "read-only-storage",
+                        // Must always bind at least one light
+                        minBindingSize: Light.sizeInBytes // BEST Practice to always set this
+                    }
+                }
+            ]
+        });
         // At the application level, we are going to add an eventlistener for all webgpu errors
         // Right now, this will just throw an exception. However, in the future, this should try
         // to handle any error more gracefully if possible and should also report the error to the
         // server for logging
         // TODO: Report the error to the game server
-        let device = renderer.GetDevice();
         device.addEventListener('uncapturederror', (event) => {
             let msg = `'uncapturederror' event listener on the GPUDevice was triggered. This means a WebGPU error was not captured. Error: '${event.error}'`;
             LOG_CORE_ERROR(msg);
@@ -158,6 +167,37 @@ export class Application {
         // Create the TimingUI. Have it cache timing measurements from 20 frames before computing averages
         this.m_timingUI = new TimingUI(20, renderer);
         this.SetupInputCallbacks();
+    }
+    UpdatePassBindGroup() {
+        let rp = this.m_renderer.GetRenderPass("rp_opaque");
+        rp.UpdateBindGroup(0, this.GeneratePassBindGroup());
+    }
+    GeneratePassBindGroup() {
+        let device = this.m_renderer.GetDevice();
+        let passBindGroup = device.createBindGroup({
+            layout: this.m_passBindGroupLayout,
+            entries: [
+                {
+                    binding: 0,
+                    resource: {
+                        buffer: this.m_globalsBuffer.GetGPUBuffer(),
+                    },
+                },
+                {
+                    binding: 1,
+                    resource: {
+                        buffer: this.m_renderer.GetMaterialsGPUBuffer(),
+                    },
+                },
+                {
+                    binding: 2,
+                    resource: {
+                        buffer: this.m_lightsBuffer.GetGPUBuffer(),
+                    },
+                }
+            ],
+        });
+        return new BindGroup(0, passBindGroup);
     }
     SetupInputCallbacks() {
         window.addEventListener('keydown', (e) => this.OnKeyDown(e));
@@ -192,10 +232,12 @@ export class Application {
         switch (e.code) {
             case 'KeyQ':
                 // this.m_scene.RemoveGameObject("GameCube2:0");
-                let cube = new GameCube2(this.m_renderer, this.m_scene);
-                cube.SetPosition([0, 1, 0]);
-                cube.SetVelocity([5 * (Math.random() - 0.5), 0, 5 * (Math.random() - 0.5)]);
-                this.m_scene.AddGameObject(cube);
+                this.m_scene.AddDirectionalLight("dir_light_2", [-1, 0, 0], [1, 0, 0]);
+                // Inject random cube
+                //	let cube = new GameCube2(this.m_renderer, this.m_scene);
+                //	cube.SetPosition([0, 1, 0]);
+                //	cube.SetVelocity([5 * (Math.random() - 0.5), 0, 5 * (Math.random() - 0.5)]);
+                //	this.m_scene.AddGameObject(cube);
                 break;
             case 'KeyW': break;
             case 'KeyS': break;
@@ -395,70 +437,72 @@ export class Application {
         let quadMesh = GenerateQuadMesh("mesh_quad", 1, 1, 1, 1, 1);
         this.m_renderer.AddMeshGroup(new MeshGroup("mg_basic-object", this.m_renderer.GetDevice(), [boxMesh, sphereMesh, geosphereMesh, cylinderMesh, gridMesh, quadMesh], 0));
         // 3. Load all materials (asynchronously)
-        let mat1 = new Material("mat_test1", vec4.create(1.0, 1.0, 0.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.25);
-        let mat2 = new Material("mat_test2", vec4.create(0.0, 0.5, 1.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.25);
+        let mat1 = new Material("mat_test1", vec4.create(1.0, 1.0, 0.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
+        let mat2 = new Material("mat_test2", vec4.create(0.5, 0.5, 1.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
         this.m_renderer.AddMaterial(mat1);
         this.m_renderer.AddMaterial(mat2);
         // 4. Construct the render passes and sublayers
-        let viewProjBindGroupLayout = device.createBindGroupLayout({
-            label: "bgl_main-render-pass",
-            entries: [
-                {
-                    binding: 0,
-                    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-                    buffer: {
-                        type: "uniform",
-                        minBindingSize: Globals.sizeInBytes // BEST PRACTICE to always set this	when possible	
-                    }
-                },
-                {
-                    binding: 1,
-                    visibility: GPUShaderStage.FRAGMENT,
-                    buffer: {
-                        type: "read-only-storage",
-                        // Must always bind at least one material
-                        minBindingSize: Material.bytesPerMaterial // BEST PRACTICE to always set this
-                    }
-                },
-                {
-                    binding: 2,
-                    visibility: GPUShaderStage.FRAGMENT,
-                    buffer: {
-                        type: "read-only-storage",
-                        // Must always bind at least one light
-                        minBindingSize: Light.sizeInBytes // BEST Practice to always set this
-                    }
-                }
-            ]
-        });
+        //		let viewProjBindGroupLayout: GPUBindGroupLayout = device.createBindGroupLayout(
+        //			{
+        //				label: "bgl_main-render-pass",
+        //				entries: [
+        //					{ // Globals (viewProj / ambient light / eye position)
+        //						binding: 0,
+        //						visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+        //						buffer: {
+        //							type: "uniform",
+        //							minBindingSize: Globals.sizeInBytes	// BEST PRACTICE to always set this	when possible	
+        //						}
+        //					},
+        //					{ // array of Material
+        //						binding: 1,
+        //						visibility: GPUShaderStage.FRAGMENT,
+        //						buffer: {
+        //							type: "read-only-storage",
+        //							// Must always bind at least one material
+        //							minBindingSize: Material.bytesPerMaterial // BEST PRACTICE to always set this
+        //						}
+        //					},
+        //					{ // array of Lights
+        //						binding: 2,
+        //						visibility: GPUShaderStage.FRAGMENT,
+        //						buffer: {
+        //							type: "read-only-storage",
+        //							// Must always bind at least one light
+        //							minBindingSize: Light.sizeInBytes // BEST Practice to always set this
+        //						}
+        //					}
+        //				]
+        //			}
+        //		);
         const depthTexture = device.createTexture({
             size: [this.m_canvas.width, this.m_canvas.height],
             format: 'depth24plus',
             usage: GPUTextureUsage.RENDER_ATTACHMENT,
         });
-        let viewProjBindGroup = device.createBindGroup({
-            layout: viewProjBindGroupLayout,
-            entries: [
-                {
-                    binding: 0,
-                    resource: {
-                        buffer: this.m_globalsBuffer.GetGPUBuffer(),
-                    },
-                },
-                {
-                    binding: 1,
-                    resource: {
-                        buffer: this.m_renderer.GetMaterialsGPUBuffer(),
-                    },
-                },
-                {
-                    binding: 2,
-                    resource: {
-                        buffer: this.m_lightsBuffer.GetGPUBuffer(),
-                    },
-                }
-            ],
-        });
+        //		let viewProjBindGroup = device.createBindGroup({
+        //			layout: viewProjBindGroupLayout,
+        //			entries: [
+        //				{
+        //					binding: 0,
+        //					resource: {
+        //						buffer: this.m_globalsBuffer.GetGPUBuffer(),
+        //					},
+        //				},
+        //				{
+        //					binding: 1,
+        //					resource: {
+        //						buffer: this.m_renderer.GetMaterialsGPUBuffer(),
+        //					},
+        //				},
+        //				{
+        //					binding: 2,
+        //					resource: {
+        //						buffer: this.m_lightsBuffer.GetGPUBuffer(),
+        //					},
+        //				}
+        //			],
+        //		});
         let rpDescriptor = {
             colorAttachments: [
                 {
@@ -476,7 +520,7 @@ export class Application {
             },
         };
         // Bind Groups
-        let passBindGroup = new BindGroup(0, viewProjBindGroup);
+        let passBindGroup = this.GeneratePassBindGroup();
         // RenderPassDescriptor
         let renderPassDescriptor = new RenderPassDescriptor(rpDescriptor);
         // RenderPass: Opaque
@@ -494,7 +538,6 @@ export class Application {
                 this.m_globals.SetEyePosition(this.m_scene.GetCamera().GetPosition());
                 // Update the GPUBuffer
                 this.m_globalsBuffer.WriteData(this.m_globals.Data());
-                //				this.m_viewProjBuffer.WriteData(viewProjectionMatrix.buffer);
             }
         };
         this.m_renderer.AddRenderPass(renderPass);
@@ -502,13 +545,17 @@ export class Application {
         //
         // Layer: Terrain
         let terrain = new Terrain(10, 10);
-        renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, viewProjBindGroupLayout));
+        renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, this.m_passBindGroupLayout));
         // Layer: BasicObject
-        let basicObjectLayer = renderPass.AddRenderPassLayer(GetBasicObjectLayer(this.m_renderer, viewProjBindGroupLayout));
+        let basicObjectLayer = renderPass.AddRenderPassLayer(GetBasicObjectLayer(this.m_renderer, this.m_passBindGroupLayout));
         basicObjectLayer.AddMeshGroup("mg_basic-object");
         //  5. Construct the game objects and add them to the Scene
         let box = new BasicBox(this.m_renderer, this.m_scene);
         this.m_scene.AddGameObject(box);
+        // Add Lights to the scene
+        // NOTE: This needs to come after setting the lighting changed callbacks so that the 
+        // callbacks trigger when adding lights
+        this.m_scene.AddDirectionalLight("dir_light_1", [0, 0, -1], [1, 1, 1]);
         // DEBUG_ONLY
         this.m_renderer.EnableGPUTiming();
     }
@@ -544,10 +591,12 @@ export class Application {
     m_timingUI;
     m_scene;
     m_renderState;
+    m_passBindGroupLayout;
+    //	private m_passBindGroup: BindGroup;
     // Hold onto global data that will be bound once per pass
     m_globals;
     m_globalsBuffer;
-    m_lights;
+    //	private m_lights: Light[];
     m_lightsBuffer;
 }
 //# sourceMappingURL=Application.js.map

@@ -2,24 +2,24 @@ import { vec4, vec3 } from 'wgpu-matrix';
 import { HybridLookup } from "./Utils.js";
 import { InstanceBufferBasicWrite } from "./Buffer.js";
 export class Material {
-    constructor(_name, _diffuseAlbedo, _fresnelR0, _roughness) {
+    constructor(_name, _diffuseAlbedo, _fresnelR0, _shininess) {
         this.m_name = _name;
         this.m_data = new ArrayBuffer(Material.bytesPerMaterial);
         // The material is structured as follows:
         //		float4 diffuseAlbedo
         //		float3 fresnelR0
-        //		float  roughness
+        //		float  shininess
         this.m_diffuseAlbedoView = new Float32Array(this.m_data, 0, 4);
         this.m_fresnelR0View = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * 4, 3);
-        this.m_roughnessView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (4 + 3), 1);
+        this.m_shininessView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (4 + 3), 1);
         this.m_diffuseAlbedoView.set(_diffuseAlbedo);
         this.m_fresnelR0View.set(_fresnelR0);
-        this.m_roughnessView.set([_roughness]);
+        this.m_shininessView.set([_shininess]);
     }
     Name() { return this.m_name; }
     GetDiffuseAlbedo() { return this.m_diffuseAlbedoView; }
     GetFresnelR0() { return this.m_fresnelR0View; }
-    GetRoughness() { return this.m_roughnessView[0]; }
+    GetShininess() { return this.m_shininessView[0]; }
     SetDiffuseAlbedo(x, y, z, w) {
         this.m_diffuseAlbedoView[0] = x;
         this.m_diffuseAlbedoView[1] = y;
@@ -31,15 +31,15 @@ export class Material {
         this.m_fresnelR0View[1] = y;
         this.m_fresnelR0View[2] = z;
     }
-    SetRoughness(roughness) {
-        this.m_roughnessView[0] = roughness;
+    SetShininess(shininess) {
+        this.m_shininessView[0] = shininess;
     }
     Data() { return this.m_data; }
     m_name = "(unnamed)";
     m_data;
     m_diffuseAlbedoView;
     m_fresnelR0View;
-    m_roughnessView;
+    m_shininessView;
     diffuseAlbedo = vec4.create(1.0, 1.0, 1.0, 1.0);
     fresnelR0 = vec3.create(0.01, 0.01, 0.01);
     roughness = 0.25;

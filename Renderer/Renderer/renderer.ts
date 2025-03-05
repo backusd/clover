@@ -22,6 +22,10 @@ export class BindGroup
     }
     public GetGroupNumber(): number { return this.m_groupNumber; }
     public GetBindGroup(): GPUBindGroup { return this.m_bindGroup; }
+    public SetBindGroup(bindGroup: GPUBindGroup): void
+    {
+        this.m_bindGroup = bindGroup;
+    }
 
     private m_bindGroup: GPUBindGroup;
     private m_groupNumber: number;
@@ -764,6 +768,10 @@ export class RenderPass
     {
         this.m_bindGroups.push(bindGroup);
         return bindGroup;
+    }
+    public UpdateBindGroup(index: number, bindGroup: BindGroup): void
+    {
+        this.m_bindGroups[index] = bindGroup;
     }
     public AddRenderPassLayer(layer: RenderPassLayer): RenderPassLayer
     {

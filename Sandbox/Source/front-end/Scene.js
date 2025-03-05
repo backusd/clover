@@ -4,6 +4,91 @@ import { UniformBufferPool, InstanceBufferPool } from "./Buffer.js";
 import { Camera } from "./Camera.js";
 import { HybridLookup } from "./Utils.js";
 import { mat4, vec3 } from 'wgpu-matrix';
+export class Light {
+    // The light data is structured as follows:
+    //		vec3f	strength
+    //		f32		falloffStart
+    //		vec3f   direction
+    //		f32		falloffEnd
+    //		vec3f	position
+    //		f32		spotPower		
+    constructor(name) {
+        this.m_name = name;
+        this.m_data = new ArrayBuffer(Light.sizeInBytes);
+        this.m_strengthView = new Float32Array(this.m_data, 0, 3);
+        this.m_falloffStartView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3), 1);
+        this.m_directionView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1), 3);
+        this.m_falloffEndView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3), 1);
+        this.m_positionView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1), 3);
+        this.m_spotPowerView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1 + 3), 1);
+    }
+    Data() {
+        return this.m_data;
+    }
+    Name() {
+        return this.m_name;
+    }
+    m_data;
+    m_name;
+    m_strengthView;
+    m_falloffStartView;
+    m_directionView;
+    m_falloffEndView;
+    m_positionView;
+    m_spotPowerView;
+    static sizeInBytes = Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1 + 3 + 1);
+}
+export class DirectionalLight extends Light {
+    constructor(name) {
+        super(name);
+    }
+    SetDirection(direction) {
+        this.m_directionView.set(direction);
+    }
+    SetStrength(strength) {
+        this.m_strengthView.set(strength);
+    }
+}
+export class PointLight extends Light {
+    constructor(name) {
+        super(name);
+    }
+    SetPosition(position) {
+        this.m_positionView.set(position);
+    }
+    SetStrength(strength) {
+        this.m_strengthView.set(strength);
+    }
+    SetFalloffStart(start) {
+        this.m_falloffStartView[0] = start;
+    }
+    SetFalloffEnd(end) {
+        this.m_falloffEndView[0] = end;
+    }
+}
+export class SpotLight extends Light {
+    constructor(name) {
+        super(name);
+    }
+    SetStrength(strength) {
+        this.m_strengthView.set(strength);
+    }
+    SetDirection(direction) {
+        this.m_directionView.set(direction);
+    }
+    SetPosition(position) {
+        this.m_positionView.set(position);
+    }
+    SetFalloffStart(start) {
+        this.m_falloffStartView[0] = start;
+    }
+    SetFalloffEnd(end) {
+        this.m_falloffEndView[0] = end;
+    }
+    SetSpotPower(power) {
+        this.m_spotPowerView[0] = power;
+    }
+}
 export class InstanceManager {
     constructor(className, bytesPerInstance, renderer, renderItemName, meshGroupName, meshName, numberOfInstancesToAllocateFor = 2, RenderItemInitializationCallback = () => { }, OnBufferChangedCallback = () => { }) {
         this.m_className = className;
@@ -360,6 +445,11 @@ export class Scene {
     constructor() {
         this.m_camera = new Camera();
         this.m_gameObjects = new HybridLookup();
+        this.m_directionalLights = new HybridLookup();
+        this.m_pointLights = new HybridLookup();
+        this.m_spotLights = new HybridLookup();
+        this.OnLightsBufferNeedsRebuilding = (directionalLights, pointLights, spotLights) => { };
+        this.OnLightChanged = (index, light) => { };
     }
     Update(timeDelta) {
         // Update the Camera
@@ -391,8 +481,78 @@ export class Scene {
     RemoveGameObjectDelayed(name) {
         this.m_delayedObjectsToDelete.push(name);
     }
+    AddDirectionalLight(name, direction, strength) {
+        let light = new DirectionalLight(name);
+        light.SetDirection(direction);
+        light.SetStrength(strength);
+        let l = this.m_directionalLights.add(name, light);
+        this.OnLightsBufferNeedsRebuilding(this.m_directionalLights, this.m_pointLights, this.m_spotLights);
+        return l;
+    }
+    AddPointLight(name, position, strength, falloffStart, falloffEnd) {
+        let light = new PointLight(name);
+        light.SetPosition(position);
+        light.SetStrength(strength);
+        light.SetFalloffStart(falloffStart);
+        light.SetFalloffEnd(falloffEnd);
+        let l = this.m_pointLights.add(name, light);
+        this.OnLightsBufferNeedsRebuilding(this.m_directionalLights, this.m_pointLights, this.m_spotLights);
+        return l;
+    }
+    AddSpotLight(name, position, direction, strength, falloffStart, falloffEnd, spotPower) {
+        let light = new SpotLight(name);
+        light.SetPosition(position);
+        light.SetDirection(direction);
+        light.SetStrength(strength);
+        light.SetFalloffStart(falloffStart);
+        light.SetFalloffEnd(falloffEnd);
+        light.SetSpotPower(spotPower);
+        let l = this.m_spotLights.add(name, light);
+        this.OnLightsBufferNeedsRebuilding(this.m_directionalLights, this.m_pointLights, this.m_spotLights);
+        return l;
+    }
+    NumberOfDirectionalLights() { return this.m_directionalLights.size(); }
+    NumberOfPointLights() { return this.m_pointLights.size(); }
+    NumberOfSpotLights() { return this.m_spotLights.size(); }
+    RemoveDirectionalLight(name) {
+        this.m_directionalLights.removeFromKey(name);
+        this.OnLightsBufferNeedsRebuilding(this.m_directionalLights, this.m_pointLights, this.m_spotLights);
+    }
+    RemovePointLight(name) {
+        this.m_pointLights.removeFromKey(name);
+        this.OnLightsBufferNeedsRebuilding(this.m_directionalLights, this.m_pointLights, this.m_spotLights);
+    }
+    RemoveSpotLight(name) {
+        this.m_spotLights.removeFromKey(name);
+        this.OnLightsBufferNeedsRebuilding(this.m_directionalLights, this.m_pointLights, this.m_spotLights);
+    }
+    NotifyDirectionalLightChanged(name) {
+        let index = this.m_directionalLights.indexOfKey(name);
+        let light = this.m_directionalLights.getFromKey(name);
+        this.OnLightChanged(index, light);
+    }
+    NotifyPointLightChanged(name) {
+        let index = this.m_directionalLights.size() + this.m_directionalLights.indexOfKey(name);
+        let light = this.m_directionalLights.getFromKey(name);
+        this.OnLightChanged(index, light);
+    }
+    NotifySpotLightChanged(name) {
+        let index = this.m_directionalLights.size() + this.m_pointLights.size() + this.m_directionalLights.indexOfKey(name);
+        let light = this.m_directionalLights.getFromKey(name);
+        this.OnLightChanged(index, light);
+    }
     m_camera;
     m_gameObjects;
+    // Keep separate lists of all lights because they need to be sorted when we
+    // upload them to the GPUBuffer. The ordering will go direction lights, point
+    // lights, then spot lights
+    m_directionalLights;
+    m_pointLights;
+    m_spotLights;
+    // OnLightsBufferNeedsRebuilding is called anytime the entire GPUBuffer of lights should be re-built
+    OnLightsBufferNeedsRebuilding;
+    // OnLightChanged is called anytime the position (or any other data) for a light is changed - no need to rebuild buffers
+    OnLightChanged;
     m_delayedObjectsToDelete = [];
 }
 //# sourceMappingURL=Scene.js.map
