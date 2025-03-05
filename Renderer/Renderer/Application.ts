@@ -155,22 +155,12 @@ export class Application
 			this.m_globals.SetNumberOfSpotLights(spotLights.size());
 			this.m_globalsBuffer.WriteData(this.m_globals.Data());
 
-			LOG_TRACE(`OnLightsBufferNeedsRebuilding:`);
-			LOG_TRACE(`  directional lights = ${directionalLights.size()}`)
-			LOG_TRACE(`  point lights       = ${pointLights.size()}`)
-			LOG_TRACE(`  spot lights        = ${spotLights.size()}`)
-			LOG_TRACE(`Setting capacity = ${directionalLights.size() + pointLights.size() + spotLights.size()}`);
-
 			// Update the lighting GPUBuffer
 			this.m_lightsBuffer.SetCapacity(directionalLights.size() + pointLights.size() + spotLights.size());
 
 			let offset = 0;
 			for (let iii = 0; iii < directionalLights.size(); ++iii)
-			{
 				this.m_lightsBuffer.WriteData(iii + offset, directionalLights.getFromIndex(iii).Data());
-
-				LOG_TRACE(`Write [${iii}] = ${directionalLights.getFromIndex(iii).Data()}`);
-			}
 
 			offset = directionalLights.size();
 			for (let iii = 0; iii < pointLights.size(); ++iii)
@@ -191,6 +181,13 @@ export class Application
 			this.m_lightsBuffer.WriteData(index, light.Data());
 		};
 
+		// Set callback for when the material buffer changes
+		this.m_renderer.OnMaterialBufferChanged = (materialGroup: MaterialGroup): void =>
+		{
+			// Because the underlying GPUBuffer that holds the material data has changed
+			// we need to regenerate the bind group to reference the new GPUBuffer
+			this.UpdatePassBindGroup();
+		};
 
 
 
@@ -333,7 +330,9 @@ export class Application
 
 				// this.m_scene.RemoveGameObject("GameCube2:0");
 
-				this.m_scene.AddDirectionalLight("dir_light_2", [-1, 0, 0], [1, 0, 0]);
+				//this.m_scene.AddDirectionalLight("dir_light-2", [-1, 0, 0], [1, 0, 0]);
+				//this.m_scene.AddPointLight("pt_light-1", [4, 0, 0], [1, 1, 1], 3, 10);
+				//this.m_scene.AddSpotLight("spt_light-1", [3, 1, 0], [-1, 0, 0], [1, 1, 1], 2, 10, 8);
 
 				// Inject random cube
 			//	let cube = new GameCube2(this.m_renderer, this.m_scene);
@@ -503,68 +502,6 @@ export class Application
 		let device = this.m_renderer.GetDevice();
 		let context = this.m_renderer.GetContext();
 
-
-
-
-		// ====== Layers ==============================
-
-		// Terrain
-//		let terrain: Terrain = new Terrain(10, 10);
-//		renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, viewProjBindGroupLayout));
-//
-//		// Texture Cube
-//		let textureCube = new TextureCube();
-//		let textureCubeLayer = renderPass.AddRenderPassLayer(textureCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
-//
-//		// Texture Cube with Instancing
-//		let textureCubeInstancing = new TextureCubeInstancing();
-//		let textureCubeInstancingLayer = renderPass.AddRenderPassLayer(textureCubeInstancing.Initialize(this.m_renderer, viewProjBindGroupLayout));
-
-		// Solid Color Cube
-//		let colorCube = new ColorCube();
-//		let colorCubeLayer = renderPass.AddRenderPassLayer(colorCube.Initialize(this.m_renderer, viewProjBindGroupLayout));
-//		let colorCubeRI_2 = colorCubeLayer.CreateRenderItem("ri_color-cube-2", "mg_color-cube", "mesh_color-cube-2");
-//		let colorCubeRI_3 = colorCubeLayer.CreateRenderItem("ri_color-cube-3", "mg_color-cube", "mesh_color-cube-3");
-
-
-		// ============================================
-
-//		this.m_renderer.AddRenderPass(renderPass);
-
-
-
-
-
-
-
-		// Create the scene
-	//	let cube = new GameCube(this.m_renderer, this.m_scene);
-
-	//	let cube2 = new GameCube2(this.m_renderer, this.m_scene);
-	//	cube2.SetPosition([3, 0, 0]);
-	//	cube2.SetScaling([0.5, 0.5, 0.5]);
-	//
-		//	cube.AddChild(cube2);
-
-	//	let cube3 = new GameCube2(this.m_renderer, this.m_scene);
-	//	cube3.SetPosition([-3, 0, 0]);
-
-	//	this.m_scene.AddGameObject(cube);
-	//	this.m_scene.AddGameObject(cube2);
-		//	this.m_scene.AddGameObject(cube3);
-
-
-//		for (let iii = 0; iii < 100; ++iii)
-//		{
-//			let cube = new GameCube2(this.m_renderer, this.m_scene);
-//			cube.SetPosition([0, 1, 0]);
-//			cube.SetVelocity([5 * (Math.random() - 0.5), 0, 5 * (Math.random() - 0.5)]);
-//			this.m_scene.AddGameObject(cube);
-//		}
-
-
-
-
 		// =========================================================================
 		// Application Startup Process
 		//	1. Load all textures (asynchronously)
@@ -609,12 +546,10 @@ export class Application
 
 
 
-		// 3. Load all materials (asynchronously)
-		let mat1 = new Material("mat_test1", vec4.create(1.0, 1.0, 0.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
-		let mat2 = new Material("mat_test2", vec4.create(0.5, 0.5, 1.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
-		this.m_renderer.AddMaterial(mat1);
-		this.m_renderer.AddMaterial(mat2);
 
+
+
+		// 4. Construct the render passes and sublayers
 		const depthTexture = device.createTexture({
 			size: [this.m_canvas.width, this.m_canvas.height],
 			format: 'depth24plus',
@@ -677,6 +612,18 @@ export class Application
 		// Layer: BasicObject
 		let basicObjectLayer = renderPass.AddRenderPassLayer(GetBasicObjectLayer(this.m_renderer, this.m_passBindGroupLayout));
 		basicObjectLayer.AddMeshGroup("mg_basic-object");
+
+
+
+
+		// 3. Load all materials (asynchronously)
+		// NOTE: This needs to come AFTER creating the render passes because it will trigger the
+		//       OnMaterialBufferChanged callback which will try to look up the main render pass
+		let mat1 = new Material("mat_test1", vec4.create(1.0, 1.0, 0.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
+		let mat2 = new Material("mat_test2", vec4.create(0.5, 0.5, 1.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
+		this.m_renderer.AddMaterial(mat1);
+		this.m_renderer.AddMaterial(mat2);
+
 
 
 

@@ -412,6 +412,9 @@ export class BasicBox extends GameObject
 	private m_modelMatrixBuffer: UniformBufferPool;
 }
 
+
+
+
 export class GameCube extends GameObject
 {
 	constructor(renderer: Renderer, scene: Scene)

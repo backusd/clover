@@ -54,7 +54,9 @@ export class MaterialGroup {
             numMaterials = materials.length;
             materials.forEach(mat => { this.m_materials.add(mat.Name(), mat); });
         }
-        this.m_buffer = new InstanceBufferBasicWrite(device, Material.bytesPerMaterial, numMaterials, `buffer for MaterialGroup: ${name}`);
+        // Allocate at least enough space for one material
+        let numInstancesToAllocate = Math.max(1, numMaterials);
+        this.m_buffer = new InstanceBufferBasicWrite(device, Material.bytesPerMaterial, numInstancesToAllocate, `buffer for MaterialGroup: ${name}`);
         this.UpdateAllMaterials();
     }
     Name() { return this.m_name; }

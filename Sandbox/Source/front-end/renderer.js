@@ -826,7 +826,9 @@ export class Renderer {
             this.m_textures.removeFromIndex(nameOrIndex);
     }
     AddMaterial(material) {
-        return this.m_materialGroup.AddMaterial(material);
+        let m = this.m_materialGroup.AddMaterial(material);
+        this.OnMaterialBufferChanged(this.m_materialGroup);
+        return m;
     }
     RemoveMaterial(materialName) {
         LOG_CORE_ERROR(`Called Renderer::RemoveMaterial() for material name '${materialName}'.`);
@@ -851,8 +853,10 @@ export class Renderer {
     // and referenced later by 1+ render items
     m_textures;
     // The renderer holds all of the materials so that then can be looked up by the RenderPassLayer
-    // to for a MaterialGroup
+    // to for a MaterialGroup. Also need callbacks here so the client code can properly update
+    // any GPU buffers that may be referencing this code
     m_materialGroup;
+    OnMaterialBufferChanged = (materialGroup) => { };
     // GPU Timing state
     m_canComputeTimestamps;
     m_isComputingTimestamps = false;

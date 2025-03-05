@@ -1079,7 +1079,9 @@ export class Renderer
 
     public AddMaterial(material: Material): Material
     {
-        return this.m_materialGroup.AddMaterial(material);
+        let m = this.m_materialGroup.AddMaterial(material);
+        this.OnMaterialBufferChanged(this.m_materialGroup);
+        return m;
     }
     public RemoveMaterial(materialName: string): void
     {
@@ -1112,8 +1114,10 @@ export class Renderer
     private m_textures: HybridLookup<GPUTexture>;
 
     // The renderer holds all of the materials so that then can be looked up by the RenderPassLayer
-    // to for a MaterialGroup
+    // to for a MaterialGroup. Also need callbacks here so the client code can properly update
+    // any GPU buffers that may be referencing this code
     private m_materialGroup: MaterialGroup;
+    public OnMaterialBufferChanged: (materialGroup: MaterialGroup) => void = (materialGroup: MaterialGroup) => { };
 
     // GPU Timing state
     private m_canComputeTimestamps: boolean;
