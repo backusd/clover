@@ -45,6 +45,7 @@ import
 	GenerateQuadMesh
 } from "./GeometryGenerator.js"
 import { GetBasicObjectLayer } from "./BasicObjectLayer.js"
+import { GetLightsLayer } from "./LightsLayer.js"
 import { Material, MaterialGroup } from "./Material.js"
 import { HybridLookup } from "./Utils.js"
 
@@ -544,6 +545,12 @@ export class Application
 				0)
 		);
 
+		this.m_renderer.AddMeshGroup(
+			new MeshGroup("mg_lights", this.m_renderer.GetDevice(),
+				[sphereMesh],
+				0)
+		);
+
 
 
 
@@ -608,6 +615,10 @@ export class Application
 		// Layer: Terrain
 		let terrain: Terrain = new Terrain(10, 10);
 		renderPass.AddRenderPassLayer(terrain.Initialize(this.m_renderer, this.m_passBindGroupLayout));
+
+		// Layer: Lights
+		let lightsLayer = renderPass.AddRenderPassLayer(GetLightsLayer(this.m_renderer, this.m_passBindGroupLayout));
+		lightsLayer.AddMeshGroup("mg_lights");
 
 		// Layer: BasicObject
 		let basicObjectLayer = renderPass.AddRenderPassLayer(GetBasicObjectLayer(this.m_renderer, this.m_passBindGroupLayout));

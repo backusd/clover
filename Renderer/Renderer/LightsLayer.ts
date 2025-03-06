@@ -13,7 +13,7 @@ import { BasicObjectVertex } from "./VertexTypes.js"
 import { Material } from "./Material.js"
 
 
-export function GetBasicObjectLayer(renderer: Renderer, passBindGroupLayout: GPUBindGroupLayout): RenderPassLayer
+export function GetLightsLayer(renderer: Renderer, passBindGroupLayout: GPUBindGroupLayout): RenderPassLayer
 {
 	let device = renderer.GetDevice();
 
@@ -150,102 +150,6 @@ fn ComputeDirectionalLighting(light: Light, material: Material, normal: vec3f, t
     return BlinnPhong(lightStrength, lightVec, normal, toEye, material);
 }
 
-//---------------------------------------------------------------------------------------
-// Evaluates the lighting equation for point lights.
-//---------------------------------------------------------------------------------------
-fn ComputePointLighting(light: Light, material: Material, position: vec3f, normal: vec3f, toEye: vec3f) -> vec3f
-{
-    // The vector from the surface to the light.
-    var lightVec = light.position - position;
-
-    // The distance from surface to light.
-    let d = length(lightVec);
-
-    // Range test.
-    if(d > light.falloffEnd)
-    {
-        return vec3f(0.0f, 0.0f, 0.0f);
-    }
-
-    // Normalize the light vector.
-    lightVec /= d;
-
-    // Scale light down by Lambert's cosine law.
-    let ndotl = max(dot(lightVec, normal), 0.0f);
-    var lightStrength = light.strength * ndotl;
-
-    // Attenuate light by distance.
-    let att = CalcAttenuation(d, light.falloffStart, light.falloffEnd);
-    lightStrength *= att;
-
-    return BlinnPhong(lightStrength, lightVec, normal, toEye, material);
-}
-
-//---------------------------------------------------------------------------------------
-// Evaluates the lighting equation for spot lights.
-//---------------------------------------------------------------------------------------
-fn ComputeSpotLighting(light: Light, material: Material, position: vec3f, normal: vec3f, toEye: vec3f) -> vec3f
-{
-    // The vector from the surface to the light.
-    var lightVec = light.position - position;
-
-    // The distance from surface to light.
-    let d = length(lightVec);
-
-    // Range test.
-    if(d > light.falloffEnd)
-    {
-        return vec3f(0.0f, 0.0f, 0.0f);
-    }
-
-    // Normalize the light vector.
-    lightVec /= d;
-
-    // Scale light down by Lambert's cosine law.
-    let ndotl = max(dot(lightVec, normal), 0.0f);
-    var lightStrength = light.strength * ndotl;
-
-    // Attenuate light by distance.
-    let att = CalcAttenuation(d, light.falloffStart, light.falloffEnd);
-    lightStrength *= att;
-
-    // Scale by spotlight
-    let spotFactor = pow(max(dot(-lightVec, light.direction), 0.0f), light.spotPower);
-    lightStrength *= spotFactor;
-
-    return BlinnPhong(lightStrength, lightVec, normal, toEye, material);
-}
-
-fn ComputeLighting(material: Material, position: vec3f, normal: vec3f, toEye: vec3f, shadowFactor: vec3f) -> vec4f
-{
-	var result = vec3f(0.0, 0.0, 0.0);
-
-	// It is going to be assumed that the lights are sorted such that
-	// all directional lights are first, then point lights, then spot lights
-	var start = 0u;
-	var end = globals.numberOfDirectionalLights;
-	for (var iii = start; iii < end; iii++)
-	{
-		result += ComputeDirectionalLighting(lights[iii], material, normal, toEye);
-	}
-
-	start = globals.numberOfDirectionalLights;
-	end = globals.numberOfDirectionalLights + globals.numberOfPointLights;
-	for (var iii = start; iii < end; iii++)
-	{
-		result += ComputePointLighting(lights[iii], material, position, normal, toEye);
-	}
-
-	start = globals.numberOfDirectionalLights + globals.numberOfPointLights;
-	end = globals.numberOfDirectionalLights + globals.numberOfPointLights + globals.numberOfSpotLights;
-	for (var iii = start; iii < end; iii++)
-	{
-		result += ComputeSpotLighting(lights[iii], material, position, normal, toEye);
-	}
-
-	return vec4f(result, 0.0);
-}
-
 @fragment
 fn fragment_main(input: VertexOutput) -> @location(0) vec4f
 {
@@ -261,10 +165,10 @@ fn fragment_main(input: VertexOutput) -> @location(0) vec4f
 	// Indirect lighting
 	let ambient = globals.ambientLight * material.diffuseAlbedo;
 
-	let shadowFactor = vec3f(1.0, 1.0, 1.0);
-	let directLight = ComputeLighting(material, input.positionW, normalW, toEye, shadowFactor);
+	let light = Light(vec3f(0.3, 0.3, 0.3), 0, vec3f(0, 0, -1), 0, vec3f(0, 0, 0), 0);
+	let directLight = ComputeDirectionalLighting(light, material, normalW, toEye);
 
-	var litColor = ambient + directLight;
+	var litColor = ambient + vec4f(directLight, 0.0);
 
 	// Common convention to take the alpha from the diffuse material
 	litColor.a = material.diffuseAlbedo.a;
@@ -274,12 +178,10 @@ fn fragment_main(input: VertexOutput) -> @location(0) vec4f
 `
 	});
 
-
-
 	// Bind group layout for the RenderItem
 	let renderItemBindGroupLayout: GPUBindGroupLayout = device.createBindGroupLayout(
 		{
-			label: "bgl_basic-object",
+			label: "bgl_lights",
 			entries: [
 				{
 					binding: 0,
@@ -288,32 +190,23 @@ fn fragment_main(input: VertexOutput) -> @location(0) vec4f
 						type: "uniform",
 						minBindingSize: Float32Array.BYTES_PER_ELEMENT * (16 + 4) // BEST PRACTICE to always set this
 					}
-				},
-//				{
-//					binding: 1,
-//					visibility: GPUShaderStage.FRAGMENT,
-//					sampler: {}
-//				},
-//				{
-//					binding: 2,
-//					visibility: GPUShaderStage.FRAGMENT,
-//					texture: {}
-//				}
+				}
 			]
 		}
 	);
+
 	let renderItemBindGroupLayoutGroupNumber = 1;
 
 	let layoutDescriptor: GPUPipelineLayoutDescriptor = {
-		label: "ld_basic-object",
+		label: "ld_lights",
 		bindGroupLayouts: [passBindGroupLayout, renderItemBindGroupLayout]
 	};
 	let pipelineLayout: GPUPipelineLayout = device.createPipelineLayout(layoutDescriptor);
-	pipelineLayout.label = "pl_basic-object";
+	pipelineLayout.label = "pl_lights";
 
 	// Create the pipeline
 	let pipeline = device.createRenderPipeline({
-		label: "rp_basic-object",
+		label: "rp_lights",
 		layout: pipelineLayout,
 		vertex: {
 			module,
@@ -368,7 +261,7 @@ fn fragment_main(input: VertexOutput) -> @location(0) vec4f
 		},
 	});
 
-	return new RenderPassLayer("rpl_basic-object", renderer, pipeline,
+	return new RenderPassLayer("rpl_lights", renderer, pipeline,
 		null, undefined,													// Bind group details for the Layer
 		renderItemBindGroupLayout, renderItemBindGroupLayoutGroupNumber);	// Bind group details for RenderItems
 }
