@@ -1,4 +1,4 @@
-import { LOG_CORE_WARN, LOG_CORE_ERROR } from "./Log.js";
+import { LOG_CORE_TRACE, LOG_CORE_WARN, LOG_CORE_ERROR } from "./Log.js";
 import { HybridLookup } from "./Utils.js";
 import { MaterialGroup } from "./Material.js";
 export class BindGroup {
@@ -47,6 +47,7 @@ export class RenderItem {
         return this.m_bindGroups.updateFromKey(name, bindGroup);
     }
     Render(encoder) {
+        LOG_CORE_TRACE(`--------RenderItem['${this.m_name}']::Render()`);
         if (this.m_isActive) {
             this.PreRender();
             // Set all RenderItem specific bind groups
@@ -54,12 +55,18 @@ export class RenderItem {
             for (let iii = 0; iii < this.m_bindGroups.size(); ++iii) {
                 let bg = this.m_bindGroups.getFromIndex(iii);
                 encoder.setBindGroup(bg.GetGroupNumber(), bg.GetBindGroup());
+                if (this.m_name === "DirectionalLight_0") {
+                    LOG_CORE_TRACE(`BindGroup #${bg.GetGroupNumber()}`);
+                }
             }
             if (this.m_meshDescriptor.indexCount === undefined) {
                 encoder.draw(this.m_meshDescriptor.vertexCount, this.m_instanceCount, this.m_meshDescriptor.startVertex, this.m_startInstance);
             }
             else {
                 encoder.drawIndexed(this.m_meshDescriptor.indexCount, this.m_instanceCount, this.m_meshDescriptor.startIndex, this.m_meshDescriptor.startVertex, this.m_startInstance);
+                if (this.m_name === "DirectionalLight_0") {
+                    LOG_CORE_TRACE(`DrawIndexed: index count = ${this.m_meshDescriptor.indexCount} | instance count = ${this.m_instanceCount} | start index = ${this.m_meshDescriptor.startIndex} | start vertex = ${this.m_meshDescriptor.startVertex} | start instance = ${this.m_startInstance}`);
+                }
             }
         }
     }
@@ -332,6 +339,7 @@ export class MeshGroup {
         }
     }
     Render(encoder) {
+        LOG_CORE_TRACE(`------MeshGroup['${this.m_name}']::Render()`);
         if (!this.HasActiveRenderItem())
             return;
         // DEBUG_ONLY
@@ -506,6 +514,7 @@ export class RenderPassLayer {
         return this.m_renderItemBindGroupLayoutGroupNumber;
     }
     Render(passEncoder) {
+        LOG_CORE_TRACE(`----RendererPassLayer['${this.m_name}']::Render()`);
         // DEBUG_ONLY
         passEncoder.pushDebugGroup(`Render Pass Layer: ${this.m_name}`);
         // Set the pipeline
@@ -609,6 +618,7 @@ export class RenderPass {
         return this.m_layers.getFromIndex(nameOrIndex);
     }
     Render(device, context, encoder) {
+        LOG_CORE_TRACE(`--RendererPass['${this.m_name}']::Render()`);
         // Prepare is a user-defined callback to make any final adjustments to the descriptor
         // before recording render commands. The default case is to set the TextureView for
         // the first colorAttachment for the current canvas context
@@ -724,6 +734,7 @@ export class Renderer {
         this.m_materialGroup = new MaterialGroup("matgrp_main", device, null);
     }
     Render() {
+        LOG_CORE_TRACE("Renderer::Render()");
         // Must create a new command encoder for each frame. GPUCommandEncoder is 
         // specifically designed to not be reusable.
         let commandEncoder = this.m_device.createCommandEncoder({ label: "Renderer command encoder" });

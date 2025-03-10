@@ -1,10 +1,11 @@
 import { RenderPassLayer } from "./Renderer.js";
 import { BasicObjectVertex } from "./VertexTypes.js";
+import { ModelData } from "./Scene2.js";
 export function GetLightsLayer(renderer, passBindGroupLayout) {
     let device = renderer.GetDevice();
     // Create the shader
     const module = device.createShaderModule({
-        label: 'sm_basic-object',
+        label: 'sm_lights',
         code: `
 struct Globals
 {
@@ -48,19 +49,20 @@ struct Vertex
 @group(0) @binding(0) var<uniform> globals : Globals;
 @group(0) @binding(1) var<storage, read> materials: array<Material>;
 
-@group(1) @binding(0) var<uniform> modelDetails: ModelDetails;
+@group(1) @binding(0) var<storage, read> modelDetails: array<ModelDetails>;
 
 struct VertexOutput
 {
 	@builtin(position) position : vec4f,
 	@location(0) positionW: vec3f,
 	@location(1) normalW : vec3f,
+	@location(2) @interpolate(flat) materialIndex: u32
 }
 
 @vertex
-fn vertex_main(vertex: Vertex) -> VertexOutput
+fn vertex_main(vertex: Vertex, @builtin(instance_index) instance: u32) -> VertexOutput
 {
-	let world = modelDetails.modelMatrix;
+	let world = modelDetails[instance].modelMatrix;
 
 	// Transform to world space.
 	let posW4 = world * vec4f(vertex.position, 1);
@@ -72,7 +74,7 @@ fn vertex_main(vertex: Vertex) -> VertexOutput
 	// Transform to homogeneous clip space.
 	let posH = globals.viewProj * posW4;
 
-	return VertexOutput(posH, posW, normal);
+	return VertexOutput(posH, posW, normal, modelDetails[instance].materialIndex);
 }
 
 
@@ -139,7 +141,7 @@ fn ComputeDirectionalLighting(light: Light, material: Material, normal: vec3f, t
 fn fragment_main(input: VertexOutput) -> @location(0) vec4f
 {
 	// Look up the material
-	let material = materials[modelDetails.materialIndex];
+	let material = materials[input.materialIndex];
 
 	// Interpolating normal can unnormalize it, so renormalize it.
 	let normalW = normalize(input.normalW);
@@ -168,10 +170,10 @@ fn fragment_main(input: VertexOutput) -> @location(0) vec4f
         entries: [
             {
                 binding: 0,
-                visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+                visibility: GPUShaderStage.VERTEX,
                 buffer: {
-                    type: "uniform",
-                    minBindingSize: Float32Array.BYTES_PER_ELEMENT * (16 + 4) // BEST PRACTICE to always set this
+                    type: "read-only-storage",
+                    minBindingSize: ModelData.sizeInBytes // BEST PRACTICE to always set this
                 }
             }
         ]

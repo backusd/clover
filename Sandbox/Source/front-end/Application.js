@@ -69,7 +69,7 @@ export class Application {
         this.m_keyboardState = new KeyBoardState();
         this.m_renderer = renderer;
         this.m_canvas = canvas;
-        this.m_scene = new Scene();
+        this.m_scene = new Scene(this.m_renderer);
         this.m_renderState = new RenderState();
         this.m_renderState.UpdateProjectionMatrix(canvas.width, canvas.height);
         this.m_globals = new Globals();
@@ -400,7 +400,7 @@ export class Application {
         let gridMesh = GenerateGridMesh("mesh_grid", 2, 3, 2, 3);
         let quadMesh = GenerateQuadMesh("mesh_quad", 1, 1, 1, 1, 1);
         this.m_renderer.AddMeshGroup(new MeshGroup("mg_game-object", this.m_renderer.GetDevice(), [boxMesh, sphereMesh, geosphereMesh, cylinderMesh, gridMesh, quadMesh], 0));
-        this.m_renderer.AddMeshGroup(new MeshGroup("mg_lights", this.m_renderer.GetDevice(), [sphereMesh], 0));
+        this.m_renderer.AddMeshGroup(new MeshGroup("mg_lights", this.m_renderer.GetDevice(), [boxMesh, sphereMesh, cylinderMesh], 0));
         // 4. Construct the render passes and sublayers
         const depthTexture = device.createTexture({
             size: [this.m_canvas.width, this.m_canvas.height],
@@ -465,7 +465,7 @@ export class Application {
         this.m_renderer.AddMaterial(mat2);
         //  5. Construct the game objects and add them to the Scene
         let sphere = new Sphere(this.m_renderer, this.m_scene);
-        this.m_scene.AddGameObject(sphere);
+        this.m_scene.AddSceneObject(sphere);
         // Add Lights to the scene
         // NOTE: This needs to come after setting the lighting changed callbacks so that the 
         // callbacks trigger when adding lights

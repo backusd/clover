@@ -26,10 +26,11 @@ import
 import { Mat4, Vec3, Vec4, mat4, vec3, vec4 } from 'wgpu-matrix';
 import { HybridLookup } from "./Utils.js"
 import { Camera } from "./Camera.js";
+import { Material, MaterialGroup } from "./Material.js"
 
 
 
-class ModelData
+export class ModelData
 {
 	// The model data for each object is structured as follows:
 	//		mat4x4f modelMatrix
@@ -71,197 +72,6 @@ class ModelData
 
 	static sizeInBytes = Float32Array.BYTES_PER_ELEMENT * (16 + 4);
 }
-
-
-export class Light
-{
-	// The light data is structured as follows:
-	//		vec3f	strength
-	//		f32		falloffStart
-	//		vec3f   direction
-	//		f32		falloffEnd
-	//		vec3f	position
-	//		f32		spotPower		
-//	constructor(name: string, renderer: Renderer, scene: Scene)
-	constructor(name: string)
-	{
-//		// Each Light will own its own material, see create it first
-//		let materialName = `mat_light=${name}`;
-//		let material = new Material(materialName, vec4.create(1.0, 1.0, 1.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
-//		renderer.AddMaterial(material)
-//
-//		// Calling the base class constructor must come second because it needs to be able to look up the material
-//		super(name, renderer, scene, materialName);
-//
-//		this.m_material = material;
-//		this.m_materialName = materialName;
-
-		this.m_data = new ArrayBuffer(Light.sizeInBytes);
-		this.m_strengthView = new Float32Array(this.m_data, 0, 3);
-		this.m_falloffStartView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3), 1);
-		this.m_directionView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1), 3);
-		this.m_falloffEndView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3), 1);
-		this.m_positionView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1), 3);
-		this.m_spotPowerView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1 + 3), 1);
-
-
-//		let device = this.m_renderer.GetDevice();
-//
-//		// Create a render item for the cube
-//		this.m_renderItem = renderer.CreateRenderItem("ri_game-cube", "mg_basic-object", "mesh_geosphere");
-//
-//		// Create the model buffer
-//		this.m_modelMatrixBuffer = new UniformBufferPool(device,
-//			Float32Array.BYTES_PER_ELEMENT * (16 + 4),	// 16 for the model matrix (mat4x4) & 1 for the material index
-//			"buffer_basic-box-model-matrix");
-//
-//		// Get the BindGroupLayout that the mesh group uses
-//		let meshGroup = renderer.GetMeshGroup("mg_basic-object");
-//		let bindGroupLayout = meshGroup.GetRenderItemBindGroupLayout();
-//		if (bindGroupLayout === null)
-//		{
-//			let msg = "BasicBox::constructor() failed because meshGroup.GetRenderItemBindGroupLayout() returned null";
-//			LOG_ERROR(msg);
-//			throw Error(msg);
-//		}
-//		let bindGroupLayoutGroupNumber = meshGroup.GetRenderItemBindGroupLayoutGroupNumber();
-//
-//		//		// Get the GPUTexture
-//		//		let cubeTexture = renderer.GetTexture("tex_molecule");
-//
-//		//		// Create the sampler
-//		//		const sampler = device.createSampler({
-//		//			magFilter: 'linear',
-//		//			minFilter: 'linear',
-//		//		});
-//
-//
-//		let boxBindGroup = device.createBindGroup({
-//			layout: bindGroupLayout,
-//			entries: [
-//				{
-//					binding: 0,
-//					resource: {
-//						buffer: this.m_modelMatrixBuffer.GetGPUBuffer()
-//					}
-//				},
-//				//				{
-//				//					binding: 1,
-//				//					resource: sampler,
-//				//				},
-//				//				{
-//				//					binding: 2,
-//				//					resource: cubeTexture.createView(),
-//				//				},
-//			],
-//		});
-//
-//		this.m_renderItem.AddBindGroup("bg_basic-box", new BindGroup(bindGroupLayoutGroupNumber, boxBindGroup));
-	}
-//	public Destruct(): void { }
-//	public UpdatePhysics(timeDelta: number, parentModelMatrix: Mat4): void
-//	{
-//
-//	}
-//	public UpdateGPU(): void
-//	{
-//
-//	}
-
-	public Data(): ArrayBuffer
-	{
-		return this.m_data;
-	}
-
-
-	private m_data: ArrayBuffer;
-
-	protected m_strengthView: Float32Array;
-	protected m_falloffStartView: Float32Array;
-	protected m_directionView: Float32Array;
-	protected m_falloffEndView: Float32Array;
-	protected m_positionView: Float32Array;
-	protected m_spotPowerView: Float32Array;
-
-//	protected m_materialName: string;
-//	protected m_material: Material;
-//
-//	private m_renderItem: RenderItem;
-//	private m_modelMatrixBuffer: UniformBufferPool;
-
-	static sizeInBytes = Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1 + 3 + 1);
-}
-export class DirectionalLight extends Light
-{
-	constructor(name: string)
-	{
-		super(name);
-	}
-	public SetDirection(direction: Vec3): void
-	{
-		this.m_directionView.set(direction);
-	}
-	public SetStrength(strength: Vec3): void
-	{
-		this.m_strengthView.set(strength);
-	}
-}
-export class PointLight extends Light
-{
-	constructor(name: string)
-	{
-		super(name);
-	}
-	public SetPosition(position: Vec3): void
-	{
-		this.m_positionView.set(position);
-	}
-	public SetStrength(strength: Vec3): void
-	{
-		this.m_strengthView.set(strength);
-	}
-	public SetFalloffStart(start: number): void
-	{
-		this.m_falloffStartView[0] = start;
-	}
-	public SetFalloffEnd(end: number): void
-	{
-		this.m_falloffEndView[0] = end;
-	}
-}
-export class SpotLight extends Light
-{
-	constructor(name: string)
-	{
-		super(name);
-	}
-	public SetStrength(strength: Vec3): void
-	{
-		this.m_strengthView.set(strength);
-	}
-	public SetDirection(direction: Vec3): void
-	{
-		this.m_directionView.set(direction);
-	}
-	public SetPosition(position: Vec3): void
-	{
-		this.m_positionView.set(position);
-	}
-	public SetFalloffStart(start: number): void
-	{
-		this.m_falloffStartView[0] = start;
-	}
-	public SetFalloffEnd(end: number): void
-	{
-		this.m_falloffEndView[0] = end;
-	}
-	public SetSpotPower(power: number): void
-	{
-		this.m_spotPowerView[0] = power;
-	}
-}
-
-
 
 class InstanceManager
 {
@@ -579,9 +389,6 @@ export abstract class GameObject extends SceneObject
 		return new BindGroup(bindGroupLayoutGroupNumber, cubeBindGroup);
 	}
 }
-
-
-
 export class Sphere extends GameObject
 {
 	constructor(renderer: Renderer, scene: Scene)
@@ -599,12 +406,188 @@ export class Sphere extends GameObject
 }
 
 
+
+export abstract class Light extends SceneObject
+{
+	// The light data is structured as follows:
+	//		vec3f	strength
+	//		f32		falloffStart
+	//		vec3f   direction
+	//		f32		falloffEnd
+	//		vec3f	position
+	//		f32		spotPower
+
+	private static s_allTimeInstanceNumber: number = 0;
+	constructor(derivedClassName: string, renderer: Renderer, scene: Scene, meshName: string)
+	{
+		// Each Light will own its own material, so create it first
+		let materialName = `light_material=${derivedClassName}_${Light.s_allTimeInstanceNumber}`;
+		let material = new Material(materialName, vec4.create(1.0, 1.0, 1.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
+		renderer.AddMaterial(material)
+
+		Light.s_allTimeInstanceNumber++;
+
+		// Get the mesh group for the lights layer
+		let meshGroup = renderer.GetMeshGroup("mg_lights");
+		
+		// Calling the base class constructor must come second because it needs to be able to look up the material
+		super(derivedClassName, renderer, scene, meshGroup, meshName, materialName);
+		
+		this.m_material = material;
+		this.m_materialName = materialName;
+
+		this.m_data = new ArrayBuffer(Light.sizeInBytes);
+		this.m_strengthView = new Float32Array(this.m_data, 0, 3);
+		this.m_falloffStartView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3), 1);
+		this.m_directionView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1), 3);
+		this.m_falloffEndView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3), 1);
+		this.m_positionView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1), 3);
+		this.m_spotPowerView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1 + 3), 1);
+	}
+	public GenerateBindGroup(buffer: GPUBuffer): BindGroup
+	{
+		let device = this.m_renderer.GetDevice();
+
+		// Get the BindGroupLayout that the mesh group uses
+		let bindGroupLayout = this.m_meshGroup.GetRenderItemBindGroupLayout();
+		if (bindGroupLayout === null)
+		{
+			let msg = `Light::GenerateBindGroup() failed for 'bg_${this.m_derivedClassName}' because m_meshGroup.GetRenderItemBindGroupLayout() returned null`;
+			LOG_CORE_ERROR(msg);
+			throw Error(msg);
+		}
+		let bindGroupLayoutGroupNumber = this.m_meshGroup.GetRenderItemBindGroupLayoutGroupNumber();
+
+		// Create the BindGroup
+		let cubeBindGroup = device.createBindGroup({
+			layout: bindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: {
+						buffer: buffer
+					}
+				}
+			],
+		});
+
+		return new BindGroup(bindGroupLayoutGroupNumber, cubeBindGroup);
+	}
+
+	public Data(): ArrayBuffer
+	{
+		return this.m_data;
+	}
+
+
+	private m_data: ArrayBuffer;
+
+	protected m_strengthView: Float32Array;
+	protected m_falloffStartView: Float32Array;
+	protected m_directionView: Float32Array;
+	protected m_falloffEndView: Float32Array;
+	protected m_positionView: Float32Array;
+	protected m_spotPowerView: Float32Array;
+
+	protected m_materialName: string;
+	protected m_material: Material;
+
+	static sizeInBytes = Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1 + 3 + 1);
+}
+export class DirectionalLight extends Light
+{
+	constructor(renderer: Renderer, scene: Scene)
+	{
+		super("DirectionalLight", renderer, scene, "mesh_box");
+	}
+	public UpdatePhysics(timeDelta: number, parentModelMatrix: Mat4, parentMatrixIsDirty: boolean): void
+	{
+	}
+	public SetDirection(direction: Vec3): void
+	{
+		this.m_directionView.set(direction);
+	}
+	public SetStrength(strength: Vec3): void
+	{
+		this.m_strengthView.set(strength);
+	}
+}
+export class PointLight extends Light
+{
+	constructor(renderer: Renderer, scene: Scene)
+	{
+		super("PointLight", renderer, scene, "mesh_sphere");
+	}
+	public UpdatePhysics(timeDelta: number, parentModelMatrix: Mat4, parentMatrixIsDirty: boolean): void
+	{
+	}
+	public SetPosition(position: Vec3): void
+	{
+		// Need to call super.SetPosition() so the model matrix gets updated
+		super.SetPosition(position);
+		this.m_positionView.set(position);
+	}
+	public SetStrength(strength: Vec3): void
+	{
+		this.m_strengthView.set(strength);
+	}
+	public SetFalloffStart(start: number): void
+	{
+		this.m_falloffStartView[0] = start;
+	}
+	public SetFalloffEnd(end: number): void
+	{
+		this.m_falloffEndView[0] = end;
+	}
+}
+export class SpotLight extends Light
+{
+	constructor(renderer: Renderer, scene: Scene)
+	{
+		super("SpotLight", renderer, scene, "mesh_cylinder");
+	}
+	public UpdatePhysics(timeDelta: number, parentModelMatrix: Mat4, parentMatrixIsDirty: boolean): void
+	{
+	}
+	public SetStrength(strength: Vec3): void
+	{
+		this.m_strengthView.set(strength);
+	}
+	public SetDirection(direction: Vec3): void
+	{
+		this.m_directionView.set(direction);
+	}
+	public SetPosition(position: Vec3): void
+	{
+		// Need to call super.SetPosition() so the model matrix gets updated
+		super.SetPosition(position);
+		this.m_positionView.set(position);
+	}
+	public SetFalloffStart(start: number): void
+	{
+		this.m_falloffStartView[0] = start;
+	}
+	public SetFalloffEnd(end: number): void
+	{
+		this.m_falloffEndView[0] = end;
+	}
+	public SetSpotPower(power: number): void
+	{
+		this.m_spotPowerView[0] = power;
+	}
+}
+
+
+
+
+
 export class Scene
 {
-	constructor()
+	constructor(renderer: Renderer)
 	{
+		this.m_renderer = renderer;
 		this.m_camera = new Camera();
-		this.m_gameObjects = new HybridLookup<GameObject>();
+		this.m_sceneObjects = new HybridLookup<SceneObject>();
 
 		this.m_directionalLights = new HybridLookup<DirectionalLight>();
 		this.m_pointLights = new HybridLookup<PointLight>();
@@ -621,31 +604,31 @@ export class Scene
 
 		// Update the game objects. First do a physics update, and then write the results to the GPU
 		const identity = mat4.identity();
-		let numObjects = this.m_gameObjects.size();
+		let numObjects = this.m_sceneObjects.size();
 		for (let iii = 0; iii < numObjects; ++iii)
-			this.m_gameObjects.getFromIndex(iii).UpdatePhysicsImpl(timeDelta, identity, false);
+			this.m_sceneObjects.getFromIndex(iii).UpdatePhysicsImpl(timeDelta, identity, false);
 
 		// During the update, some objects may have requested a delete, but it is unsafe for
 		// them to be deleted during the update. So instead, we add them to a list and delete
 		// them here.
-		this.m_delayedObjectsToDelete.forEach(val => { this.RemoveGameObject(val); })
+		this.m_delayedObjectsToDelete.forEach(val => { this.RemoveSceneObject(val); })
 		this.m_delayedObjectsToDelete.length = 0;
 
 		// It is possible game objects will have disappeared after doing the physics update,
 		// so you need to start from scratch
-		numObjects = this.m_gameObjects.size();
+		numObjects = this.m_sceneObjects.size();
 		for (let iii = 0; iii < numObjects; ++iii)
-			this.m_gameObjects.getFromIndex(iii).UpdateGPU();
+			this.m_sceneObjects.getFromIndex(iii).UpdateGPU();
 	}
 	public GetCamera(): Camera { return this.m_camera; }
-	public AddGameObject(object: GameObject): GameObject
+	public AddSceneObject(object: GameObject): GameObject
 	{
-		return this.m_gameObjects.add(object.Name(), object);
+		return this.m_sceneObjects.add(object.Name(), object);
 	}
-	public RemoveGameObject(name: string): void
+	public RemoveSceneObject(name: string): void
 	{
-		this.m_gameObjects.getFromKey(name).Destruct();
-		this.m_gameObjects.removeFromKey(name);
+		this.m_sceneObjects.getFromKey(name).Destruct();
+		this.m_sceneObjects.removeFromKey(name);
 	}
 	public RemoveGameObjectDelayed(name: string): void
 	{
@@ -654,28 +637,43 @@ export class Scene
 
 	public AddDirectionalLight(name: string, direction: Vec3, strength: Vec3): DirectionalLight
 	{
-		let light = new DirectionalLight(name);
+		let light = new DirectionalLight(this.m_renderer, this);		 
 		light.SetDirection(direction);
 		light.SetStrength(strength);
+
+		// Setting the position/rotation is only relevant for rendering the light's mesh during debugging/editing
+		// In those cases, we don't want it in the middle of the scene, so we normalize the direction and
+		// then move it off to the side of the scene. For example, if the direction is [1, 0, 0], then we
+		// want it located at [-10, 0, 0] but oriented towards [1, 0, 0].
+		light.SetPosition(vec3.scale(vec3.normalize(direction), -10));
+
 		let l = this.m_directionalLights.add(name, light);
 		this.OnLightsBufferNeedsRebuilding(this.m_directionalLights, this.m_pointLights, this.m_spotLights);
+
+		// Finally, add the light to the scene as well
+		this.AddSceneObject(l);
+
 		return l;
 	}
 	public AddPointLight(name: string, position: Vec3, strength: Vec3, falloffStart: number, falloffEnd: number): PointLight
 	{
-		let light = new PointLight(name);
+		let light = new PointLight(this.m_renderer, this);
 		light.SetPosition(position);
 		light.SetStrength(strength);
 		light.SetFalloffStart(falloffStart);
 		light.SetFalloffEnd(falloffEnd);
 		let l = this.m_pointLights.add(name, light);
 		this.OnLightsBufferNeedsRebuilding(this.m_directionalLights, this.m_pointLights, this.m_spotLights);
+
+		// Finally, add the light to the scene as well
+		this.AddSceneObject(l);
+
 		return l;
 	}
-	public AddSpotLight(name: string, position: Vec3, direction: Vec3, strength: Vec3,
-		falloffStart: number, falloffEnd: number, spotPower: number): SpotLight
+	public AddSpotLight(name: string, position: Vec3, direction: Vec3, strength: Vec3, falloffStart: number,
+		falloffEnd: number, spotPower: number): SpotLight
 	{
-		let light = new SpotLight(name);
+		let light = new SpotLight(this.m_renderer, this);
 		light.SetPosition(position);
 		light.SetDirection(direction);
 		light.SetStrength(strength);
@@ -684,6 +682,10 @@ export class Scene
 		light.SetSpotPower(spotPower);
 		let l = this.m_spotLights.add(name, light);
 		this.OnLightsBufferNeedsRebuilding(this.m_directionalLights, this.m_pointLights, this.m_spotLights);
+
+		// Finally, add the light to the scene as well
+		this.AddSceneObject(l);
+
 		return l;
 	}
 	public NumberOfDirectionalLights(): number { return this.m_directionalLights.size(); }
@@ -728,9 +730,9 @@ export class Scene
 
 
 
-
+	private m_renderer: Renderer;
 	private m_camera: Camera;
-	private m_gameObjects: HybridLookup<GameObject>;
+	private m_sceneObjects: HybridLookup<SceneObject>;
 
 	// Keep separate lists of all lights because they need to be sorted when we
 	// upload them to the GPUBuffer. The ordering will go direction lights, point

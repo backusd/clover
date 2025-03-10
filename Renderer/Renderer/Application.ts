@@ -126,7 +126,7 @@ export class Application
 		this.m_keyboardState = new KeyBoardState();
 		this.m_renderer = renderer;
 		this.m_canvas = canvas;
-		this.m_scene = new Scene();
+		this.m_scene = new Scene(this.m_renderer);
 		this.m_renderState = new RenderState();
 		this.m_renderState.UpdateProjectionMatrix(canvas.width, canvas.height);
 
@@ -545,7 +545,7 @@ export class Application
 
 		this.m_renderer.AddMeshGroup(
 			new MeshGroup("mg_lights", this.m_renderer.GetDevice(),
-				[sphereMesh],
+				[boxMesh, sphereMesh, cylinderMesh],
 				0)
 		);
 
@@ -639,7 +639,7 @@ export class Application
 		//  5. Construct the game objects and add them to the Scene
 		let sphere = new Sphere(this.m_renderer, this.m_scene);
 
-		this.m_scene.AddGameObject(sphere);
+		this.m_scene.AddSceneObject(sphere);
 
 		// Add Lights to the scene
 		// NOTE: This needs to come after setting the lighting changed callbacks so that the 

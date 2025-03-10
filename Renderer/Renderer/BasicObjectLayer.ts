@@ -11,7 +11,7 @@ import
 } from "./Renderer.js";
 import { BasicObjectVertex } from "./VertexTypes.js"
 import { Material } from "./Material.js"
-
+import { ModelData } from "./Scene2.js"
 
 export function GetBasicObjectLayer(renderer: Renderer, passBindGroupLayout: GPUBindGroupLayout): RenderPassLayer
 {
@@ -63,7 +63,6 @@ struct Vertex
 @group(0) @binding(0) var<uniform> globals : Globals;
 @group(0) @binding(1) var<storage, read> materials: array<Material>;
 
-//@group(1) @binding(0) var<uniform> modelDetails: ModelDetails;
 @group(1) @binding(0) var<storage, read> modelDetails: array<ModelDetails>;
 
 struct VertexOutput
@@ -288,7 +287,7 @@ fn fragment_main(input: VertexOutput) -> @location(0) vec4f
 					visibility: GPUShaderStage.VERTEX,
 					buffer: {
 						type: "read-only-storage",
-						minBindingSize: Float32Array.BYTES_PER_ELEMENT * (16 + 4) // BEST PRACTICE to always set this
+						minBindingSize: ModelData.sizeInBytes // BEST PRACTICE to always set this
 					}
 				},
 //				{
