@@ -263,7 +263,6 @@ export class SpotLight extends Light
 
 
 
-
 class InstanceManager
 {
 	constructor(renderItemName: string, renderer: Renderer, meshGroup: MeshGroup, meshName: string,
@@ -350,38 +349,36 @@ class InstanceManager
 }
 
 // Base class for all 3D physical objects in the scene
-export abstract class GameObject
+export abstract class SceneObject
 {
-	constructor(derivedClassName: string, renderer: Renderer, scene: Scene, meshName: string, materialName: string)
+	constructor(derivedClassName: string, renderer: Renderer, scene: Scene, meshGroup: MeshGroup,
+		meshName: string, materialName: string)
 	{
 		this.m_derivedClassName = derivedClassName;
 		this.m_renderer = renderer;
 		this.m_scene = scene;
 		this.m_childObjects = [];
 		this.m_modelData = new ModelData();
+		this.m_meshGroup = meshGroup;
 		this.m_materialName = materialName;
 		this.FetchCurrentMaterialIndex();
 
-		// The mesh group is defaulted to the basic game object mesh group. If we add support for deducing which layer
-		// an object belongs to, then we would need to deduce which mesh group to use as well
-		this.m_meshGroup = this.m_renderer.GetMeshGroup("mg_game-object");
-
 		// Keep track of total instances of the derived class
-		let count = GameObject.s_allTimeInstanceNumbers.get(derivedClassName);
+		let count = SceneObject.s_allTimeInstanceNumbers.get(derivedClassName);
 		if (count === undefined)
 			count = 0;
-		GameObject.s_allTimeInstanceNumbers.set(derivedClassName, count + 1);
+		SceneObject.s_allTimeInstanceNumbers.set(derivedClassName, count + 1);
 		this.m_allTimeInstanceNumber = count;
 
 		// Get (or create) the instance manager for this object
-		let im = GameObject.s_instanceManagers.get(derivedClassName);
+		let im = SceneObject.s_instanceManagers.get(derivedClassName);
 		if (im === undefined)
 		{
 			this.m_instanceManager = new InstanceManager(`${this.m_derivedClassName}_${this.m_allTimeInstanceNumber}`, this.m_renderer,
 				this.m_meshGroup, meshName, ModelData.sizeInBytes, 1,
 				(renderItem: RenderItem, buffer: GPUBuffer) => { this.OnRenderItemInitialized(renderItem, buffer); },
 				(renderItem: RenderItem, buffer: GPUBuffer) => { this.OnRenderItemBufferChanged(renderItem, buffer); });
-			GameObject.s_instanceManagers.set(derivedClassName, this.m_instanceManager);
+			SceneObject.s_instanceManagers.set(derivedClassName, this.m_instanceManager);
 		}
 		else
 		{
@@ -398,7 +395,7 @@ export abstract class GameObject
 		// of all instance managers
 		if (this.m_instanceManager.RemoveInstance(this.m_currentInstanceNumber) === 0)
 		{
-			GameObject.s_instanceManagers.delete(this.m_derivedClassName);
+			SceneObject.s_instanceManagers.delete(this.m_derivedClassName);
 		}
 	}
 	public Name(): string { return `${this.m_derivedClassName}_${this.m_allTimeInstanceNumber}`; }
@@ -410,52 +407,7 @@ export abstract class GameObject
 	{
 		renderItem.UpdateBindGroup(`bg_${this.m_derivedClassName}`, this.GenerateBindGroup(buffer));
 	}
-	private GenerateBindGroup(buffer: GPUBuffer): BindGroup
-	{
-		let device = this.m_renderer.GetDevice();
-
-		// Get the BindGroupLayout that the mesh group uses
-		let bindGroupLayout = this.m_meshGroup.GetRenderItemBindGroupLayout();
-		if (bindGroupLayout === null)
-		{
-			let msg = `GameObject::GenerateBindGroup() failed for 'bg_${this.m_derivedClassName}' because m_meshGroup.GetRenderItemBindGroupLayout() returned null`;
-			LOG_CORE_ERROR(msg);
-			throw Error(msg);
-		}
-		let bindGroupLayoutGroupNumber = this.m_meshGroup.GetRenderItemBindGroupLayoutGroupNumber();
-
-	//	// Get the GPUTexture
-	//	let cubeTexture = this.m_renderer.GetTexture("tex_molecule");
-	//
-	//	// Create the sampler
-	//	const sampler = device.createSampler({
-	//		magFilter: 'linear',
-	//		minFilter: 'linear',
-	//	});
-
-		// Create the BindGroup
-		let cubeBindGroup = device.createBindGroup({
-			layout: bindGroupLayout,
-			entries: [
-				{
-					binding: 0,
-					resource: {
-						buffer: buffer
-					}
-				},
-	//			{
-	//				binding: 1,
-	//				resource: sampler,
-	//			},
-	//			{
-	//				binding: 2,
-	//				resource: cubeTexture.createView(),
-	//			},
-			],
-		});
-
-		return new BindGroup(bindGroupLayoutGroupNumber, cubeBindGroup);
-	}
+	public abstract GenerateBindGroup(buffer: GPUBuffer): BindGroup;
 
 	public SetInstanceNumber(index: number): void { this.m_currentInstanceNumber = index; }
 	public FetchCurrentMaterialIndex(): void
@@ -512,13 +464,10 @@ export abstract class GameObject
 		}
 
 		// Update the objects children GPU resources
-		this.m_childObjects.forEach(child =>
-		{
-			child.UpdateGPU();
-		});
+		this.m_childObjects.forEach(child => { child.UpdateGPU(); });
 	}
 
-	public AddChild(object: GameObject): GameObject
+	public AddChild(object: SceneObject): SceneObject
 	{
 		this.m_childObjects.push(object);
 		return object;
@@ -545,11 +494,11 @@ export abstract class GameObject
 	private static s_instanceManagers: Map<string, InstanceManager> = new Map<string, InstanceManager>();
 
 
-	private m_derivedClassName: string;
+	protected readonly m_derivedClassName: string;
 	private m_allTimeInstanceNumber: number;
 	protected m_renderer: Renderer;
 	protected m_scene: Scene;
-	protected m_childObjects: GameObject[];
+	protected m_childObjects: SceneObject[];
 
 	// Model data for the object
 	protected m_position = vec3.create(0, 0, 0);
@@ -566,11 +515,69 @@ export abstract class GameObject
 	protected m_materialName: string = "";
 
 	// Mesh details
-	private m_meshGroup: MeshGroup;
+	protected m_meshGroup: MeshGroup;
 
 	// Texture and any other data should go here...........
 	// ......
 
+}
+
+export abstract class GameObject extends SceneObject
+{
+	constructor(derivedClassName: string, renderer: Renderer, scene: Scene, meshName: string, materialName: string)
+	{
+		// The mesh group is defaulted to the basic game object mesh group. If we add support for deducing which layer
+		// an object belongs to, then we would need to deduce which mesh group to use as well
+		let meshGroup = renderer.GetMeshGroup("mg_game-object");
+
+		super(derivedClassName, renderer, scene, meshGroup, meshName, materialName);
+	}
+	public GenerateBindGroup(buffer: GPUBuffer): BindGroup
+	{
+		let device = this.m_renderer.GetDevice();
+
+		// Get the BindGroupLayout that the mesh group uses
+		let bindGroupLayout = this.m_meshGroup.GetRenderItemBindGroupLayout();
+		if (bindGroupLayout === null)
+		{
+			let msg = `GameObject::GenerateBindGroup() failed for 'bg_${this.m_derivedClassName}' because m_meshGroup.GetRenderItemBindGroupLayout() returned null`;
+			LOG_CORE_ERROR(msg);
+			throw Error(msg);
+		}
+		let bindGroupLayoutGroupNumber = this.m_meshGroup.GetRenderItemBindGroupLayoutGroupNumber();
+
+		//	// Get the GPUTexture
+		//	let cubeTexture = this.m_renderer.GetTexture("tex_molecule");
+		//
+		//	// Create the sampler
+		//	const sampler = device.createSampler({
+		//		magFilter: 'linear',
+		//		minFilter: 'linear',
+		//	});
+
+		// Create the BindGroup
+		let cubeBindGroup = device.createBindGroup({
+			layout: bindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: {
+						buffer: buffer
+					}
+				},
+				//			{
+				//				binding: 1,
+				//				resource: sampler,
+				//			},
+				//			{
+				//				binding: 2,
+				//				resource: cubeTexture.createView(),
+				//			},
+			],
+		});
+
+		return new BindGroup(bindGroupLayoutGroupNumber, cubeBindGroup);
+	}
 }
 
 
@@ -583,7 +590,11 @@ export class Sphere extends GameObject
 	}
 	public UpdatePhysics(timeDelta: number, parentModelMatrix: Mat4, parentMatrixIsDirty: boolean): void
 	{
+		this.m_position[0] += timeDelta;
+		if (this.m_position[0] > 5)
+			this.m_position[0] = -5;
 
+		this.m_modelMatrixIsDirty = true;
 	}
 }
 

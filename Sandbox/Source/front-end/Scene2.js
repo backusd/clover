@@ -257,29 +257,27 @@ class InstanceManager {
     OnBufferChanged;
 }
 // Base class for all 3D physical objects in the scene
-export class GameObject {
-    constructor(derivedClassName, renderer, scene, meshName, materialName) {
+export class SceneObject {
+    constructor(derivedClassName, renderer, scene, meshGroup, meshName, materialName) {
         this.m_derivedClassName = derivedClassName;
         this.m_renderer = renderer;
         this.m_scene = scene;
         this.m_childObjects = [];
         this.m_modelData = new ModelData();
+        this.m_meshGroup = meshGroup;
         this.m_materialName = materialName;
         this.FetchCurrentMaterialIndex();
-        // The mesh group is defaulted to the basic game object mesh group. If we add support for deducing which layer
-        // an object belongs to, then we would need to deduce which mesh group to use as well
-        this.m_meshGroup = this.m_renderer.GetMeshGroup("mg_game-object");
         // Keep track of total instances of the derived class
-        let count = GameObject.s_allTimeInstanceNumbers.get(derivedClassName);
+        let count = SceneObject.s_allTimeInstanceNumbers.get(derivedClassName);
         if (count === undefined)
             count = 0;
-        GameObject.s_allTimeInstanceNumbers.set(derivedClassName, count + 1);
+        SceneObject.s_allTimeInstanceNumbers.set(derivedClassName, count + 1);
         this.m_allTimeInstanceNumber = count;
         // Get (or create) the instance manager for this object
-        let im = GameObject.s_instanceManagers.get(derivedClassName);
+        let im = SceneObject.s_instanceManagers.get(derivedClassName);
         if (im === undefined) {
             this.m_instanceManager = new InstanceManager(`${this.m_derivedClassName}_${this.m_allTimeInstanceNumber}`, this.m_renderer, this.m_meshGroup, meshName, ModelData.sizeInBytes, 1, (renderItem, buffer) => { this.OnRenderItemInitialized(renderItem, buffer); }, (renderItem, buffer) => { this.OnRenderItemBufferChanged(renderItem, buffer); });
-            GameObject.s_instanceManagers.set(derivedClassName, this.m_instanceManager);
+            SceneObject.s_instanceManagers.set(derivedClassName, this.m_instanceManager);
         }
         else {
             this.m_instanceManager = im;
@@ -292,7 +290,7 @@ export class GameObject {
         // If this was the last instance, then we need to remove the instance manager from the map
         // of all instance managers
         if (this.m_instanceManager.RemoveInstance(this.m_currentInstanceNumber) === 0) {
-            GameObject.s_instanceManagers.delete(this.m_derivedClassName);
+            SceneObject.s_instanceManagers.delete(this.m_derivedClassName);
         }
     }
     Name() { return `${this.m_derivedClassName}_${this.m_allTimeInstanceNumber}`; }
@@ -301,6 +299,92 @@ export class GameObject {
     }
     OnRenderItemBufferChanged(renderItem, buffer) {
         renderItem.UpdateBindGroup(`bg_${this.m_derivedClassName}`, this.GenerateBindGroup(buffer));
+    }
+    SetInstanceNumber(index) { this.m_currentInstanceNumber = index; }
+    FetchCurrentMaterialIndex() {
+        this.m_modelData.SetMaterialIndex(this.m_renderer.GetMaterialIndex(this.m_materialName));
+    }
+    UpdatePhysicsImpl(timeDelta, parentModelMatrix, parentMatrixIsDirty) {
+        // Run the derived physics update method
+        this.UpdatePhysics(timeDelta, parentModelMatrix, parentMatrixIsDirty);
+        // If the model matrix is dirty after doing the physics update or the parent matrix has changed,
+        // update it here before passing it to the children
+        let dirty = this.m_modelMatrixIsDirty || parentMatrixIsDirty;
+        if (dirty)
+            this.UpdateModelMatrix(parentModelMatrix);
+        // Update the objects children
+        this.m_childObjects.forEach(child => {
+            child.UpdatePhysicsImpl(timeDelta, this.m_modelData.GetModelMatrix(), dirty);
+        });
+    }
+    UpdateModelMatrix(parentModelMatrix) {
+        this.m_modelMatrixIsDirty = true;
+        let model = mat4.translation(this.m_position);
+        let rotationX = mat4.rotationX(this.m_rotation[0]);
+        let rotationY = mat4.rotationY(this.m_rotation[1]);
+        let rotationZ = mat4.rotationZ(this.m_rotation[2]);
+        let scaling = mat4.scaling(this.m_scaling);
+        mat4.multiply(model, rotationX, model);
+        mat4.multiply(model, rotationY, model);
+        mat4.multiply(model, rotationZ, model);
+        mat4.multiply(model, scaling, model);
+        this.m_modelData.SetModelMatrix(mat4.multiply(parentModelMatrix, model));
+    }
+    // GPU Update
+    UpdateGPU() {
+        // Update the object's GPU resources
+        if (this.m_modelMatrixIsDirty) {
+            this.m_modelMatrixIsDirty = false;
+            let data = this.m_modelData.Data();
+            this.m_instanceManager.WriteData(this.m_currentInstanceNumber, data, 0, data.byteLength);
+        }
+        // Update the objects children GPU resources
+        this.m_childObjects.forEach(child => { child.UpdateGPU(); });
+    }
+    AddChild(object) {
+        this.m_childObjects.push(object);
+        return object;
+    }
+    SetPosition(position) {
+        this.m_position = position;
+        this.m_modelMatrixIsDirty = true;
+    }
+    SetRotation(rotation) {
+        this.m_rotation = rotation;
+        this.m_modelMatrixIsDirty = true;
+    }
+    SetScaling(scaling) {
+        this.m_scaling = scaling;
+        this.m_modelMatrixIsDirty = true;
+    }
+    // Static data
+    static s_allTimeInstanceNumbers = new Map();
+    static s_instanceManagers = new Map();
+    m_derivedClassName;
+    m_allTimeInstanceNumber;
+    m_renderer;
+    m_scene;
+    m_childObjects;
+    // Model data for the object
+    m_position = vec3.create(0, 0, 0);
+    m_rotation = vec3.create(0, 0, 0);
+    m_scaling = vec3.create(1, 1, 1);
+    m_modelMatrixIsDirty = true;
+    m_modelData;
+    // Instance/RenderItem
+    m_currentInstanceNumber;
+    m_instanceManager;
+    // Materials data
+    m_materialName = "";
+    // Mesh details
+    m_meshGroup;
+}
+export class GameObject extends SceneObject {
+    constructor(derivedClassName, renderer, scene, meshName, materialName) {
+        // The mesh group is defaulted to the basic game object mesh group. If we add support for deducing which layer
+        // an object belongs to, then we would need to deduce which mesh group to use as well
+        let meshGroup = renderer.GetMeshGroup("mg_game-object");
+        super(derivedClassName, renderer, scene, meshGroup, meshName, materialName);
     }
     GenerateBindGroup(buffer) {
         let device = this.m_renderer.GetDevice();
@@ -342,92 +426,16 @@ export class GameObject {
         });
         return new BindGroup(bindGroupLayoutGroupNumber, cubeBindGroup);
     }
-    SetInstanceNumber(index) { this.m_currentInstanceNumber = index; }
-    FetchCurrentMaterialIndex() {
-        this.m_modelData.SetMaterialIndex(this.m_renderer.GetMaterialIndex(this.m_materialName));
-    }
-    UpdatePhysicsImpl(timeDelta, parentModelMatrix, parentMatrixIsDirty) {
-        // Run the derived physics update method
-        this.UpdatePhysics(timeDelta, parentModelMatrix, parentMatrixIsDirty);
-        // If the model matrix is dirty after doing the physics update or the parent matrix has changed,
-        // update it here before passing it to the children
-        let dirty = this.m_modelMatrixIsDirty || parentMatrixIsDirty;
-        if (dirty)
-            this.UpdateModelMatrix(parentModelMatrix);
-        // Update the objects children
-        this.m_childObjects.forEach(child => {
-            child.UpdatePhysicsImpl(timeDelta, this.m_modelData.GetModelMatrix(), dirty);
-        });
-    }
-    UpdateModelMatrix(parentModelMatrix) {
-        this.m_modelMatrixIsDirty = true;
-        let model = mat4.translation(this.m_position);
-        let rotationX = mat4.rotationX(this.m_rotation[0]);
-        let rotationY = mat4.rotationY(this.m_rotation[1]);
-        let rotationZ = mat4.rotationZ(this.m_rotation[2]);
-        let scaling = mat4.scaling(this.m_scaling);
-        mat4.multiply(model, rotationX, model);
-        mat4.multiply(model, rotationY, model);
-        mat4.multiply(model, rotationZ, model);
-        mat4.multiply(model, scaling, model);
-        this.m_modelData.SetModelMatrix(mat4.multiply(parentModelMatrix, model));
-    }
-    // GPU Update
-    UpdateGPU() {
-        // Update the object's GPU resources
-        if (this.m_modelMatrixIsDirty) {
-            this.m_modelMatrixIsDirty = false;
-            let data = this.m_modelData.Data();
-            this.m_instanceManager.WriteData(this.m_currentInstanceNumber, data, 0, data.byteLength);
-        }
-        // Update the objects children GPU resources
-        this.m_childObjects.forEach(child => {
-            child.UpdateGPU();
-        });
-    }
-    AddChild(object) {
-        this.m_childObjects.push(object);
-        return object;
-    }
-    SetPosition(position) {
-        this.m_position = position;
-        this.m_modelMatrixIsDirty = true;
-    }
-    SetRotation(rotation) {
-        this.m_rotation = rotation;
-        this.m_modelMatrixIsDirty = true;
-    }
-    SetScaling(scaling) {
-        this.m_scaling = scaling;
-        this.m_modelMatrixIsDirty = true;
-    }
-    // Static data
-    static s_allTimeInstanceNumbers = new Map();
-    static s_instanceManagers = new Map();
-    m_derivedClassName;
-    m_allTimeInstanceNumber;
-    m_renderer;
-    m_scene;
-    m_childObjects;
-    // Model data for the object
-    m_position = vec3.create(0, 0, 0);
-    m_rotation = vec3.create(0, 0, 0);
-    m_scaling = vec3.create(1, 1, 1);
-    m_modelMatrixIsDirty = true;
-    m_modelData;
-    // Instance/RenderItem
-    m_currentInstanceNumber;
-    m_instanceManager;
-    // Materials data
-    m_materialName = "";
-    // Mesh details
-    m_meshGroup;
 }
 export class Sphere extends GameObject {
     constructor(renderer, scene) {
         super("Sphere", renderer, scene, "mesh_sphere", "mat_test1");
     }
     UpdatePhysics(timeDelta, parentModelMatrix, parentMatrixIsDirty) {
+        this.m_position[0] += timeDelta;
+        if (this.m_position[0] > 5)
+            this.m_position[0] = -5;
+        this.m_modelMatrixIsDirty = true;
     }
 }
 export class Scene {
