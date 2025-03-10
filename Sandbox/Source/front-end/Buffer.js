@@ -265,7 +265,7 @@ export class InstanceBufferPool extends InstanceBuffer {
             this.m_stagingBuffer = this.GetOrCreateBuffer();
         // Get the mapped range and copy our data into it
         let mappedRange = new Float32Array(this.m_stagingBuffer.getMappedRange(instanceIndex * this.m_bytesPerInstance, this.m_bytesPerInstance));
-        mappedRange.set(new Float32Array(data, byteOffset, numBytesToWrite));
+        mappedRange.set(new Float32Array(data, byteOffset, numBytesToWrite / Float32Array.BYTES_PER_ELEMENT));
     }
     m_readyBuffers = [];
     m_stagingBuffer = null;

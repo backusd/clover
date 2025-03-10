@@ -8,7 +8,7 @@ import {
 import { Camera } from "./Camera.js"
 import { HybridLookup } from "./Utils.js"
 import { RenderState } from "./RenderState.js"
-import { Scene } from "./Scene.js"
+import { Scene } from "./Scene2.js"
 import { Material, MaterialGroup } from "./Material.js"
 
 
@@ -1082,6 +1082,10 @@ export class Renderer
         let m = this.m_materialGroup.AddMaterial(material);
         this.OnMaterialBufferChanged(this.m_materialGroup);
         return m;
+    }
+    public UpdateMaterial(name: string, newMaterial: Material): void
+    {
+        this.m_materialGroup.UpdateMaterial(name, newMaterial);
     }
     public RemoveMaterial(materialName: string): void
     {

@@ -57,14 +57,14 @@ export class MaterialGroup {
         // Allocate at least enough space for one material
         let numInstancesToAllocate = Math.max(1, numMaterials);
         this.m_buffer = new InstanceBufferBasicWrite(device, Material.bytesPerMaterial, numInstancesToAllocate, `buffer for MaterialGroup: ${name}`);
-        this.UpdateAllMaterials();
+        this.UpdateAllMaterialsOnGPU();
     }
     Name() { return this.m_name; }
-    UpdateAllMaterials() {
+    UpdateAllMaterialsOnGPU() {
         for (let iii = 0; iii < this.m_materials.size(); ++iii)
-            this.UpdateMaterial(iii, this.m_materials.getFromIndex(iii));
+            this.UpdateMaterialOnGPU(iii, this.m_materials.getFromIndex(iii));
     }
-    UpdateMaterial(index, material) {
+    UpdateMaterialOnGPU(index, material) {
         this.m_buffer.WriteData(index, material.Data());
     }
     GetGPUBuffer() { return this.m_buffer.GetGPUBuffer(); }
@@ -74,8 +74,13 @@ export class MaterialGroup {
         // we need to update the entire buffer with all materials 
         this.m_materials.add(material.Name(), material);
         this.m_buffer.SetCapacity(this.m_materials.size());
-        this.UpdateAllMaterials();
+        this.UpdateAllMaterialsOnGPU();
         return material;
+    }
+    UpdateMaterial(name, newMaterial) {
+        let index = this.m_materials.indexOfKey(name);
+        this.m_materials.updateFromIndex(index, newMaterial);
+        this.UpdateMaterialOnGPU(index, newMaterial);
     }
     AddMaterials(materials) {
         if (materials.length === 0)
@@ -85,7 +90,7 @@ export class MaterialGroup {
         // we need to update the entire buffer with all materials 
         materials.forEach(material => { this.m_materials.add(material.Name(), material); });
         this.m_buffer.SetCapacity(this.m_materials.size());
-        this.UpdateAllMaterials();
+        this.UpdateAllMaterialsOnGPU();
     }
     GetMaterialIndex(name) { return this.m_materials.indexOfKey(name); }
     GetMaterial(nameOrIndex) {

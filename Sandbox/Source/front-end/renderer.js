@@ -830,6 +830,9 @@ export class Renderer {
         this.OnMaterialBufferChanged(this.m_materialGroup);
         return m;
     }
+    UpdateMaterial(name, newMaterial) {
+        this.m_materialGroup.UpdateMaterial(name, newMaterial);
+    }
     RemoveMaterial(materialName) {
         LOG_CORE_ERROR(`Called Renderer::RemoveMaterial() for material name '${materialName}'.`);
         LOG_CORE_ERROR(`This is an error because we do not currently support removing materials because that would require updating the indices for all outstanding GameObjects that reference a material`);

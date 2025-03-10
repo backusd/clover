@@ -19,121 +19,11 @@ import
 } from "./Buffer.js"
 import { Camera } from "./Camera.js";
 import { HybridLookup } from "./Utils.js"
-import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
+import { Mat4, Vec3, Vec4, mat4, vec3, vec4 } from 'wgpu-matrix';
+import { Material, MaterialGroup } from "./Material.js"
 
 
-
-export class Light
-{
-	// The light data is structured as follows:
-	//		vec3f	strength
-	//		f32		falloffStart
-	//		vec3f   direction
-	//		f32		falloffEnd
-	//		vec3f	position
-	//		f32		spotPower		
-	constructor(name: string)
-	{
-		this.m_name = name;
-		this.m_data = new ArrayBuffer(Light.sizeInBytes);
-
-		this.m_strengthView = new Float32Array(this.m_data, 0, 3);
-		this.m_falloffStartView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3), 1);
-		this.m_directionView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1), 3);
-		this.m_falloffEndView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3), 1);
-		this.m_positionView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1), 3);
-		this.m_spotPowerView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1 + 3), 1);
-	}
-	public Data(): ArrayBuffer
-	{
-		return this.m_data;
-	}
-	public Name(): string
-	{
-		return this.m_name;
-	}
-
-	private m_data: ArrayBuffer;
-	private m_name: string;
-
-	protected m_strengthView: Float32Array;
-	protected m_falloffStartView: Float32Array;
-	protected m_directionView: Float32Array;
-	protected m_falloffEndView: Float32Array;
-	protected m_positionView: Float32Array;
-	protected m_spotPowerView: Float32Array;
-
-	static sizeInBytes = Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1 + 3 + 1);
-}
-export class DirectionalLight extends Light
-{
-	constructor(name: string)
-	{
-		super(name);
-	}
-	public SetDirection(direction: Vec3): void
-	{
-		this.m_directionView.set(direction);
-	}
-	public SetStrength(strength: Vec3): void
-	{
-		this.m_strengthView.set(strength);
-	}
-}
-export class PointLight extends Light
-{
-	constructor(name: string)
-	{
-		super(name);
-	}
-	public SetPosition(position: Vec3): void
-	{
-		this.m_positionView.set(position);
-	}
-	public SetStrength(strength: Vec3): void
-	{
-		this.m_strengthView.set(strength);
-	}
-	public SetFalloffStart(start: number): void
-	{
-		this.m_falloffStartView[0] = start;
-	}
-	public SetFalloffEnd(end: number): void
-	{
-		this.m_falloffEndView[0] = end;
-	}
-}
-export class SpotLight extends Light
-{
-	constructor(name: string)
-	{
-		super(name);
-	}
-	public SetStrength(strength: Vec3): void
-	{
-		this.m_strengthView.set(strength);
-	}
-	public SetDirection(direction: Vec3): void
-	{
-		this.m_directionView.set(direction);
-	}
-	public SetPosition(position: Vec3): void
-	{
-		this.m_positionView.set(position);
-	}
-	public SetFalloffStart(start: number): void
-	{
-		this.m_falloffStartView[0] = start;
-	}
-	public SetFalloffEnd(end: number): void
-	{
-		this.m_falloffEndView[0] = end;
-	}
-	public SetSpotPower(power: number): void
-	{
-		this.m_spotPowerView[0] = power;
-	}
-}
+/*
 
 
 interface UsesInstancing
@@ -164,7 +54,7 @@ export class InstanceManager<T extends UsesInstancing>
 
 		// This callback is necessary because the InstanceManager only manages the instances of
 		// the RenderItem - it knows nothing about what BindGroups the RenderItem should have. Therefore,
-		// once the RenderItem is created, we call this callback so  that the derived class can add
+		// once the RenderItem is created, we call this callback so that the derived class can add
 		// 1+ BindGroups to the RenderItem
 		RenderItemInitializationCallback(renderer, this.m_renderItem, this.m_instanceBuffer.GetGPUBuffer());
 	}
@@ -321,6 +211,197 @@ export abstract class GameObject
 	protected m_scaling = vec3.create(1, 1, 1);
 	protected m_modelMatrix = mat4.identity();
 }
+
+export class Light extends GameObject
+{
+	// The light data is structured as follows:
+	//		vec3f	strength
+	//		f32		falloffStart
+	//		vec3f   direction
+	//		f32		falloffEnd
+	//		vec3f	position
+	//		f32		spotPower		
+	constructor(name: string, renderer: Renderer, scene: Scene)
+	{
+		// Each Light will own its own material, see create it first
+		let materialName = `mat_light=${name}`;
+		let material = new Material(materialName, vec4.create(1.0, 1.0, 1.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
+		renderer.AddMaterial(material)
+
+		// Calling the base class constructor must come second because it needs to be able to look up the material
+		super(name, renderer, scene, materialName);
+
+		this.m_material = material;
+		this.m_materialName = materialName;
+
+		this.m_data             = new ArrayBuffer(Light.sizeInBytes);
+		this.m_strengthView     = new Float32Array(this.m_data, 0, 3);
+		this.m_falloffStartView = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3), 1);
+		this.m_directionView    = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1), 3);
+		this.m_falloffEndView   = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3), 1);
+		this.m_positionView     = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1), 3);
+		this.m_spotPowerView    = new Float32Array(this.m_data, Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1 + 3), 1);
+
+
+
+		let device = this.m_renderer.GetDevice();
+
+		// Create a render item for the cube
+		this.m_renderItem = renderer.CreateRenderItem("ri_game-cube", "mg_basic-object", "mesh_geosphere");
+
+		// Create the model buffer
+		this.m_modelMatrixBuffer = new UniformBufferPool(device,
+			Float32Array.BYTES_PER_ELEMENT * (16 + 4),	// 16 for the model matrix (mat4x4) & 1 for the material index
+			"buffer_basic-box-model-matrix");
+
+		// Get the BindGroupLayout that the mesh group uses
+		let meshGroup = renderer.GetMeshGroup("mg_basic-object");
+		let bindGroupLayout = meshGroup.GetRenderItemBindGroupLayout();
+		if (bindGroupLayout === null)
+		{
+			let msg = "BasicBox::constructor() failed because meshGroup.GetRenderItemBindGroupLayout() returned null";
+			LOG_ERROR(msg);
+			throw Error(msg);
+		}
+		let bindGroupLayoutGroupNumber = meshGroup.GetRenderItemBindGroupLayoutGroupNumber();
+
+		//		// Get the GPUTexture
+		//		let cubeTexture = renderer.GetTexture("tex_molecule");
+
+		//		// Create the sampler
+		//		const sampler = device.createSampler({
+		//			magFilter: 'linear',
+		//			minFilter: 'linear',
+		//		});
+
+
+		let boxBindGroup = device.createBindGroup({
+			layout: bindGroupLayout,
+			entries: [
+				{
+					binding: 0,
+					resource: {
+						buffer: this.m_modelMatrixBuffer.GetGPUBuffer()
+					}
+				},
+				//				{
+				//					binding: 1,
+				//					resource: sampler,
+				//				},
+				//				{
+				//					binding: 2,
+				//					resource: cubeTexture.createView(),
+				//				},
+			],
+		});
+
+		this.m_renderItem.AddBindGroup("bg_basic-box", new BindGroup(bindGroupLayoutGroupNumber, boxBindGroup));
+	}
+	public Destruct(): void { }
+	public UpdatePhysics(timeDelta: number, parentModelMatrix: Mat4): void
+	{
+
+	}
+	public UpdateGPU(): void
+	{
+
+	}
+
+	public Data(): ArrayBuffer
+	{
+		return this.m_data;
+	}
+
+
+	private m_data: ArrayBuffer;
+
+	protected m_strengthView: Float32Array;
+	protected m_falloffStartView: Float32Array;
+	protected m_directionView: Float32Array;
+	protected m_falloffEndView: Float32Array;
+	protected m_positionView: Float32Array;
+	protected m_spotPowerView: Float32Array;
+
+	protected m_materialName: string;
+	protected m_material: Material;
+
+	private m_renderItem: RenderItem;
+	private m_modelMatrixBuffer: UniformBufferPool;
+
+	static sizeInBytes = Float32Array.BYTES_PER_ELEMENT * (3 + 1 + 3 + 1 + 3 + 1);
+}
+export class DirectionalLight extends Light
+{
+	constructor(name: string)
+	{
+		super(name);
+	}
+	public SetDirection(direction: Vec3): void
+	{
+		this.m_directionView.set(direction);
+	}
+	public SetStrength(strength: Vec3): void
+	{
+		this.m_strengthView.set(strength);
+	}
+}
+export class PointLight extends Light
+{
+	constructor(name: string)
+	{
+		super(name);
+	}
+	public SetPosition(position: Vec3): void
+	{
+		this.m_positionView.set(position);
+	}
+	public SetStrength(strength: Vec3): void
+	{
+		this.m_strengthView.set(strength);
+	}
+	public SetFalloffStart(start: number): void
+	{
+		this.m_falloffStartView[0] = start;
+	}
+	public SetFalloffEnd(end: number): void
+	{
+		this.m_falloffEndView[0] = end;
+	}
+}
+export class SpotLight extends Light
+{
+	constructor(name: string)
+	{
+		super(name);
+	}
+	public SetStrength(strength: Vec3): void
+	{
+		this.m_strengthView.set(strength);
+	}
+	public SetDirection(direction: Vec3): void
+	{
+		this.m_directionView.set(direction);
+	}
+	public SetPosition(position: Vec3): void
+	{
+		this.m_positionView.set(position);
+	}
+	public SetFalloffStart(start: number): void
+	{
+		this.m_falloffStartView[0] = start;
+	}
+	public SetFalloffEnd(end: number): void
+	{
+		this.m_falloffEndView[0] = end;
+	}
+	public SetSpotPower(power: number): void
+	{
+		this.m_spotPowerView[0] = power;
+	}
+}
+
+
+
 
 export class BasicBox extends GameObject
 {
@@ -772,3 +853,5 @@ export class Scene
 
 	private m_delayedObjectsToDelete: string[] = [];
 }
+
+*/

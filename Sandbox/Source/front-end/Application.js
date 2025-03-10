@@ -1,6 +1,6 @@
 import { LOG_TRACE, LOG_CORE_ERROR } from "./Log.js";
 import { MeshGroup, BindGroup, RenderPassDescriptor, RenderPass } from "./Renderer.js";
-import { Scene, BasicBox, Light } from "./Scene.js";
+import { Scene, Sphere, Light } from "./Scene2.js";
 import { UniformBufferBasicWrite, InstanceBufferBasicWrite } from "./Buffer.js";
 import { mat4, vec3, vec4 } from 'wgpu-matrix';
 import { Terrain } from "./Terrain.js";
@@ -399,7 +399,7 @@ export class Application {
         let cylinderMesh = GenerateCylinderMesh("mesh_cylinder", 2, 1, 4, 40, 5);
         let gridMesh = GenerateGridMesh("mesh_grid", 2, 3, 2, 3);
         let quadMesh = GenerateQuadMesh("mesh_quad", 1, 1, 1, 1, 1);
-        this.m_renderer.AddMeshGroup(new MeshGroup("mg_basic-object", this.m_renderer.GetDevice(), [boxMesh, sphereMesh, geosphereMesh, cylinderMesh, gridMesh, quadMesh], 0));
+        this.m_renderer.AddMeshGroup(new MeshGroup("mg_game-object", this.m_renderer.GetDevice(), [boxMesh, sphereMesh, geosphereMesh, cylinderMesh, gridMesh, quadMesh], 0));
         this.m_renderer.AddMeshGroup(new MeshGroup("mg_lights", this.m_renderer.GetDevice(), [sphereMesh], 0));
         // 4. Construct the render passes and sublayers
         const depthTexture = device.createTexture({
@@ -455,7 +455,7 @@ export class Application {
         lightsLayer.AddMeshGroup("mg_lights");
         // Layer: BasicObject
         let basicObjectLayer = renderPass.AddRenderPassLayer(GetBasicObjectLayer(this.m_renderer, this.m_passBindGroupLayout));
-        basicObjectLayer.AddMeshGroup("mg_basic-object");
+        basicObjectLayer.AddMeshGroup("mg_game-object");
         // 3. Load all materials (asynchronously)
         // NOTE: This needs to come AFTER creating the render passes because it will trigger the
         //       OnMaterialBufferChanged callback which will try to look up the main render pass
@@ -464,8 +464,8 @@ export class Application {
         this.m_renderer.AddMaterial(mat1);
         this.m_renderer.AddMaterial(mat2);
         //  5. Construct the game objects and add them to the Scene
-        let box = new BasicBox(this.m_renderer, this.m_scene);
-        this.m_scene.AddGameObject(box);
+        let sphere = new Sphere(this.m_renderer, this.m_scene);
+        this.m_scene.AddGameObject(sphere);
         // Add Lights to the scene
         // NOTE: This needs to come after setting the lighting changed callbacks so that the 
         // callbacks trigger when adding lights

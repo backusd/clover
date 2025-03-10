@@ -12,14 +12,12 @@ import
 import
 {
 	Scene,
-	GameCube,
-	GameCube2,
-	BasicBox,
+	Sphere,
 	Light,
 	DirectionalLight,
 	PointLight,
 	SpotLight
-} from "./Scene.js";
+} from "./Scene2.js";
 import 
 {
 	UniformBufferBasicWrite,
@@ -540,7 +538,7 @@ export class Application
 		let quadMesh = GenerateQuadMesh("mesh_quad", 1, 1, 1, 1, 1);
 
 		this.m_renderer.AddMeshGroup(
-			new MeshGroup("mg_basic-object", this.m_renderer.GetDevice(),
+			new MeshGroup("mg_game-object", this.m_renderer.GetDevice(),
 				[boxMesh, sphereMesh, geosphereMesh, cylinderMesh, gridMesh, quadMesh],
 				0)
 		);
@@ -622,7 +620,7 @@ export class Application
 
 		// Layer: BasicObject
 		let basicObjectLayer = renderPass.AddRenderPassLayer(GetBasicObjectLayer(this.m_renderer, this.m_passBindGroupLayout));
-		basicObjectLayer.AddMeshGroup("mg_basic-object");
+		basicObjectLayer.AddMeshGroup("mg_game-object");
 
 
 
@@ -639,9 +637,9 @@ export class Application
 
 
 		//  5. Construct the game objects and add them to the Scene
-		let box = new BasicBox(this.m_renderer, this.m_scene);
+		let sphere = new Sphere(this.m_renderer, this.m_scene);
 
-		this.m_scene.AddGameObject(box);
+		this.m_scene.AddGameObject(sphere);
 
 		// Add Lights to the scene
 		// NOTE: This needs to come after setting the lighting changed callbacks so that the 

@@ -306,7 +306,7 @@ export class InstanceBufferPool extends InstanceBuffer
         }
     }
    // public WriteData(instanceIndex: number, data: Float32Array<ArrayBufferLike>): void
-    public WriteData(instanceIndex: number, data: ArrayBufferLike, byteOffset?: GPUSize64, numBytesToWrite?: GPUSize64): void
+    public WriteData(instanceIndex: number, data: ArrayBufferLike, byteOffset: GPUSize64, numBytesToWrite: GPUSize64): void
     {
         // DEBUG_ONLY
         if (instanceIndex < 0 || instanceIndex >= this.m_numberOfInstances)
@@ -329,7 +329,7 @@ export class InstanceBufferPool extends InstanceBuffer
 
         // Get the mapped range and copy our data into it
         let mappedRange = new Float32Array(this.m_stagingBuffer.getMappedRange(instanceIndex * this.m_bytesPerInstance, this.m_bytesPerInstance));
-        mappedRange.set(new Float32Array(data, byteOffset, numBytesToWrite));
+        mappedRange.set(new Float32Array(data, byteOffset, numBytesToWrite / Float32Array.BYTES_PER_ELEMENT));
     }
 
     private m_readyBuffers: GPUBuffer[] = [];
