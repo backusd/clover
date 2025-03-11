@@ -276,11 +276,26 @@ export class Sphere extends GameObject {
         super("Sphere", renderer, scene, "mesh_sphere", "mat_test1");
     }
     UpdatePhysics(timeDelta, parentModelMatrix, parentMatrixIsDirty) {
-        this.m_position[0] += timeDelta;
-        if (this.m_position[0] > 5)
-            this.m_position[0] = -5;
+        this.m_position[0] += (timeDelta * this.m_velocity[0]);
+        this.m_position[1] += (timeDelta * this.m_velocity[1]);
+        this.m_position[2] += (timeDelta * this.m_velocity[2]);
+        if (Math.abs(this.m_position[0]) > 9) {
+            this.m_velocity[0] *= -1;
+        }
+        if (Math.abs(this.m_position[1]) > 9) {
+            this.m_velocity[1] *= -1;
+        }
+        if (Math.abs(this.m_position[2]) > 9) {
+            this.m_velocity[2] *= -1;
+        }
         this.m_modelMatrixIsDirty = true;
     }
+    SetVelocity(x, y, z) {
+        this.m_velocity[0] = x;
+        this.m_velocity[1] = y;
+        this.m_velocity[2] = z;
+    }
+    m_velocity = vec3.create(0, 0, 0);
 }
 export class Light extends SceneObject {
     // The light data is structured as follows:
@@ -360,6 +375,9 @@ export class DirectionalLight extends Light {
     }
     SetStrength(strength) {
         this.m_strengthView.set(strength);
+        // When we set the strength, we need to update the material to the same color
+        let material = new Material(this.m_materialName, vec4.create(strength[0], strength[1], strength[2], 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
+        this.m_renderer.UpdateMaterial(this.m_materialName, material);
     }
 }
 export class PointLight extends Light {

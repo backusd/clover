@@ -77,7 +77,6 @@ fn vertex_main(vertex: Vertex, @builtin(instance_index) instance: u32) -> Vertex
 	return VertexOutput(posH, posW, normal, modelDetails[instance].materialIndex);
 }
 
-
 // =============================================================================
 
 struct Light
@@ -152,7 +151,9 @@ fn fragment_main(input: VertexOutput) -> @location(0) vec4f
 	// Indirect lighting
 	let ambient = globals.ambientLight * material.diffuseAlbedo;
 
-	let light = Light(vec3f(0.3, 0.3, 0.3), 0, vec3f(0, 0, -1), 0, vec3f(0, 0, 0), 0);
+	// Direct lighting
+	let direction = -1 * toEye;
+	let light = Light(vec3f(0.9, 0.9, 0.9), 0, direction, 0, vec3f(0, 0, 0), 0);
 	let directLight = ComputeDirectionalLighting(light, material, normalW, toEye);
 
 	var litColor = ambient + vec4f(directLight, 0.0);

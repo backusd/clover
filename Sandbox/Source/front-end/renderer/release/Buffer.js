@@ -1,4 +1,3 @@
-import { LOG_CORE_ERROR } from "./Log.js";
 class InstanceBuffer {
     constructor(device, bytesPerInstance, numberOfInstances, label = "(unlabeled)") {
         this.m_device = device;
@@ -38,27 +37,12 @@ export class InstanceBufferBasicWrite extends InstanceBuffer {
     PreRender() {
     }
     WriteData(instanceIndex, data, byteOffset, numBytesToWrite) {
-        if (instanceIndex < 0 || instanceIndex >= this.m_numberOfInstances) {
-            let msg = `InstanceBufferBasicWrite::WriteData() failed for buffer '${this.m_gpuBuffer.label}'. Trying to update instance index '${instanceIndex}', but the max index is '${this.m_numberOfInstances - 1}'`;
-            LOG_CORE_ERROR(msg);
-            throw Error(msg);
-        }
-        if (data.byteLength !== this.m_bytesPerInstance) {
-            let msg = `InstanceBufferBasicWrite::WriteData() failed for buffer '${this.m_gpuBuffer.label}'. BytesPerInstance is '${this.m_bytesPerInstance}', but trying to write ${data.byteLength}.`;
-            LOG_CORE_ERROR(msg);
-            throw Error(msg);
-        }
         this.m_device.queue.writeBuffer(this.m_gpuBuffer, instanceIndex * this.m_bytesPerInstance, data, byteOffset, numBytesToWrite);
     }
 }
 export class InstanceBufferPool extends InstanceBuffer {
     constructor(device, bytesPerInstance, numberOfInstances, label = "(unlabeled)") {
         super(device, bytesPerInstance, numberOfInstances, label);
-        if (this.m_bytesPerInstance % 8 !== 0) {
-            let msg = `InstanceBufferPool::constructor() failed for buffer '${this.m_gpuBuffer.label}'. Invalid bytesPerInstance value '${bytesPerInstance}'. When calling getMappedRange(offset, size), the offset must be a multiple of 8 and size a multiple of 4, so we required bytesPerInstance must also be a multiple of 8 (see docs: https://developer.mozilla.org/en-US/docs/Web/API/GPUBuffer/getMappedRange)`;
-            LOG_CORE_ERROR(msg);
-            throw Error(msg);
-        }
     }
     GetOrCreateBuffer() {
         let buffer = this.m_readyBuffers.pop();
@@ -97,16 +81,6 @@ export class InstanceBufferPool extends InstanceBuffer {
         }
     }
     WriteData(instanceIndex, data, byteOffset, numBytesToWrite) {
-        if (instanceIndex < 0 || instanceIndex >= this.m_numberOfInstances) {
-            let msg = `InstanceBufferPool::WriteData() failed for buffer '${this.m_gpuBuffer.label}'. Trying to update instance index '${instanceIndex}', but the max index is '${this.m_numberOfInstances - 1}'`;
-            LOG_CORE_ERROR(msg);
-            throw Error(msg);
-        }
-        if (data.byteLength !== this.m_bytesPerInstance) {
-            let msg = `InstanceBufferPool::WriteData() failed for buffer '${this.m_gpuBuffer.label}'. BytesPerInstance is '${this.m_bytesPerInstance}', but trying to write ${data.byteLength}.`;
-            LOG_CORE_ERROR(msg);
-            throw Error(msg);
-        }
         if (this.m_stagingBuffer === null)
             this.m_stagingBuffer = this.GetOrCreateBuffer();
         let mappedRange = new Float32Array(this.m_stagingBuffer.getMappedRange(instanceIndex * this.m_bytesPerInstance, this.m_bytesPerInstance));
@@ -135,11 +109,6 @@ export class UniformBufferBasicWrite extends UniformBuffer {
         super(device, bufferSizeInBytes, label);
     }
     WriteData(data, byteOffset, numBytesToWrite) {
-        if (data.byteLength !== this.m_bufferSizeInBytes) {
-            let msg = `UniformBufferBasicWrite::WriteData() failed for buffer '${this.m_gpuBuffer.label}'. Buffer size is '${this.m_bufferSizeInBytes}', but trying to write ${data.byteLength}.`;
-            LOG_CORE_ERROR(msg);
-            throw Error(msg);
-        }
         this.m_device.queue.writeBuffer(this.m_gpuBuffer, 0, data, byteOffset, numBytesToWrite);
     }
 }
@@ -147,18 +116,8 @@ export class UniformBufferPool extends UniformBuffer {
     constructor(device, bufferSizeInBytes, label = "(unlabeled)") {
         super(device, bufferSizeInBytes, label);
         this.m_readyBuffers = [];
-        if (bufferSizeInBytes % 4 !== 0) {
-            let msg = `UniformBufferPool::constructor() failed for buffer '${this.m_gpuBuffer.label}'. Invalid buffer size value '${bufferSizeInBytes}'. When calling getMappedRange(offset, size), the offset must be a multiple of 8 and size a multiple of 4, however, we don't use the offset. So we simply required the buffer size must be a multiple of 4 (see docs: https://developer.mozilla.org/en-US/docs/Web/API/GPUBuffer/getMappedRange)`;
-            LOG_CORE_ERROR(msg);
-            throw Error(msg);
-        }
     }
     WriteData(data, byteOffset, numBytesToWrite) {
-        if (data.byteLength !== this.m_bufferSizeInBytes) {
-            let msg = `UniformBufferSingleStaging::WriteData() failed for buffer '${this.m_gpuBuffer.label}'. Buffer size is '${this.m_bufferSizeInBytes}', but trying to write ${data.byteLength}.`;
-            LOG_CORE_ERROR(msg);
-            throw Error(msg);
-        }
         let stagingBuffer = this.GetOrCreateBuffer();
         let mappedRange = new Float32Array(stagingBuffer.getMappedRange());
         mappedRange.set(new Float32Array(data, byteOffset, numBytesToWrite));

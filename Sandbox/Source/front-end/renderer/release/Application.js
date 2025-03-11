@@ -373,7 +373,6 @@ export class Application {
         let sphere = new Sphere(this.m_renderer, this.m_scene);
         this.m_scene.AddSceneObject(sphere);
         this.m_scene.AddDirectionalLight("dir_light_1", [0, 0, -1], [1, 1, 1]);
-        this.m_renderer.EnableGPUTiming();
     }
     Update(timeDelta) {
         this.m_timingUI.Update(timeDelta);

@@ -292,13 +292,11 @@ export class MeshGroup {
     Render(encoder) {
         if (!this.HasActiveRenderItem())
             return;
-        encoder.pushDebugGroup(`Mesh Group: ${this.m_name}`);
         encoder.setVertexBuffer(this.m_vertexBufferSlot, this.m_vertexBuffer);
         if (this.m_indexBuffer !== null)
             encoder.setIndexBuffer(this.m_indexBuffer, this.m_indexFormat);
         for (let iii = 0; iii < this.m_renderItems.size(); iii++)
             this.m_renderItems.getFromIndex(iii).Render(encoder);
-        encoder.popDebugGroup();
     }
     HasActiveRenderItem() {
         for (let iii = 0; iii < this.m_renderItems.size(); iii++) {
@@ -394,12 +392,10 @@ export class RenderPassLayer {
         return this.m_renderItemBindGroupLayoutGroupNumber;
     }
     Render(passEncoder) {
-        passEncoder.pushDebugGroup(`Render Pass Layer: ${this.m_name}`);
         passEncoder.setPipeline(this.m_renderPipeline);
         this.m_bindGroups.forEach(bg => { passEncoder.setBindGroup(bg.GetGroupNumber(), bg.GetBindGroup()); });
         for (let iii = 0; iii < this.m_meshGroups.size(); iii++)
             this.m_meshGroups.getFromIndex(iii).Render(passEncoder);
-        passEncoder.popDebugGroup();
     }
     UpdateImpl(timeDelta, state, scene) {
         this.Update(timeDelta, this, state, scene);
@@ -473,13 +469,11 @@ export class RenderPass {
         this.m_renderPassDescriptor.Prepare(context);
         const passEncoder = encoder.beginRenderPass(this.m_renderPassDescriptor.GetDescriptor());
         passEncoder.label = `RenderPassEncoder: ${this.m_name}`;
-        passEncoder.pushDebugGroup(`Render Pass: ${this.m_name}`);
         this.m_bindGroups.forEach(bindGroup => {
             passEncoder.setBindGroup(bindGroup.GetGroupNumber(), bindGroup.GetBindGroup());
         });
         for (let iii = 0; iii < this.m_layers.size(); ++iii)
             this.m_layers.getFromIndex(iii).Render(passEncoder);
-        passEncoder.popDebugGroup();
         passEncoder.end();
         if (this.m_isComputingGPUTimestamp) {
             if (this.m_querySet === null || this.m_resolveBuffer === null)
@@ -573,10 +567,8 @@ export class Renderer {
     }
     Render() {
         let commandEncoder = this.m_device.createCommandEncoder({ label: "Renderer command encoder" });
-        commandEncoder.pushDebugGroup('Main Renderer Loop');
         for (let iii = 0; iii < this.m_renderPasses.size(); ++iii)
             this.m_renderPasses.getFromIndex(iii).Render(this.m_device, this.m_context, commandEncoder);
-        commandEncoder.popDebugGroup();
         this.m_device.queue.submit([commandEncoder.finish()]);
         for (let iii = 0; iii < this.m_renderPasses.size(); ++iii)
             this.m_renderPasses.getFromIndex(iii).EndOfRender();

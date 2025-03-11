@@ -131,7 +131,7 @@ export class Application
 		this.m_renderState.UpdateProjectionMatrix(canvas.width, canvas.height);
 
 		this.m_globals = new Globals();
-		this.m_globals.SetAmbientLight([0.25, 0.25, 0.35, 1.0]);
+		this.m_globals.SetAmbientLight([0.5, 0.5, 0.5, 1.0]);
 		this.m_globals.SetEyePosition(this.m_scene.GetCamera().GetPosition());
 		this.m_globals.SetNumberOfDirectionalLights(0);
 		this.m_globals.SetNumberOfPointLights(0);
@@ -325,6 +325,11 @@ export class Application
 		switch (e.code)
 		{
 			case 'KeyQ':
+
+				let sphere = new Sphere(this.m_renderer, this.m_scene);
+				sphere.SetPosition([0, 0.5, 0]);
+				sphere.SetVelocity(10 * (Math.random() - 0.5), 0, 10 * (Math.random() - 0.5));
+				this.m_scene.AddSceneObject(sphere);
 
 				// this.m_scene.RemoveGameObject("GameCube2:0");
 
@@ -627,7 +632,7 @@ export class Application
 		// 3. Load all materials (asynchronously)
 		// NOTE: This needs to come AFTER creating the render passes because it will trigger the
 		//       OnMaterialBufferChanged callback which will try to look up the main render pass
-		let mat1 = new Material("mat_test1", vec4.create(1.0, 1.0, 0.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
+		let mat1 = new Material("mat_test1", vec4.create(1.0, 1.0, 0.5, 1.0), vec3.create(0.02, 0.02, 0.02), 0.9);
 		let mat2 = new Material("mat_test2", vec4.create(0.5, 0.5, 1.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
 		this.m_renderer.AddMaterial(mat1);
 		this.m_renderer.AddMaterial(mat2);
@@ -637,17 +642,25 @@ export class Application
 
 		//  5. Construct the game objects and add them to the Scene
 		let sphere = new Sphere(this.m_renderer, this.m_scene);
+		sphere.SetPosition([0, 0.5, 0]);
+		sphere.SetVelocity(10 * (Math.random() - 0.5), 0, 10 * (Math.random() - 0.5));
+		this.m_scene.AddSceneObject(sphere);
 
+		sphere = new Sphere(this.m_renderer, this.m_scene);
+		sphere.SetPosition([0, 0.5, 0]);
+		sphere.SetVelocity(10 * (Math.random() - 0.5), 0, 10 * (Math.random() - 0.5));
 		this.m_scene.AddSceneObject(sphere);
 
 		// Add Lights to the scene
 		// NOTE: This needs to come after setting the lighting changed callbacks so that the 
 		// callbacks trigger when adding lights
-		this.m_scene.AddDirectionalLight("dir_light_1", [0, 0, -1], [1, 1, 1]);
+		this.m_scene.AddDirectionalLight("dir_light_1", [0, 0, -1], [0, 0.8, 0.8]);
+		this.m_scene.AddDirectionalLight("dir_light_2", [-1, 0, 0], [0.8, 0, 0]);
 
 
-		// DEBUG_ONLY
+		// START_DEBUG_ONLY
 		this.m_renderer.EnableGPUTiming();
+		// END_DEBUG_ONLY
 	}
 
 	public Update(timeDelta: number): void
