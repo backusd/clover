@@ -66,6 +66,10 @@ if [[ "${mode}" == "release" ]]; then
     echo "Running in tmp directory: tsc --project ${tsconfig}"
     tsc --project ${tsconfig}
 
+    if [[ $? -ne 0 ]]; then
+        exit $?
+    fi
+
     mv ${outDir}/* ../${outDir}/
     cd ..
     rm -rf tmp

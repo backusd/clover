@@ -1,4 +1,4 @@
-import { LOG_CORE_ERROR } from "./Log.js";
+import { LOG_CORE_TRACE, LOG_CORE_ERROR } from "./Log.js";
 import { BindGroup } from "./Renderer.js";
 import { InstanceBufferPool } from "./Buffer.js";
 import { mat4, vec3, vec4 } from 'wgpu-matrix';
@@ -164,13 +164,11 @@ export class SceneObject {
     UpdateModelMatrix(parentModelMatrix) {
         this.m_modelMatrixIsDirty = true;
         let model = mat4.translation(this.m_position);
-        let rotationX = mat4.rotationX(this.m_rotation[0]);
-        let rotationY = mat4.rotationY(this.m_rotation[1]);
-        let rotationZ = mat4.rotationZ(this.m_rotation[2]);
+        if (this.m_rotationAngle !== 0) {
+            let rotation = mat4.rotation(this.m_rotationAxis, this.m_rotationAngle);
+            mat4.multiply(model, rotation, model);
+        }
         let scaling = mat4.scaling(this.m_scaling);
-        mat4.multiply(model, rotationX, model);
-        mat4.multiply(model, rotationY, model);
-        mat4.multiply(model, rotationZ, model);
         mat4.multiply(model, scaling, model);
         this.m_modelData.SetModelMatrix(mat4.multiply(parentModelMatrix, model));
     }
@@ -193,8 +191,12 @@ export class SceneObject {
         this.m_position = position;
         this.m_modelMatrixIsDirty = true;
     }
-    SetRotation(rotation) {
-        this.m_rotation = rotation;
+    SetRotationAxis(axis) {
+        this.m_rotationAxis = axis;
+        this.m_modelMatrixIsDirty = true;
+    }
+    SetRotationAngle(angle) {
+        this.m_rotationAngle = angle;
         this.m_modelMatrixIsDirty = true;
     }
     SetScaling(scaling) {
@@ -211,7 +213,8 @@ export class SceneObject {
     m_childObjects;
     // Model data for the object
     m_position = vec3.create(0, 0, 0);
-    m_rotation = vec3.create(0, 0, 0);
+    m_rotationAxis = vec3.create(0, 0, 0);
+    m_rotationAngle = 0;
     m_scaling = vec3.create(1, 1, 1);
     m_modelMatrixIsDirty = true;
     m_modelData;
@@ -273,7 +276,9 @@ export class GameObject extends SceneObject {
 }
 export class Sphere extends GameObject {
     constructor(renderer, scene) {
-        super("Sphere", renderer, scene, "mesh_sphere", "mat_test1");
+        let iii = Math.max(1, Math.floor(Math.random() * 10));
+        LOG_CORE_TRACE(`Sphere: random material index = ${iii}`);
+        super("Sphere", renderer, scene, "mesh_sphere", `mat_test${iii}`);
     }
     UpdatePhysics(timeDelta, parentModelMatrix, parentMatrixIsDirty) {
         this.m_position[0] += (timeDelta * this.m_velocity[0]);
@@ -383,6 +388,10 @@ export class DirectionalLight extends Light {
 export class PointLight extends Light {
     constructor(renderer, scene) {
         super("PointLight", renderer, scene, "mesh_sphere");
+        // Make the spheres for the lights much smaller
+        this.m_scaling[0] = 0.3;
+        this.m_scaling[1] = 0.3;
+        this.m_scaling[2] = 0.3;
     }
     UpdatePhysics(timeDelta, parentModelMatrix, parentMatrixIsDirty) {
     }
@@ -393,6 +402,9 @@ export class PointLight extends Light {
     }
     SetStrength(strength) {
         this.m_strengthView.set(strength);
+        // When we set the strength, we need to update the material to the same color
+        let material = new Material(this.m_materialName, vec4.create(strength[0], strength[1], strength[2], 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
+        this.m_renderer.UpdateMaterial(this.m_materialName, material);
     }
     SetFalloffStart(start) {
         this.m_falloffStartView[0] = start;
@@ -409,9 +421,16 @@ export class SpotLight extends Light {
     }
     SetStrength(strength) {
         this.m_strengthView.set(strength);
+        // When we set the strength, we need to update the material to the same color
+        let material = new Material(this.m_materialName, vec4.create(strength[0], strength[1], strength[2], 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
+        this.m_renderer.UpdateMaterial(this.m_materialName, material);
     }
     SetDirection(direction) {
         this.m_directionView.set(direction);
+        // Update the rotation so the cones point in the correct direction
+        let defaultDirection = vec3.create(0, -1, 0);
+        this.SetRotationAxis(vec3.cross(defaultDirection, direction));
+        this.SetRotationAngle(vec3.angle(direction, defaultDirection));
     }
     SetPosition(position) {
         // Need to call super.SetPosition() so the model matrix gets updated

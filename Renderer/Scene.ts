@@ -249,14 +249,14 @@ export abstract class SceneObject
 		this.m_modelMatrixIsDirty = true;
 
 		let model = mat4.translation(this.m_position);
-		let rotationX = mat4.rotationX(this.m_rotation[0]);
-		let rotationY = mat4.rotationY(this.m_rotation[1]);
-		let rotationZ = mat4.rotationZ(this.m_rotation[2]);
-		let scaling = mat4.scaling(this.m_scaling);
 
-		mat4.multiply(model, rotationX, model);
-		mat4.multiply(model, rotationY, model);
-		mat4.multiply(model, rotationZ, model);
+		if (this.m_rotationAngle !== 0)
+		{
+			let rotation = mat4.rotation(this.m_rotationAxis, this.m_rotationAngle);
+			mat4.multiply(model, rotation, model);
+		}
+		
+		let scaling = mat4.scaling(this.m_scaling);
 		mat4.multiply(model, scaling, model);
 
 		this.m_modelData.SetModelMatrix(mat4.multiply(parentModelMatrix, model));
@@ -287,9 +287,14 @@ export abstract class SceneObject
 		this.m_position = position;
 		this.m_modelMatrixIsDirty = true;
 	}
-	public SetRotation(rotation: Vec3): void
+	public SetRotationAxis(axis: Vec3): void
 	{
-		this.m_rotation = rotation;
+		this.m_rotationAxis = axis;
+		this.m_modelMatrixIsDirty = true;
+	}
+	public SetRotationAngle(angle: number): void
+	{
+		this.m_rotationAngle = angle;
 		this.m_modelMatrixIsDirty = true;
 	}
 	public SetScaling(scaling: Vec3): void
@@ -312,7 +317,8 @@ export abstract class SceneObject
 
 	// Model data for the object
 	protected m_position = vec3.create(0, 0, 0);
-	protected m_rotation = vec3.create(0, 0, 0);
+	protected m_rotationAxis = vec3.create(0, 0, 0);
+	protected m_rotationAngle: number = 0;
 	protected m_scaling = vec3.create(1, 1, 1);
 	protected m_modelMatrixIsDirty = true;
 	private m_modelData: ModelData;
@@ -393,7 +399,9 @@ export class Sphere extends GameObject
 {
 	constructor(renderer: Renderer, scene: Scene)
 	{
-		super("Sphere", renderer, scene, "mesh_sphere", "mat_test1");
+		let iii = Math.max(1, Math.floor(Math.random() * 10));
+		LOG_CORE_TRACE(`Sphere: random material index = ${iii}`);
+		super("Sphere", renderer, scene, "mesh_sphere", `mat_test${iii}`);
 	}
 	public UpdatePhysics(timeDelta: number, parentModelMatrix: Mat4, parentMatrixIsDirty: boolean): void
 	{
@@ -542,6 +550,11 @@ export class PointLight extends Light
 	constructor(renderer: Renderer, scene: Scene)
 	{
 		super("PointLight", renderer, scene, "mesh_sphere");
+
+		// Make the spheres for the lights much smaller
+		this.m_scaling[0] = 0.3;
+		this.m_scaling[1] = 0.3;
+		this.m_scaling[2] = 0.3;
 	}
 	public UpdatePhysics(timeDelta: number, parentModelMatrix: Mat4, parentMatrixIsDirty: boolean): void
 	{
@@ -555,6 +568,10 @@ export class PointLight extends Light
 	public SetStrength(strength: Vec3): void
 	{
 		this.m_strengthView.set(strength);
+
+		// When we set the strength, we need to update the material to the same color
+		let material = new Material(this.m_materialName, vec4.create(strength[0], strength[1], strength[2], 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
+		this.m_renderer.UpdateMaterial(this.m_materialName, material);
 	}
 	public SetFalloffStart(start: number): void
 	{
@@ -577,10 +594,19 @@ export class SpotLight extends Light
 	public SetStrength(strength: Vec3): void
 	{
 		this.m_strengthView.set(strength);
+
+		// When we set the strength, we need to update the material to the same color
+		let material = new Material(this.m_materialName, vec4.create(strength[0], strength[1], strength[2], 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
+		this.m_renderer.UpdateMaterial(this.m_materialName, material);
 	}
 	public SetDirection(direction: Vec3): void
 	{
 		this.m_directionView.set(direction);
+
+		// Update the rotation so the cones point in the correct direction
+		let defaultDirection = vec3.create(0, -1, 0);
+		this.SetRotationAxis(vec3.cross(defaultDirection, direction));
+		this.SetRotationAngle(vec3.angle(direction, defaultDirection));
 	}
 	public SetPosition(position: Vec3): void
 	{

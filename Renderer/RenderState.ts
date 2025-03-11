@@ -7,7 +7,7 @@ export class RenderState
 	public UpdateProjectionMatrix(width: number, height: number)
 	{
 		const aspect = width / height;
-		this.projectionMatrix = mat4.perspective((2 * Math.PI) / 5, aspect, 1, 100.0);
+		this.projectionMatrix = mat4.perspective(Math.PI / 4.0, aspect, 1, 100.0);
 		this.projectionMatrixHasChanged = true;
 	}
 	public projectionMatrix: Mat4;

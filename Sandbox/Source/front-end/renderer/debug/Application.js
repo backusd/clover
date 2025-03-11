@@ -400,7 +400,7 @@ export class Application {
         let boxMesh = GenerateBoxMesh("mesh_box", 1, 1, 1, 0);
         let sphereMesh = GenerateSphereMesh("mesh_sphere", 1, 40, 40);
         let geosphereMesh = GenerateGeosphereMesh("mesh_geosphere", 1, 4);
-        let cylinderMesh = GenerateCylinderMesh("mesh_cylinder", 2, 1, 4, 40, 5);
+        let cylinderMesh = GenerateCylinderMesh("mesh_cylinder", 0.5, 0.01, 1, 40, 5);
         let gridMesh = GenerateGridMesh("mesh_grid", 2, 3, 2, 3);
         let quadMesh = GenerateQuadMesh("mesh_quad", 1, 1, 1, 1, 1);
         this.m_renderer.AddMeshGroup(new MeshGroup("mg_game-object", this.m_renderer.GetDevice(), [boxMesh, sphereMesh, geosphereMesh, cylinderMesh, gridMesh, quadMesh], 0));
@@ -464,9 +464,11 @@ export class Application {
         // NOTE: This needs to come AFTER creating the render passes because it will trigger the
         //       OnMaterialBufferChanged callback which will try to look up the main render pass
         let mat1 = new Material("mat_test1", vec4.create(1.0, 1.0, 0.5, 1.0), vec3.create(0.02, 0.02, 0.02), 0.9);
-        let mat2 = new Material("mat_test2", vec4.create(0.5, 0.5, 1.0, 1.0), vec3.create(0.01, 0.01, 0.01), 0.75);
         this.m_renderer.AddMaterial(mat1);
-        this.m_renderer.AddMaterial(mat2);
+        for (let iii = 2; iii <= 10; ++iii) {
+            let mat = new Material(`mat_test${iii}`, vec4.create(Math.random(), Math.random(), Math.random(), 1.0), vec3.create(0.02, 0.02, 0.02), 0.75);
+            this.m_renderer.AddMaterial(mat);
+        }
         //  5. Construct the game objects and add them to the Scene
         let sphere = new Sphere(this.m_renderer, this.m_scene);
         sphere.SetPosition([0, 0.5, 0]);
@@ -479,8 +481,18 @@ export class Application {
         // Add Lights to the scene
         // NOTE: This needs to come after setting the lighting changed callbacks so that the 
         // callbacks trigger when adding lights
-        this.m_scene.AddDirectionalLight("dir_light_1", [0, 0, -1], [0, 0.8, 0.8]);
-        this.m_scene.AddDirectionalLight("dir_light_2", [-1, 0, 0], [0.8, 0, 0]);
+        //this.m_scene.AddDirectionalLight("dir_light_1", [0, 0, -1], [0, 0.8, 0.8]);
+        //this.m_scene.AddDirectionalLight("dir_light_2", [-1, 0, 0], [0.8, 0, 0]);
+        // Point Lights
+        for (let iii = 0; iii < 1; ++iii) {
+            this.m_scene.AddPointLight(`point_light-${iii}`, [20 * (Math.random() - 0.5), 4, 20 * (Math.random() - 0.5)], [Math.random(), Math.random(), Math.random()], 10, 20);
+        }
+        // Spot Lights
+        for (let iii = 0; iii < 5; ++iii) {
+            let position = vec3.create(20 * (Math.random() - 0.5), 4, 20 * (Math.random() - 0.5));
+            let direction = vec3.subtract([0, 0, 0], position);
+            this.m_scene.AddSpotLight(`spot_light-${iii}`, position, direction, [Math.random(), Math.random(), Math.random()], 10, 20, 64);
+        }
         // START_DEBUG_ONLY
         this.m_renderer.EnableGPUTiming();
         // END_DEBUG_ONLY
