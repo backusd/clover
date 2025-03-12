@@ -481,17 +481,17 @@ export class Application {
         // Add Lights to the scene
         // NOTE: This needs to come after setting the lighting changed callbacks so that the 
         // callbacks trigger when adding lights
-        //this.m_scene.AddDirectionalLight("dir_light_1", [0, 0, -1], [0, 0.8, 0.8]);
-        //this.m_scene.AddDirectionalLight("dir_light_2", [-1, 0, 0], [0.8, 0, 0]);
+        this.m_scene.AddDirectionalLight("dir_light_1", [0, 0, -1], [0, 0.8, 0.8]);
+        this.m_scene.AddDirectionalLight("dir_light_2", [-1, 0, 0], [0.8, 0, 0]);
         // Point Lights
-        for (let iii = 0; iii < 1; ++iii) {
+        for (let iii = 0; iii < 5; ++iii) {
             this.m_scene.AddPointLight(`point_light-${iii}`, [20 * (Math.random() - 0.5), 4, 20 * (Math.random() - 0.5)], [Math.random(), Math.random(), Math.random()], 10, 20);
         }
         // Spot Lights
         for (let iii = 0; iii < 5; ++iii) {
             let position = vec3.create(20 * (Math.random() - 0.5), 4, 20 * (Math.random() - 0.5));
             let direction = vec3.subtract([0, 0, 0], position);
-            this.m_scene.AddSpotLight(`spot_light-${iii}`, position, direction, [Math.random(), Math.random(), Math.random()], 10, 20, 64);
+            this.m_scene.AddSpotLight(`spot_light-${iii}`, position, direction, [Math.random(), Math.random(), Math.random()], 10, 20, 0.5);
         }
         // START_DEBUG_ONLY
         this.m_renderer.EnableGPUTiming();
