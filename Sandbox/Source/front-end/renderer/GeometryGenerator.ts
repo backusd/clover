@@ -219,6 +219,325 @@ export function GenerateBoxMesh(name: string, width: number, height: number, dep
     mesh.CreateMeshFromRawData(name, PackVertices(v), BasicObjectVertex.floatsPerVertex, i);
     return mesh;
 }
+export function GenerateArrowMesh(name: string, headRadius: number, headHeight:number, shaftRadius: number, shaftLength: number, sliceCount: number): Mesh
+{
+    if (sliceCount <= 0)
+    {
+        LOG_CORE_ERROR(`GenerateArrowMesh: Invalid sliceCount value '${sliceCount}'. Value must be > 0. Setting sliceCount to 10`);
+        sliceCount = 10;
+    }
+
+    let v = new Array<BasicObjectVertex>();
+
+    // Center the arrow vertically
+    let headTopY = (shaftLength + headHeight) / 2;
+    let shaftTopY = headTopY - headHeight;
+    let shaftBottomY = -1 * headTopY;
+
+    // vertices of the top of the head
+    let y = headTopY;
+    let r = 0.0;
+    let dTheta = 2.0 * Math.PI / sliceCount;
+    for (let iii = 0; iii <= sliceCount; ++iii)
+    {
+        let vertex = new BasicObjectVertex(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+        let c = Math.cos(iii * dTheta);
+        let s = Math.sin(iii * dTheta);
+
+        vertex.position[0] = r * c;
+        vertex.position[1] = y;
+        vertex.position[2] = r * s;
+
+        // Ignoring texture coords for now
+        vertex.textureCoords[0] = 0.0;
+        vertex.textureCoords[1] = 0.0;
+
+        // Cylinder can be parameterized as follows, where we introduce v
+        // parameter that goes in the same direction as the v tex-coord
+        // so that the bitangent goes in the same direction as the v tex-coord.
+        //   Let r0 be the bottom radius and let r1 be the top radius.
+        //   y(v) = h - hv for v in [0,1].
+        //   r(v) = r1 + (r0-r1)v
+        //
+        //   x(t, v) = r(v)*cos(t)
+        //   y(t, v) = h - hv
+        //   z(t, v) = r(v)*sin(t)
+        //
+        //  dx/dt = -r(v)*sin(t)
+        //  dy/dt = 0
+        //  dz/dt = +r(v)*cos(t)
+        //
+        //  dx/dv = (r0-r1)*cos(t)
+        //  dy/dv = -h
+        //  dz/dv = (r0-r1)*sin(t)
+
+        // This is unit length.
+        vec3.set(-s, 0.0, c, vertex.tangent);
+
+        let dr = headRadius;
+        let bitangent = vec3.set(dr * c, -headHeight, dr * s);
+
+        vec3.normalize(
+            vec3.cross(vertex.tangent, bitangent),
+            vertex.normal
+        );
+
+        v.push(vertex);
+    }
+
+    // vertices of the bottom of the head with normals appropriate for the head
+    y = shaftTopY;
+    r = headRadius;
+    for (let iii = 0; iii <= sliceCount; ++iii)
+    {
+        let vertex = new BasicObjectVertex(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+        let c = Math.cos(iii * dTheta);
+        let s = Math.sin(iii * dTheta);
+
+        vertex.position[0] = r * c;
+        vertex.position[1] = y;
+        vertex.position[2] = r * s;
+
+        // Ignoring texture coords for now
+        vertex.textureCoords[0] = 0.0;
+        vertex.textureCoords[1] = 0.0;
+
+        // This is unit length.
+        vec3.set(-s, 0.0, c, vertex.tangent);
+
+        let dr = headRadius;
+        let bitangent = vec3.set(dr * c, -headHeight, dr * s);
+
+        vec3.normalize(
+            vec3.cross(vertex.tangent, bitangent),
+            vertex.normal
+        );
+
+        v.push(vertex);
+    }
+
+    // vertices of the bottom of the head with normals (0, -1, 0) for connecting with 
+    // vertices in the top of the shaft
+    y = shaftTopY;
+    r = headRadius;
+    for (let iii = 0; iii <= sliceCount; ++iii)
+    {
+        let vertex = new BasicObjectVertex(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+        let c = Math.cos(iii * dTheta);
+        let s = Math.sin(iii * dTheta);
+
+        vertex.position[0] = r * c;
+        vertex.position[1] = y;
+        vertex.position[2] = r * s;
+
+        // Ignoring texture coords for now
+        vertex.textureCoords[0] = 0.0;
+        vertex.textureCoords[1] = 0.0;
+
+        // This is unit length.
+        vec3.set(-s, 0.0, c, vertex.tangent);
+
+        // Setting normal to (0, -1, 0) because it is a flat plane
+        // that connects these vertices to the top of the shaft
+        vertex.normal[0] = 0;
+        vertex.normal[1] = -1;
+        vertex.normal[2] = 0;
+
+        v.push(vertex);
+    }
+
+    // vertices of the top of the shaft with normals (0, -1, 0) for connecting with 
+    // vertices in the bottom of the head
+    y = shaftTopY;
+    r = shaftRadius;
+    for (let iii = 0; iii <= sliceCount; ++iii)
+    {
+        let vertex = new BasicObjectVertex(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+        let c = Math.cos(iii * dTheta);
+        let s = Math.sin(iii * dTheta);
+
+        vertex.position[0] = r * c;
+        vertex.position[1] = y;
+        vertex.position[2] = r * s;
+
+        // Ignoring texture coords for now
+        vertex.textureCoords[0] = 0.0;
+        vertex.textureCoords[1] = 0.0;
+
+        // This is unit length.
+        vec3.set(-s, 0.0, c, vertex.tangent);
+
+        // Setting normal to (0, -1, 0) because it is a flat plane
+        // that connects these vertices to the top of the shaft
+        vertex.normal[0] = 0;
+        vertex.normal[1] = -1;
+        vertex.normal[2] = 0;
+
+        v.push(vertex);
+    }
+
+    // vertices of the top of the shaft with normals pointing radially for connecting with 
+    // vertices in the bottom of the shaft
+    y = shaftTopY;
+    r = shaftRadius;
+    for (let iii = 0; iii <= sliceCount; ++iii)
+    {
+        let vertex = new BasicObjectVertex(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+        let c = Math.cos(iii * dTheta);
+        let s = Math.sin(iii * dTheta);
+
+        vertex.position[0] = r * c;
+        vertex.position[1] = y;
+        vertex.position[2] = r * s;
+
+        // Ignoring texture coords for now
+        vertex.textureCoords[0] = 0.0;
+        vertex.textureCoords[1] = 0.0;
+
+        // This is unit length.
+        vec3.set(-s, 0.0, c, vertex.tangent);
+
+        let dr = headRadius;
+        let bitangent = vec3.set(dr * c, -headHeight, dr * s);
+
+        vec3.normalize(
+            vec3.cross(vertex.tangent, bitangent),
+            vertex.normal
+        );
+
+        v.push(vertex);
+    }
+
+    // vertices of the bottom of the shaft with normals pointing radially for connecting with 
+    // vertices in the top of the shaft
+    y = shaftBottomY;
+    r = shaftRadius;
+    for (let iii = 0; iii <= sliceCount; ++iii)
+    {
+        let vertex = new BasicObjectVertex(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+        let c = Math.cos(iii * dTheta);
+        let s = Math.sin(iii * dTheta);
+
+        vertex.position[0] = r * c;
+        vertex.position[1] = y;
+        vertex.position[2] = r * s;
+
+        // Ignoring texture coords for now
+        vertex.textureCoords[0] = 0.0;
+        vertex.textureCoords[1] = 0.0;
+
+        // This is unit length.
+        vec3.set(-s, 0.0, c, vertex.tangent);
+
+        let dr = headRadius;
+        let bitangent = vec3.set(dr * c, -headHeight, dr * s);
+
+        vec3.normalize(
+            vec3.cross(vertex.tangent, bitangent),
+            vertex.normal
+        );
+
+        v.push(vertex);
+    }
+
+    // vertices of the bottom of the shaft with normals (0, -1, 0) for connecting with 
+    // bottom center cap vertex 
+    y = shaftBottomY;
+    r = shaftRadius;
+    for (let iii = 0; iii <= sliceCount; ++iii)
+    {
+        let vertex = new BasicObjectVertex(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+        let c = Math.cos(iii * dTheta);
+        let s = Math.sin(iii * dTheta);
+
+        vertex.position[0] = r * c;
+        vertex.position[1] = y;
+        vertex.position[2] = r * s;
+
+        // Ignoring texture coords for now
+        vertex.textureCoords[0] = 0.0;
+        vertex.textureCoords[1] = 0.0;
+
+        // This is unit length.
+        vec3.set(-s, 0.0, c, vertex.tangent);
+
+        // Setting normal to (0, -1, 0) because it is a flat plane
+        // that connects these vertices to the center of the cap on the base of the shaft
+        vertex.normal[0] = 0;
+        vertex.normal[1] = -1;
+        vertex.normal[2] = 0;
+
+        v.push(vertex);
+    }
+
+    // Bottom center vertex
+    v.push(new BasicObjectVertex(0, shaftBottomY, 0, 0, -1, 0, 0, 0, 0, 0, 0));
+
+    // Add one because we duplicate the first and last vertex per ring
+	// since the texture coordinates are different.
+    let ringVertexCount = sliceCount + 1;
+
+    let i: number[] = [];
+
+    // Indices for the arrow head
+    for (let jjj = 0; jjj < sliceCount; ++jjj)
+    {
+        i.push(jjj);
+        i.push(ringVertexCount + jjj + 1);
+        i.push(ringVertexCount + jjj);
+
+        i.push(jjj);
+        i.push(jjj + 1);
+        i.push(ringVertexCount + jjj + 1);
+    }
+
+    // Indices for under part of the arrow head
+    for (let jjj = 2 * ringVertexCount; jjj < sliceCount + 2 * ringVertexCount; ++jjj)
+    {
+        i.push(jjj);
+        i.push(ringVertexCount + jjj + 1);
+        i.push(ringVertexCount + jjj);
+
+        i.push(jjj);
+        i.push(jjj + 1);
+        i.push(ringVertexCount + jjj + 1);
+    }
+
+    // Indices for shaft body
+    for (let jjj = 4 * ringVertexCount; jjj < sliceCount + 4 * ringVertexCount; ++jjj)
+    {
+        i.push(jjj);
+        i.push(ringVertexCount + jjj + 1);
+        i.push(ringVertexCount + jjj);
+
+        i.push(jjj);
+        i.push(jjj + 1);
+        i.push(ringVertexCount + jjj + 1);
+    }
+
+    // Indices for the bottom cap
+    let capCenterIndex = v.length - 1;
+    for (let jjj = 6 * ringVertexCount; jjj < sliceCount + 6 * ringVertexCount; ++jjj)
+    {
+        i.push(capCenterIndex);
+        i.push(jjj);
+        i.push(jjj + 1);
+    }
+
+
+    let indices = new Uint32Array(i);
+
+    let mesh = new Mesh();
+    mesh.CreateMeshFromRawData(name, PackVertices(v), BasicObjectVertex.floatsPerVertex, indices);
+    return mesh;
+}
 export function GenerateSphereMesh(name: string, radius: number, sliceCount: number, stackCount: number): Mesh
 {
     if (stackCount <= 0)

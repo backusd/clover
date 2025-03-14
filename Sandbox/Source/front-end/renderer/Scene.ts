@@ -527,7 +527,7 @@ export class DirectionalLight extends Light
 {
 	constructor(renderer: Renderer, scene: Scene)
 	{
-		super("DirectionalLight", renderer, scene, "mesh_box");
+		super("DirectionalLight", renderer, scene, "mesh_arrow");
 	}
 	public UpdatePhysics(timeDelta: number, parentModelMatrix: Mat4, parentMatrixIsDirty: boolean): void
 	{
@@ -535,6 +535,11 @@ export class DirectionalLight extends Light
 	public SetDirection(direction: Vec3): void
 	{
 		this.m_directionView.set(direction);
+
+		// Update the rotation so the cones point in the correct direction
+		let defaultDirection = vec3.create(0, 1, 0);
+		this.SetRotationAxis(vec3.cross(defaultDirection, direction));
+		this.SetRotationAngle(vec3.angle(direction, defaultDirection));
 	}
 	public SetStrength(strength: Vec3): void
 	{

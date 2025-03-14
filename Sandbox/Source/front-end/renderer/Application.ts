@@ -40,7 +40,8 @@ import
 	GenerateGeosphereMesh,
 	GenerateCylinderMesh,
 	GenerateGridMesh,
-	GenerateQuadMesh
+	GenerateQuadMesh,
+	GenerateArrowMesh
 } from "./GeometryGenerator.js"
 import { GetBasicObjectLayer } from "./BasicObjectLayer.js"
 import { GetLightsLayer } from "./LightsLayer.js"
@@ -540,6 +541,7 @@ export class Application
 		let cylinderMesh = GenerateCylinderMesh("mesh_cylinder", 0.5, 0.01, 1, 40, 5);
 		let gridMesh = GenerateGridMesh("mesh_grid", 2, 3, 2, 3);
 		let quadMesh = GenerateQuadMesh("mesh_quad", 1, 1, 1, 1, 1);
+		let arrowMesh = GenerateArrowMesh("mesh_arrow", 0.37, 0.5, 0.2, 1.0, 40);
 
 		this.m_renderer.AddMeshGroup(
 			new MeshGroup("mg_game-object", this.m_renderer.GetDevice(),
@@ -549,7 +551,7 @@ export class Application
 
 		this.m_renderer.AddMeshGroup(
 			new MeshGroup("mg_lights", this.m_renderer.GetDevice(),
-				[boxMesh, sphereMesh, cylinderMesh],
+				[arrowMesh, sphereMesh, cylinderMesh],
 				0)
 		);
 
