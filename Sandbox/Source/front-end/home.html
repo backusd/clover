@@ -11,6 +11,7 @@
 	<link rel="stylesheet" href="styles.css">
 	<link rel="icon" type="image/x-icon" href="/images/favicon.ico">
 
+	<script src="home.js" defer></script>
 	<script type="importmap">
 		{
 		  "imports": {
@@ -22,19 +23,78 @@
 </head>
 <body>
 <div class="grid-container">
+	<!-- Header -->
 	<div class="grid-header">Header</div>
-	<div class="grid-left-pane">Left Pane</div>
-	<div class="grid-center-pane">
+
+	<!-- Left Pane Top -->
+	<div class="grid-left-pane-top">
+		<h1 id="scene-items-header">Scene Items</h1>
 		
+		<div class="expandable scene-item">
+			<div class="expandable_title-bar scene-item-title-bar">
+				<ion-icon class="scene-item-title-chevron" name="chevron-forward-outline"></ion-icon>
+				<p class="scene-item-title">Light #1</p>	
+				<ion-icon class="scene-item-title-icon" name="sunny"></ion-icon>			
+			</div>
+			<div class="expandable_content-wrapper">
+				<div class="expandable_content scene-item-content">
+					<p>
+						Content 1
+					</p>
+					<p>
+						Content 2
+					</p>
+					<p>
+						Content 3
+					</p>
+				</div>
+			</div>
+		</div>
+
+
+
+		<div class="expandable scene-item">
+			<div class="expandable_title-bar scene-item-title-bar">
+				<ion-icon class="scene-item-title-chevron" name="chevron-forward-outline"></ion-icon>
+				<p class="scene-item-title">Light #2</p>	
+				<ion-icon class="scene-item-title-icon" name="sunny"></ion-icon>			
+			</div>
+			<div class="expandable_content-wrapper">
+				<div class="expandable_content scene-item-content">
+					<p>
+						Content 1
+					</p>
+					<p>
+						Content 2
+					</p>
+					<p>
+						Content 3
+					</p>
+				</div>
+			</div>
+		</div>
+
+	</div>	
+
+	<!-- Left Pane Bottom -->
+	<div class="grid-left-pane-bottom">
+		Left Pane Bottom
+	</div>	
+
+	<!-- Center Pane -->
+	<div class="grid-center-pane">		
 		<canvas id="main-canvas"></canvas>
-		<pre id="frame-timing-info"></pre>
-		
+		<pre id="frame-timing-info"></pre>	
 	</div>
+
+	<!-- Right Pane -->
 	<div class="grid-right-pane">Right Pane</div>
-	<div class="grid-bottom-pane">Bottom Pane</div>
 
-	
+	<!-- Bottom Pane -->
+	<div class="grid-bottom-pane">Bottom Pane</div>	
 
-</div>
+	<!-- Ion icon scripts -->
+	<script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+	<script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
 </body>
 </html>
