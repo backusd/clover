@@ -75,6 +75,7 @@ namespace Clover
         ND std::pair<std::string_view, ParametersMap> ParseTarget(std::string_view target) const noexcept;
         ND json GatherRequestData(std::string_view target, const ParametersMap& urlParams) const;
         ND http::message_generator GenerateHTMLResponse(std::string_view target, const ParametersMap& urlParams, HTTPRequestType& req);
+        ND http::message_generator GenerateRedirectResponse(std::string_view target, HTTPRequestType& req);
         ND http::message_generator ServeFile(std::string_view target, HTTPRequestType& req);
 
         ND http::message_generator HandleHTTPGETRequest(HTTPRequestType& req);
@@ -87,11 +88,6 @@ namespace Clover
 
         ND constexpr bool IsTargetHTML(std::string_view target) const noexcept
         {
-            // If the last character is '/', then the request was for a directory, which
-            // we will default to assuming this is a valid HTML target
-            if (target.ends_with('/'))
-                return true;
-
             // Create a string_view for the whole target
             std::string_view file = target;
 
@@ -101,6 +97,8 @@ namespace Clover
                 file = target.substr(pos + 1);
 
             // Look for the extension and return true if it matches ".html"
+            // Alternatively, if there is no extension, then we still return true because
+            // we assume it is a directory, which may still be a valid HTML target
             pos = file.rfind('.');
             return pos == std::string::npos ? true : file.substr(pos).compare(".html") == 0;
         }

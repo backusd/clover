@@ -248,6 +248,23 @@ namespace Clover
 
         }
 
+        // If the target is empty or is just '/', then respond with index.html
+        if (target.size() == 0 || target.compare("/") == 0)
+        {
+            // If the entire target is '/', then respond with 'index.html'
+            target = "index.html";
+        }
+        else if (target.ends_with('/'))
+        {
+            // IMPORTANT: The browser will use the requested path to infer the location of linked css/javascript.
+            //            For example, if the request was for '/home', then the linked css request would be for
+            //            '/styles.css'. However, if the request was for '/home/', then the css request would be
+            //            '/home/styles.css'. Therefore, to ensure consistency, if the request ends in '/', we
+            //            reroute the request to the same location but without the '/'.
+            LOG_INFO("[CORE] Returning redirect (308) - redirection '{0}' -> '{1}'", target, target.substr(0, target.size() - 1));
+            return GenerateRedirectResponse(target.substr(0, target.size() - 1), req);
+        }
+
         // if the target has either no file extension or the extension is .html, then
         // it will be treated an html request. Otherwise, we will assume the request is
         // for another type of file (.css, .js, .png, etc)
@@ -397,18 +414,30 @@ namespace Clover
         LOG_TRACE("[CORE] GatherRequestData: Calling user defined data gathering function for target: '{0}'", target);
         return itr->second(urlParams);
     }
+    http::message_generator Application::GenerateRedirectResponse(std::string_view target, HTTPRequestType& req)
+    {
+        http::response<http::string_body> res{ http::status::permanent_redirect, req.version() };
+        res.set(http::field::server, m_serverVersion);
+        res.set(http::field::content_type, "text/html");
+        res.set(http::field::location, target);
+        res.keep_alive(req.keep_alive());
+        res.prepare_payload();
+        return res;
+    }
     http::message_generator Application::GenerateHTMLResponse(std::string_view target, const Application::ParametersMap& urlParams, HTTPRequestType& req)
     {
         PROFILE_SCOPE("Application::GenerateHTMLResponse");
 
-        // If the target does not already end in ".html", then we want to add it
         std::string file(target);
-        if (!file.ends_with(".html"))
-            file += ".html";
 
         // Strip any leading '/' (We already ensure the document root ends with '/')
         if (file.starts_with('/'))
             file = file.erase(0, 1);
+
+        // If the target does not already end in ".html", then we assume the request was for
+        // is valid, but we simply need to append the html extension
+        if (!file.ends_with(".html"))
+            file += ".html";
 
         // Prepend the document root path
         file.insert(0, m_docRoot);

@@ -121,14 +121,14 @@ canvas {
 	text-align: center;
 }
 
-.expandable {
+.expandable_list {
 	padding: 0;
 }
-.expandable_open .expandable_content-wrapper {
-	grid-template-rows: 1fr;
+.expandable_list-item {
+	padding: 0;
 }
-.expandable_open .scene-item-title-chevron {
-	transform: rotate(90deg);
+.expandable_is-open .expandable_content-wrapper {
+	grid-template-rows: 1fr;
 }
 .expandable_title-bar {
 	user-select: none;
@@ -164,8 +164,11 @@ canvas {
 .scene-item-title-bar:hover {
 	background-color: #384F73;
 }
-.expandable_title-bar-open {
+.scene-item-title-bar-selected {
 	background-color: #5577AD;
+}
+.expandable_is-open .scene-item-title-chevron {
+	transform: rotate(90deg);
 }
 .scene-item-title {
 	font-weight: bold;

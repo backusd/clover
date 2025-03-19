@@ -8,10 +8,10 @@
 
 	<title>Sandbox</title>
 
-	<link rel="stylesheet" href="styles.css">
+	<link rel="stylesheet" href="home/styles.css">
 	<link rel="icon" type="image/x-icon" href="/images/favicon.ico">
 
-	<script src="home.js" defer></script>
+	<script src="home/home.js" defer></script>
 	<script type="importmap">
 		{
 		  "imports": {
@@ -19,7 +19,9 @@
 		  }
 		}
 	</script>
+	<!--
 	<script type="module" src="renderer/debug/main.js"></script>
+-->
 </head>
 <body>
 <div class="grid-container">
@@ -30,49 +32,49 @@
 	<div class="grid-left-pane-top">
 		<h1 id="scene-items-header">Scene Items</h1>
 		
-		<div class="expandable scene-item">
-			<div class="expandable_title-bar scene-item-title-bar">
-				<ion-icon class="scene-item-title-chevron" name="chevron-forward-outline"></ion-icon>
-				<p class="scene-item-title">Light #1</p>	
-				<ion-icon class="scene-item-title-icon" name="sunny"></ion-icon>			
-			</div>
-			<div class="expandable_content-wrapper">
-				<div class="expandable_content scene-item-content">
-					<p>
-						Content 1
-					</p>
-					<p>
-						Content 2
-					</p>
-					<p>
-						Content 3
-					</p>
+		<div class="expandable_list">
+			<div class="expandable_list-item scene-item">
+				<div class="expandable_title-bar scene-item-title-bar">
+					<ion-icon class="scene-item-title-chevron" name="chevron-forward-outline"></ion-icon>
+					<p class="scene-item-title">Light #1</p>	
+					<ion-icon class="scene-item-title-icon" name="sunny"></ion-icon>			
+				</div>
+				<div class="expandable_content-wrapper">
+					<div class="expandable_content scene-item-content">
+						<p>
+							Content 1
+						</p>
+						<p>
+							Content 2
+						</p>
+						<p>
+							Content 3
+						</p>
+					</div>
 				</div>
 			</div>
-		</div>
 
-
-
-		<div class="expandable scene-item">
-			<div class="expandable_title-bar scene-item-title-bar">
-				<ion-icon class="scene-item-title-chevron" name="chevron-forward-outline"></ion-icon>
-				<p class="scene-item-title">Light #2</p>	
-				<ion-icon class="scene-item-title-icon" name="sunny"></ion-icon>			
-			</div>
-			<div class="expandable_content-wrapper">
-				<div class="expandable_content scene-item-content">
-					<p>
-						Content 1
-					</p>
-					<p>
-						Content 2
-					</p>
-					<p>
-						Content 3
-					</p>
+			<div class="expandable_list-item scene-item">
+				<div class="expandable_title-bar scene-item-title-bar">
+					<ion-icon class="scene-item-title-chevron" name="chevron-forward-outline"></ion-icon>
+					<p class="scene-item-title">Light #2</p>	
+					<ion-icon class="scene-item-title-icon" name="sunny"></ion-icon>			
+				</div>
+				<div class="expandable_content-wrapper">
+					<div class="expandable_content scene-item-content">
+						<p>
+							Content 1
+						</p>
+						<p>
+							Content 2
+						</p>
+						<p>
+							Content 3
+						</p>
+					</div>
 				</div>
 			</div>
-		</div>
+		</div>	
 
 	</div>	
 
