@@ -89,31 +89,7 @@ canvas {
 }
 
 
-/*
-.scene-item {
-	background-color: #777;
-	color: white;
-	cursor: pointer;
-	padding: 18px;
-	width: 100%;
-	border: none;
-	text-align: left;
-	outline: none;
-	font-size: 15px;
-  }
-  
-  .active, .scene-item:hover {
-	background-color: #555;
-  }
-  
-  .scene-item-content {
-	padding: 0 18px;
-	max-height: 0;
-	overflow: hidden;
-	transition: max-height 0.2s ease-out;
-	background-color: #f1f1f1;
-  }
-*/
+
 
 #scene-items-header {
 	font-size: 20px;
@@ -135,12 +111,9 @@ canvas {
 	cursor: pointer;
 }
 .expandable_content {
-	padding: 0 var(--xy-padding);
-	line-height: 1.4;
-	font-size: 0.85em;
-	background-color: #ABC;
 	overflow: hidden;
 }
+
 .expandable_content-wrapper {
 	display: grid;
 	grid-template-rows: 0fr;
@@ -159,7 +132,7 @@ canvas {
 	background-color: #303030;
 	color: #EEEEEE;
 	margin: 0;
-	padding: 0.5em;
+	padding: 0.3em;
 }
 .scene-item-title-bar:hover {
 	background-color: #384F73;
@@ -180,4 +153,22 @@ canvas {
 .scene-item-title-icon {
 	display: flex;
 	margin-left: auto;
+}
+.scene-item-content {
+	background-color: #303030;
+	color: #EEEEEE;
+	margin: 0;
+	padding: 0;
+}
+.light-name:hover {
+	background-color: #384F73;
+}
+.light-name {
+	padding: 7px 30px;
+}
+.game-object-name:hover {
+	background-color: #384F73;
+}
+.game-object-name {
+	padding: 7px 30px;
 }

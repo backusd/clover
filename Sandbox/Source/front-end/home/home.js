@@ -1,4 +1,14 @@
-"use strict";
+import { vec3 } from 'wgpu-matrix';
+class Light {
+    strength;
+}
+function OnSceneItemClick(objectName) {
+    console.log(`Clicked: ${objectName}`);
+    let light = new Light();
+    light.strength = vec3.create(1, 2, 3);
+    console.log(`Light   : ${light}`);
+    console.log(`Strength: ${light.strength}`);
+}
 function ThrowIfNotDiv(elem, errorMessage) {
     if (elem === null) {
         throw Error(errorMessage);
@@ -8,11 +18,19 @@ function ThrowIfNotDiv(elem, errorMessage) {
     }
     return elem;
 }
-// ===============================================================================
+function ThrowIfNotParagraph(elem, errorMessage) {
+    if (elem === null) {
+        throw Error(errorMessage);
+    }
+    if (!(elem instanceof HTMLParagraphElement)) {
+        throw Error(errorMessage);
+    }
+    return elem;
+}
+// ===========================================================================================================
 // Expandable Functionality
-//   * Add a callback for every expandable element so that it can respond to 
-//     opening and closing by clicking
-// ===============================================================================
+//   * Add a callback for every expandable element so that it can respond to opening and closing by clicking
+// ===========================================================================================================
 let titleBars = document.getElementsByClassName("expandable_title-bar");
 for (let iii = 0; iii < titleBars.length; ++iii) {
     let titleBar = ThrowIfNotDiv(titleBars[iii], `Invalid use of class '.expandable_title-bar' - it is meant to be on a div element`);
@@ -34,6 +52,10 @@ for (let iii = 0; iii < titleBars.length; ++iii) {
                 let listItemTitleBar = ThrowIfNotDiv(listItem.children[0], `Invalid structuring of 'expandable_list' - each item must have a first child that is a div representing the title bar`);
                 listItemTitleBar.classList.remove("scene-item-title-bar-selected");
             }
+            // Now trigger OnSceneItemClick for this item
+            let title = ThrowIfNotParagraph(titleBar.querySelector('.scene-item-title'), "Invalid structuring of 'scene-item-title-bar' - expected to have a child with class 'scene-item-title'");
+            if (title.textContent !== null)
+                OnSceneItemClick(title.textContent);
         }
     });
 }

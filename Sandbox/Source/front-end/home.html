@@ -11,7 +11,7 @@
 	<link rel="stylesheet" href="home/styles.css">
 	<link rel="icon" type="image/x-icon" href="/images/favicon.ico">
 
-	<script src="home/home.js" defer></script>
+	
 	<script type="importmap">
 		{
 		  "imports": {
@@ -19,6 +19,7 @@
 		  }
 		}
 	</script>
+	<script type="module" src="home/home.js" defer></script>
 	<!--
 	<script type="module" src="renderer/debug/main.js"></script>
 -->
@@ -41,15 +42,7 @@
 				</div>
 				<div class="expandable_content-wrapper">
 					<div class="expandable_content scene-item-content">
-						<p>
-							Content 1
-						</p>
-						<p>
-							Content 2
-						</p>
-						<p>
-							Content 3
-						</p>
+						<p class="light-name">Light #1</p>
 					</div>
 				</div>
 			</div>
@@ -62,18 +55,24 @@
 				</div>
 				<div class="expandable_content-wrapper">
 					<div class="expandable_content scene-item-content">
-						<p>
-							Content 1
-						</p>
-						<p>
-							Content 2
-						</p>
-						<p>
-							Content 3
-						</p>
+						<p class="light-name">Light #1</p>
 					</div>
 				</div>
 			</div>
+
+			<div class="expandable_list-item scene-item">
+				<div class="expandable_title-bar scene-item-title-bar">
+					<ion-icon class="scene-item-title-chevron" name="chevron-forward-outline"></ion-icon>
+					<p class="scene-item-title">Game Object #1</p>	
+					<ion-icon class="scene-item-title-icon" name="cube"></ion-icon>			
+				</div>
+				<div class="expandable_content-wrapper">
+					<div class="expandable_content scene-item-content">
+						<p class="game-object-name">Game Object #1</p>
+					</div>
+				</div>
+			</div>
+
 		</div>	
 
 	</div>	

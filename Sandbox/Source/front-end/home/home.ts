@@ -1,3 +1,20 @@
+import { vec3, Vec3 } from 'wgpu-matrix';
+
+class Light
+{
+    public strength: Vec3;
+}
+
+
+function OnSceneItemClick(objectName: string): void 
+{
+    console.log(`Clicked: ${objectName}`);
+
+    let light: Light = new Light();
+    light.strength = vec3.create(1, 2, 3);
+    console.log(`Light   : ${light}`);
+    console.log(`Strength: ${light.strength}`);
+}
 
 function ThrowIfNotDiv(elem: Element | null, errorMessage: string): HTMLDivElement {
     if (elem === null)
@@ -5,6 +22,17 @@ function ThrowIfNotDiv(elem: Element | null, errorMessage: string): HTMLDivEleme
         throw Error(errorMessage);
     }
     if (!(elem instanceof HTMLDivElement))
+    {
+        throw Error(errorMessage);
+    }
+    return elem;
+}
+function ThrowIfNotParagraph(elem: Element | null, errorMessage: string): HTMLParagraphElement {
+    if (elem === null)
+    {
+        throw Error(errorMessage);
+    }
+    if (!(elem instanceof HTMLParagraphElement))
     {
         throw Error(errorMessage);
     }
@@ -43,6 +71,11 @@ for (let iii = 0; iii < titleBars.length; ++iii)
                 let listItemTitleBar = ThrowIfNotDiv(listItem.children[0], `Invalid structuring of 'expandable_list' - each item must have a first child that is a div representing the title bar`);
                 listItemTitleBar.classList.remove("scene-item-title-bar-selected");
             } 
+
+            // Now trigger OnSceneItemClick for this item
+            let title = ThrowIfNotParagraph(titleBar.querySelector('.scene-item-title'), "Invalid structuring of 'scene-item-title-bar' - expected to have a child with class 'scene-item-title'");
+            if (title.textContent !== null)
+                OnSceneItemClick(title.textContent);
         }
     });
 }
