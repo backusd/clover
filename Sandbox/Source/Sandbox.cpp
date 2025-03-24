@@ -18,7 +18,7 @@ public:
         SetServerVersion("Clover");
         
         // Set the document root
-        SetDocumentRoot("Source/front-end/");
+        SetDocumentRoot("front-end/");
 
         // Inform Clover of the templates for error handling
         SetBadRequestTarget("error-handling/bad_request.html");
