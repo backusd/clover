@@ -1,3 +1,5 @@
+import { LOG_TRACE, LOG_INFO, LOG_WARN, LOG_ERROR } from "./log.js"
+
 // HydridLookup allows you to retain a list of items and
 // look them up either via index or via string
 export class HybridLookup<T>
@@ -159,25 +161,51 @@ export class HybridLookup<T>
     }
 }
 
-export class CallbackSet<T extends (...args: any[]) => void>
+type CallableThatReturnsVoid = (...args: any[]) => void;
+export class Token<T extends CallableThatReturnsVoid>
+{
+    constructor(val: string, t: T)
+    {
+        this.value = val;
+        this.m_t = t;
+    }
+    public value: string = "";
+    
+    // This private member is necessary to ensure that tokens of 
+    // different types do not implement the same interface. Without
+    // this, we can pass any token of type Token<A> to any function
+    // expecting Token<B>, which is what we are trying to disallow
+    // by creating tokens in the first place.
+    private m_t: T;
+}
+export class CallbackSet<T extends CallableThatReturnsVoid>
 {
     constructor()
     {
         this.m_callbacks = new HybridLookup<T>();
         this.m_count = 0;
     }
-    public Register(callback: T): string
+    public Register(callback: T): Token<T>
     {
         // Generate a unique lookup token by converting the m_count to a string,
         // add the callback, and then return the token
         let token = this.m_count.toString();
         this.m_count++;
         this.m_callbacks.add(token, callback);
-        return token;
+        return new Token<T>(token, callback);
     }
-    public Revoke(token: string): void
+    public Revoke(token: Token<T>): void
     {
-        this.m_callbacks.removeFromKey(token);
+        // START_DEBUG_ONLY
+        if (!this.m_callbacks.containsKey(token.value))
+        {
+            let msg = `CallbackSet does not contain token '${token.value}'`;
+            LOG_ERROR(msg);
+            throw new Error(msg);
+        }
+        // END_DEBUG_ONLY
+
+        this.m_callbacks.removeFromKey(token.value);
     }
     public Invoke(...args: Parameters<T>): void
     {

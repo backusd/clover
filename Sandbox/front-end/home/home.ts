@@ -4,6 +4,11 @@ import {
     CallbackSet
 } from "../common/utils.js"
 
+
+// NOTE: You could have another class called EmptyMesh that extends Mesh that could be useful
+// for things like lights where we don't want them to be clickable or parttake in collisions.
+// However, that would mean needing to add virtualization just for that purpose. Rather, we
+// should be able to simply create a Mesh object with no vertices that behaves this way.
 class Mesh
 {
     // empty class for now, but will be used to holds CPU-side vertex information
@@ -12,20 +17,18 @@ class Mesh
     public map: HybridLookup<string> = new HybridLookup<string>();
 }
 
-type SceneObjectCallback = (sceneObject: SceneObject) => void;
 
+type SceneObjectCallback = (sceneObject: SceneObject) => void;
 class SceneObject
 {
-    constructor(name: string, mesh: Mesh, position: Vec3 = vec3.create(0, 0, 0),
-        rotationAxis: Vec3 = vec3.create(0, 0, 0), rotationAngle: number = 0,
-        scaling: Vec3 = vec3.create(1, 1, 1))
+    constructor(name: string, mesh: Mesh)
     {
         this.m_name = name;
         this.m_mesh = mesh;
-        this.m_position = position;
-        this.m_rotationAxis = rotationAxis;
-        this.m_rotationAngle = rotationAngle;
-        this.m_scaling = scaling;
+        this.m_position = vec3.create(0.0, 0.0, 0.0);
+        this.m_rotationAxis = vec3.create(0.0, 1.0, 0.0);
+        this.m_rotationAngle = 0.0;
+        this.m_scaling = vec3.create(1.0, 1.0, 1.0);
 
         this.OnNameChanged = new CallbackSet<SceneObjectCallback>();
         this.OnMeshChanged = new CallbackSet<SceneObjectCallback>();
@@ -64,15 +67,10 @@ class SceneObject
 type LightCallback = (light: Light) => void;
 class Light extends SceneObject
 {
-    constructor(name: string, mesh: Mesh, 
-        strength: Vec3 = vec3.create(1.0, 1.0, 1.0), 
-        position: Vec3 = vec3.create(0, 0, 0),
-        rotationAxis: Vec3 = vec3.create(0, 0, 0), 
-        rotationAngle: number = 0,
-        scaling: Vec3 = vec3.create(1, 1, 1))
+    constructor(name: string, mesh: Mesh)
     {
-        super(name, mesh, position, rotationAxis, rotationAngle, scaling);
-        this.m_strength = strength;
+        super(name, mesh);
+        this.m_strength = vec3.create(1.0, 1.0, 1.0);
         this.OnStrengthChanged = new CallbackSet<LightCallback>();
     }
     public GetStrength(): Vec3 { return this.m_strength; }
@@ -84,16 +82,10 @@ class Light extends SceneObject
 type DirectionalLightCallback = (light: DirectionalLight) => void;
 class DirectionalLight extends Light
 {
-    constructor(name: string, mesh: Mesh, 
-        strength: Vec3 = vec3.create(1.0, 1.0, 1.0), 
-        direction: Vec3 = vec3.create(1.0, 0.0, 0.0), 
-        position: Vec3 = vec3.create(0, 0, 0),
-        rotationAxis: Vec3 = vec3.create(0, 0, 0), 
-        rotationAngle: number = 0,
-        scaling: Vec3 = vec3.create(1, 1, 1))
+    constructor(name: string)
     {
-        super(name, mesh, strength, position, rotationAxis, rotationAngle, scaling);
-        this.m_direction = direction;
+        super(name, new Mesh());
+        this.m_direction = vec3.create(1.0, 0.0, 0.0);
         this.OnDirectionChanged = new CallbackSet<DirectionalLightCallback>();
     }
     public GetDirection(): Vec3 { return this.m_direction; }
@@ -102,19 +94,62 @@ class DirectionalLight extends Light
     public OnDirectionChanged: CallbackSet<DirectionalLightCallback>;
     private m_direction: Vec3;
 }
+type PointLightCallback = (light: PointLight) => void;
 class PointLight extends Light
 {
-    public position: Vec3;
-    public falloffStart: number = 0;
-    public falloffEnd: number = 1000;
+    constructor(name: string)
+    {
+        super(name, new Mesh());
+        this.m_falloffStart = 0.0;
+        this.m_falloffEnd = 1000.0;
+        this.OnFalloffStartChanged = new CallbackSet<PointLightCallback>();
+        this.OnFalloffEndChanged = new CallbackSet<PointLightCallback>();
+    }
+    public GetFalloffStart(): number { return this.m_falloffStart; }
+    public GetFalloffEnd(): number { return this.m_falloffEnd; }
+    public SetFalloffStart(start: number): void { this.m_falloffStart = start; this.OnFalloffStartChanged.Invoke(this); }
+    public SetFalloffEnd(end: number): void { this.m_falloffEnd = end; this.OnFalloffEndChanged.Invoke(this); }
+
+    public OnFalloffStartChanged: CallbackSet<PointLightCallback>;
+    public OnFalloffEndChanged: CallbackSet<PointLightCallback>;
+
+    private m_falloffStart: number = 0;
+    private m_falloffEnd: number = 1000;
 }
+type SpotLightCallback = (light: SpotLight) => void;
 class SpotLight extends Light
 {
-    public position: Vec3;
-    public direction: Vec3;
-    public falloffStart: number = 0;
-    public falloffEnd: number = 1000;
-    public spotPower: number = 1;
+    constructor(name: string)
+    {
+        super(name, new Mesh());
+        this.m_direction = vec3.create(1.0, 0.0, 0.0);
+        this.m_falloffStart = 0.0;
+        this.m_falloffEnd = 1000.0;
+        this.m_spotPower = 1.0;
+        this.OnDirectionChanged = new CallbackSet<SpotLightCallback>();
+        this.OnFalloffStartChanged = new CallbackSet<SpotLightCallback>();
+        this.OnFalloffEndChanged = new CallbackSet<SpotLightCallback>();
+        this.OnSpotPowerChanged = new CallbackSet<SpotLightCallback>();
+    }
+    public GetDirection(): Vec3 { return this.m_direction; }
+    public GetFalloffStart(): number { return this.m_falloffStart; }
+    public GetFalloffEnd(): number { return this.m_falloffEnd; }
+    public GetSpotPower(): number { return this.m_spotPower; }
+
+    public SetDirection(direction: Vec3): void { this.m_direction = direction; this.OnDirectionChanged.Invoke(this); }
+    public SetFalloffStart(start: number): void { this.m_falloffStart = start; this.OnFalloffStartChanged.Invoke(this); }
+    public SetFalloffEnd(end: number): void { this.m_falloffEnd = end; this.OnFalloffEndChanged.Invoke(this); }
+    public SetSpotPower(power: number): void { this.m_spotPower = power; this.OnSpotPowerChanged.Invoke(this); }
+    
+    public OnDirectionChanged: CallbackSet<SpotLightCallback>;
+    public OnFalloffStartChanged: CallbackSet<SpotLightCallback>;
+    public OnFalloffEndChanged: CallbackSet<SpotLightCallback>;
+    public OnSpotPowerChanged: CallbackSet<SpotLightCallback>;
+
+    private m_direction: Vec3;
+    private m_falloffStart: number;
+    private m_falloffEnd: number;
+    private m_spotPower: number = 1;
 }
 
 
@@ -123,17 +158,16 @@ function OnSceneItemClick(objectName: string): void
 {
     console.log(`Clicked: ${objectName}`);
 
-    let light: DirectionalLight = new DirectionalLight("dummy name", new Mesh());
-    let tokenA = light.OnDirectionChanged.Register(
-        (l: DirectionalLight) => { console.log(`A: dir = ${l.GetDirection()}`); }
+    let light: SpotLight = new SpotLight("dummy name");
+    let tokenA = light.OnSpotPowerChanged.Register(
+        (l: SpotLight) => { console.log(`A: spot power = ${l.GetSpotPower()}`); }
     );
-    let tokenB = light.OnDirectionChanged.Register(
-        (l: DirectionalLight) => { console.log(`B: dir = ${l.GetDirection()}`); }
+    let tokenB = light.OnSpotPowerChanged.Register(
+        (l: SpotLight) => { console.log(`B: spot power = ${l.GetSpotPower()}`); }
     );
-    light.SetDirection(vec3.create(1, 2, 3));
-    light.OnDirectionChanged.Revoke(tokenA);
-    light.SetDirection(vec3.create(4, 5, 6));
-
+    light.SetSpotPower(5);
+    light.OnSpotPowerChanged.Revoke(tokenA);
+    light.SetSpotPower(10);
 }
 
 function ThrowIfNotDiv(elem: Element | null, errorMessage: string): HTMLDivElement {

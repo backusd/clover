@@ -1,3 +1,4 @@
+import { LOG_ERROR } from "./log.js";
 // HydridLookup allows you to retain a list of items and
 // look them up either via index or via string
 export class HybridLookup {
@@ -109,6 +110,19 @@ export class HybridLookup {
         return s;
     }
 }
+export class Token {
+    constructor(val, t) {
+        this.value = val;
+        this.m_t = t;
+    }
+    value = "";
+    // This private member is necessary to ensure that tokens of 
+    // different types do not implement the same interface. Without
+    // this, we can pass any token of type Token<A> to any function
+    // expecting Token<B>, which is what we are trying to disallow
+    // by creating tokens in the first place.
+    m_t;
+}
 export class CallbackSet {
     constructor() {
         this.m_callbacks = new HybridLookup();
@@ -120,10 +134,17 @@ export class CallbackSet {
         let token = this.m_count.toString();
         this.m_count++;
         this.m_callbacks.add(token, callback);
-        return token;
+        return new Token(token, callback);
     }
     Revoke(token) {
-        this.m_callbacks.removeFromKey(token);
+        // START_DEBUG_ONLY
+        if (!this.m_callbacks.containsKey(token.value)) {
+            let msg = `CallbackSet does not contain token '${token.value}'`;
+            LOG_ERROR(msg);
+            throw new Error(msg);
+        }
+        // END_DEBUG_ONLY
+        this.m_callbacks.removeFromKey(token.value);
     }
     Invoke(...args) {
         for (let iii = 0; iii < this.m_callbacks.size(); ++iii)
