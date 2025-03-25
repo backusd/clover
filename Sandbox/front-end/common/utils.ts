@@ -158,3 +158,33 @@ export class HybridLookup<T>
         return s;
     }
 }
+
+export class CallbackSet<T extends (...args: any[]) => void>
+{
+    constructor()
+    {
+        this.m_callbacks = new HybridLookup<T>();
+        this.m_count = 0;
+    }
+    public Register(callback: T): string
+    {
+        // Generate a unique lookup token by converting the m_count to a string,
+        // add the callback, and then return the token
+        let token = this.m_count.toString();
+        this.m_count++;
+        this.m_callbacks.add(token, callback);
+        return token;
+    }
+    public Revoke(token: string): void
+    {
+        this.m_callbacks.removeFromKey(token);
+    }
+    public Invoke(...args: Parameters<T>): void
+    {
+        for (let iii = 0; iii < this.m_callbacks.size(); ++iii)
+            this.m_callbacks.getFromIndex(iii)(...args);
+    }
+
+    private m_callbacks: HybridLookup<T>;
+    private m_count: number;
+}

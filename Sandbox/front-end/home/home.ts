@@ -4,11 +4,6 @@ import {
     CallbackSet
 } from "../common/utils.js"
 
-
-// NOTE: You could have another class called EmptyMesh that extends Mesh that could be useful
-// for things like lights where we don't want them to be clickable or parttake in collisions.
-// However, that would mean needing to add virtualization just for that purpose. Rather, we
-// should be able to simply create a Mesh object with no vertices that behaves this way.
 class Mesh
 {
     // empty class for now, but will be used to holds CPU-side vertex information
@@ -16,7 +11,6 @@ class Mesh
 
     public map: HybridLookup<string> = new HybridLookup<string>();
 }
-
 
 type SceneObjectCallback = (sceneObject: SceneObject) => void;
 
