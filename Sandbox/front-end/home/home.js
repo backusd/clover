@@ -1,5 +1,6 @@
 import { vec3 } from 'wgpu-matrix';
-import { HybridLookup, CallbackSet } from "../common/utils.js";
+import { LOG_TRACE } from "../common/log.js";
+import { CallbackSet, JSONToVec3 } from "../common/utils.js";
 // NOTE: You could have another class called EmptyMesh that extends Mesh that could be useful
 // for things like lights where we don't want them to be clickable or parttake in collisions.
 // However, that would mean needing to add virtualization just for that purpose. Rather, we
@@ -7,7 +8,10 @@ import { HybridLookup, CallbackSet } from "../common/utils.js";
 class Mesh {
     // empty class for now, but will be used to holds CPU-side vertex information
     // so we can do collision testing
-    map = new HybridLookup();
+    meshy = 99;
+    static fromJson(json) {
+        return new Mesh();
+    }
 }
 class SceneObject {
     constructor(name, mesh) {
@@ -114,15 +118,57 @@ class SpotLight extends Light {
     m_falloffStart;
     m_falloffEnd;
     m_spotPower = 1;
+    toJSON() {
+        return { SpotLight: {
+                name: this.GetName(),
+                mesh: this.GetMesh(),
+                position: this.GetPosition(),
+                rotationAxis: this.GetRotationAxis(),
+                rotationAngle: this.GetRotationAngle(),
+                scaling: this.GetScaling(),
+                direction: this.m_direction,
+                falloffStart: this.m_falloffStart,
+                falloffEnd: this.m_falloffEnd,
+                spotPower: this.m_spotPower
+            } };
+    }
+    static fromJson(json) {
+        LOG_TRACE(`${json}`);
+        LOG_TRACE(`${json.name}`);
+        LOG_TRACE(`${json.position}`);
+        let name = json["name"];
+        let spotlight = new SpotLight(name);
+        spotlight.SetPosition(JSONToVec3(json.position));
+        spotlight.SetRotationAxis(JSONToVec3(json["rotationAxis"]));
+        spotlight.SetRotationAngle(json["rotationAngle"]);
+        spotlight.SetScaling(JSONToVec3(json["scaling"]));
+        spotlight.SetDirection(JSONToVec3(json["direction"]));
+        spotlight.SetFalloffStart(json["falloffStart"]);
+        spotlight.SetFalloffEnd(json["falloffEnd"]);
+        spotlight.SetSpotPower(json["spotPower"]);
+        return spotlight;
+    }
+}
+function OnPos(obj) {
+    console.log(`pos = ${obj.GetPosition()}`);
 }
 function OnSceneItemClick(objectName) {
     console.log(`Clicked: ${objectName}`);
     let light = new SpotLight("dummy name");
-    let tokenA = light.OnSpotPowerChanged.Register((l) => { console.log(`A: spot power = ${l.GetSpotPower()}`); });
-    let tokenB = light.OnSpotPowerChanged.Register((l) => { console.log(`B: spot power = ${l.GetSpotPower()}`); });
-    light.SetSpotPower(5);
-    light.OnSpotPowerChanged.Revoke(tokenA);
-    light.SetSpotPower(10);
+    light.SetPosition(vec3.create(1, 2, 3));
+    light.SetRotationAxis(vec3.create(1, 0, 0));
+    light.SetFalloffStart(5);
+    light.SetFalloffEnd(10);
+    light.SetStrength(vec3.create(0.5, 0.4, 0.9));
+    light.SetSpotPower(2);
+    light.SetDirection(vec3.create(-1, 0, -1));
+    light.OnPositionChanged.Register(OnPos);
+    let str = JSON.stringify(light);
+    console.log(str);
+    let light2 = SpotLight.fromJson(JSON.parse(str).SpotLight);
+    light2.OnPositionChanged.Register(OnPos);
+    light2.SetPosition(vec3.create(11, 12, 13));
+    console.log(JSON.stringify(light2));
 }
 function ThrowIfNotDiv(elem, errorMessage) {
     if (elem === null) {

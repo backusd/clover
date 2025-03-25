@@ -1,4 +1,5 @@
-import { LOG_ERROR } from "./log.js";
+import { LOG_TRACE, LOG_ERROR } from "./log.js";
+import { vec3 } from 'wgpu-matrix';
 // HydridLookup allows you to retain a list of items and
 // look them up either via index or via string
 export class HybridLookup {
@@ -152,5 +153,9 @@ export class CallbackSet {
     }
     m_callbacks;
     m_count;
+}
+export function JSONToVec3(json) {
+    LOG_TRACE(`${json}`);
+    return vec3.create(json["0"], json["1"], json["2"]);
 }
 //# sourceMappingURL=utils.js.map

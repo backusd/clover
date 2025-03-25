@@ -1,4 +1,5 @@
 import { LOG_TRACE, LOG_INFO, LOG_WARN, LOG_ERROR } from "./log.js"
+import { vec3, Vec3 } from 'wgpu-matrix';
 
 // HydridLookup allows you to retain a list of items and
 // look them up either via index or via string
@@ -170,7 +171,7 @@ export class Token<T extends CallableThatReturnsVoid>
         this.m_t = t;
     }
     public value: string = "";
-    
+
     // This private member is necessary to ensure that tokens of 
     // different types do not implement the same interface. Without
     // this, we can pass any token of type Token<A> to any function
@@ -215,4 +216,9 @@ export class CallbackSet<T extends CallableThatReturnsVoid>
 
     private m_callbacks: HybridLookup<T>;
     private m_count: number;
+}
+
+export function JSONToVec3(json: any): Vec3
+{
+    return vec3.create(json["0"], json["1"], json["2"]);
 }
